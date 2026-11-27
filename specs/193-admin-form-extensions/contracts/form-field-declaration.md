@@ -72,7 +72,7 @@ Zod twins (`FieldSetDeclarationSchema`, `AdminFormDeclarationSchema`) validate t
 | Field | Shape | Who may declare |
 | --- | --- | --- |
 | `fieldSets` | `FieldSetDeclaration[]` | the owner of the host; `ownerModuleId` must equal the manifest id |
-| `adminForms` | `AdminFormDeclaration[]` | the field set's owner |
+| `adminForms` | `AdminFormDeclaration[]` | the module whose screen renders the form; it depends on the field set's owner (FR-083) — e.g. `customers` declares `customer.edit` over `customer_accounts`' `customer_account` set |
 | `formOverrides` | `contracts/field-overrides.md` §1 | `deployment`; `package` under grant |
 | `inputControls` | `contracts/input-controls.md` §1 | any origin |
 

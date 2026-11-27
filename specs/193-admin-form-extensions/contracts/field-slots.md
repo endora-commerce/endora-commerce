@@ -82,7 +82,7 @@ renders the input only (IX).
   `extensions: EntityExtensionsInputSchema.optional()` (`z.record(moduleIdRe, z.unknown())`, at most 8
   keys), forwarded unchanged to `Command.extensions`. Additive (Principle II). `customFieldWrites`
   declarations are unaffected.
-- **Reading** (OQ-193-1 A): the host's admin detail route accepts `?extensions=<moduleId>[,…]`
+- **Reading** (D-300.1): the host's admin detail route accepts `?extensions=<moduleId>[,…]`
   (`ExtensionsQuerySchema`) and answers each named module's D2 columns or its `adminReads: true`
   loader's value under `extensions.<moduleId>`; a module may serve one or the other on one host
   (`loader-and-columns-on-one-host`, refused at composition); an absent or off module's key is
@@ -104,6 +104,9 @@ export function fieldSlotHook<S extends z.ZodType>(spec: {
   `extensions.<moduleId>.<key>`. A changed key whose `writePermissions` code the actor lacks →
   `403 FIELD_WRITE_FORBIDDEN` (same resolution as `field-rules.md` §5). `write` returns the changed
   field names, which the helper passes to `noteAuditChanges`.
+- A slot cannot attach to a `ruleCheckOnly` writer (field-rules §2): such a Command carries no
+  `extensions`. Product slot fields are written on `product.create` / `product.update`, global scope
+  only (FR-127).
 - A slot module MUST declare the field set's owner in `dependencies` (`slot-owner-not-a-dependency`
   in the check; `HookOwnerNotDependedOnError` at composition already holds it server-side).
 

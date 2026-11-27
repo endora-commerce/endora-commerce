@@ -1,11 +1,14 @@
 # Data model — Admin form extensions (193)
 
-**No new table, column or migration in core or the platform.** Everything this feature adds is a
-declaration (contracts constants, manifest data, admin contribution data) or a per-process value
-derived from them. Persisted state belongs to the modules that contribute slot fields, on rungs that
-already exist: a side table (187) or D2 columns (178), migrated by that module and scaffolded with
-`pnpm --filter backend run migration:new`. The example fixture overlay (plan WP-G) owns one side table
-of that kind; no number is assigned here.
+**One new table: `custom_field_form_layout_overrides`, owned by `custom_fields`** (D-300.6). It is
+specified in `contracts/operator-form-layout.md` §1 and created by a `custom_fields` migration
+scaffolded with `pnpm --filter backend run migration:new` (no number assigned here). It is
+`@GlobalEntity()`, because it holds deployment-wide configuration and no tenant data.
+
+Everything else this feature adds is a declaration (contracts constants, manifest data, admin
+contribution data) or a per-process value derived from them. Slot data belongs to the contributing
+modules, which store it on the rungs that already exist: a side table (187) or D2 columns (178). The
+example fixture overlay owns one side table of that kind.
 
 ## 1. Declarations
 
@@ -50,14 +53,22 @@ AdminFieldBehaviour  (deployment / granted package / own-slot admin layer `field
 
 FormOverrideGrant    (deployment divergence.ts `formOverrideGrants[fieldSetId][]`)
  └─ moduleId, packageName, reason
+
+FormLayoutOverride   (table custom_field_form_layout_overrides; custom_fields)   ≤ 1 per (form, field)
+ ├─ formId, fieldKey                          unique together
+ ├─ labels / helps / placeholders             { en, pl } — every supported admin language
+ ├─ section, before | after, hidden, readOnly
+ └─ version, updatedAt
+   ↳ written only by custom_fields.form_layout.{set,reset,rekey}; read through FormLayoutOverrideSource
 ```
 
 ## 2. Derived, per process
 
 ```text
-FormRegistry (sealed at composeModules; immutable for the process)
+FormRegistry (sealed at composeModules; immutable for the process, except the operator layer)
  ├─ field sets, forms, writers, controls, formats, overrides, grants   (validated: field-overrides §3)
- └─ effectiveForms(presenceSnapshot) → EffectiveFormsResponse         memoised per snapshot
+ └─ effectiveForms(presenceSnapshot, layoutGeneration) → EffectiveFormsResponse   memoised per pair
+       layering per field/kind: core → code (deployment / granted package) → operator
        per form, per field: label/help/placeholder refs, section, order, default, readOnly, hidden,
        control|null, visibleWhen, merged validation, requiredWhen, effective writePermission,
        overriddenBy[{module, origin, kinds}]
@@ -83,6 +94,9 @@ touched, errors }`; layout per field-slots §5; submission splits into `{ core, 
 | I-8 | Layout order is a function of declarations only | field-slots §5; shuffled-registration test |
 | I-9 | `hidden` / `readOnly` / `visibleWhen` change no API behaviour | FR-062; contract test: API accepts a write to a hidden field |
 | I-10 | No tenant data in a declaration or the effective-forms response | shape (no ids beyond module ids); side tables follow host tenancy (187 OR-9) |
+| I-11 | An operator override sets only presentation kinds the field accepts; it never hides a required field, never clears a code hidden/read-only | `custom_fields.form_layout.set` validation (FORM_LAYOUT_OVERRIDE_INVALID) |
+| I-12 | An operator relabel resolves in every supported admin language, never in another language's text | `language-missing` refusal; fallback to code/core per language |
+| I-13 | A product rule applies at every saved scope; `required` binds only the global value | field-rule check scoped mode |
 
 ## 4. State transitions
 
@@ -94,3 +108,9 @@ touched, errors }`; layout per field-slots §5; submission splits into `{ core, 
   N+1: alias removed; anything still naming it is refused.
 - **Owner narrows `accepts`**: deprecation release first (stable, write); an override relying on the
   removed kind is warned in N, refused in N+1.
+- **Operator layout set / reset**: a reversible Command. The pre-state of each row is captured, and
+  undo restores it, all-or-nothing per row, with a conflict report on `version`. After commit, the
+  write announces `b2b:form-layout:changed`, and every process bumps its generation.
+- **Key rename with operator rows**: in the deprecation release, the boot hook runs the `rekey`
+  system Command and rewrites alias rows to the live key. In the release that removes the alias, a
+  remaining row on the removed key is `orphaned`: it is ignored, listed and deletable.

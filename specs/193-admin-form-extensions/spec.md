@@ -2,9 +2,10 @@
 
 **Feature Branch**: `spec/193-admin-form-extensions`
 **Created**: 2026-11-27
-**Status**: Draft. The architect rulings are in `research.md` (R-1 to R-20). Six questions are
-open for the owner (*Open questions* below, OQ-193-1 to OQ-193-6). No D-number has been assigned
-yet. The owner's answers are recorded as one when they are given.
+**Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
+**D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-23). No
+question is open. The constitution amendment this feature drafts (XV, 4.6.0) is pending the owner's
+sign-off (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
 replacement". The owner approved its direction, and the issue compares the approach with Magento 2,
 Sylius and Medusa v2.
@@ -15,7 +16,7 @@ Sylius and Medusa v2.
   HTTP `extensions` body field until "a host form can carry zone-contributed fields". This feature
   is that form.
 - `specs/187-side-table-extensions/`: side tables and read-port loaders. Its OR-10 deferred admin
-  HTTP reads; see OQ-193-1.
+  HTTP reads; D-300.1 reopens it narrowly.
 - `specs/188-policy-points/`: the precedent for a per-package, per-point grant.
 - `specs/189-command-middleware/`: `contracts/module-origin.md`, the trust tier (D-296).
 - `specs/190-overlay-full-modules/`: the overlay admin layer, `contracts/overlay-admin-layer.md`.
@@ -59,6 +60,28 @@ The need, taken from the issue: a deployment adds a field defined in code at a c
 core form. It relabels, hides, reorders or tightens a core field. It swaps a field's input control
 for a compatible one. It adds masks, derived values and conditional fields. It does all of this
 without editing core and without a rule that the UI enforces and the API ignores.
+
+## Owner rulings *(binding; D-300, recorded 2026-11-27)*
+
+- **D-300.1 (OQ-193-1 = A)**: Slot values are read through the host's admin detail read. A
+  side-table loader opts in with `adminReads: true`, and the host serves its value on
+  `?extensions=<moduleId>`. This narrowly reopens 187 OR-10 for the adopting hosts.
+- **D-300.2 (OQ-193-2 = A)**: An installed package may override another module's field only under a
+  deployment grant per (field set, package), on 188's terms.
+- **D-300.3 (OQ-193-3 = A)**: A tightened rule binds every operator, API-key and system write of the
+  entity. It does not bind buyer self-service writes.
+- **D-300.4 (OQ-193-4 = A)**: A tightened `required` does not apply retroactively. It is checked on
+  create and on any write that changes or clears the field.
+- **D-300.5 (OQ-193-5 = C)**: All five hosts adopt in one release: organization, project, customer,
+  opportunity and the product editor. The hookable-action declarations that `customer_accounts`,
+  `crm` and `catalog` lack are part of this feature, first in dependency order. The product editor is
+  a full work package, and its four paid PIM contributors keep working (FR-082).
+- **D-300.6 (OQ-193-6 = B)**: Business operators get a run-time screen for presentation overrides
+  only: label, help, placeholder, order or section, hidden, and read-only (R-21). Anything that
+  changes what the API accepts stays deployment code (XV).
+- **D-300.7**: Principle XV is amended to state what a deployment may and may not adjust on a core
+  form, and that operator overrides are presentation only (constitution 4.6.0, drafted on #2010's 4.5.0). The wording is
+  pending the owner's sign-off.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -233,7 +256,7 @@ export keep working. An API write whose projection disagrees with the new value 
 
 A core module may contribute fields only to its own forms or by an owner's invitation, which the
 field set is. An installed package may contribute slot fields, and it may override another module's
-field only under a deployment grant (OQ-193-2). A deployment may override any core field within
+field only under a deployment grant (D-300.2). A deployment may override any core field within
 `accepts`. A field may require a write permission, which the server enforces.
 
 **Why this priority**: The trust tiers are what make US1 to US5 safe to offer at all.
@@ -271,6 +294,84 @@ A module that is switched off shows as "switched off".
 
 ---
 
+### User Story 8: A business operator adjusts a form's presentation at run time (Priority: P2)
+
+An administrator holding `custom_fields:forms` opens *Custom fields → Form layout*, picks
+"Organization: edit", relabels "Tax ID" in English and Polish, moves "Parent organization" into
+another section, hides an unused optional field, and marks a field read-only. No deploy is needed.
+Each change is an audited Command and can be undone.
+
+**Why this priority**: D-300.6. It lets the business tune a form without a developer. It is a P2
+because the mechanism (US1, US2) has to exist first.
+
+**Independent Test**: Through the screen, relabel, move, hide and set read-only on four fields of
+`organization.edit`. The form shows the changes in every running process within the invalidation
+bound. An API write to the hidden and the read-only field is accepted unchanged. Undoing the Command
+restores the previous layout.
+
+**Acceptance Scenarios**:
+
+1. **Given** a field whose `accepts` lists `label`, **When** the operator saves a relabel, **Then** the
+   form shows it in the operator's language. A relabel MUST carry text for every supported admin
+   language. The screen refuses to save with one language missing.
+2. **Given** a field that core declares required, **Then** the screen offers no *Hide* control. A
+   request that tries anyway is refused with `422 FORM_LAYOUT_OVERRIDE_INVALID` (code
+   `hidden-required-field`).
+3. **Given** a deployment-code override that already sets the label, **When** the operator opens the
+   field, **Then** the screen shows the code value as the current default, names the deployment module
+   that set it, and lets the operator override it. *Reset* returns to the code value, not to core.
+4. **Given** a deployment-code override that hides a field, **Then** the screen shows the field as
+   hidden by the deployment, and the operator cannot unhide it.
+5. **Given** a field that does not accept `position`, **Then** the field cannot be dragged.
+6. **Given** an operator without `custom_fields:forms`, **Then** the screen is read-only. The write
+   routes answer `403`, and the palette action "Form layout" is hidden.
+7. **Given** an operator override on a field whose host module is switched off, **Then** the screen
+   lists the override as belonging to a switched-off module and keeps it. Switching the module back
+   on restores it.
+8. **Given** an operator override on a key that the owner renamed (an alias), **Then** at the next
+   boot the platform rewrites the override to the live key with an audited system Command. After the
+   alias is removed, a row that still names it is shown as orphaned, ignored by the form, and can be
+   deleted.
+
+---
+
+### User Story 9: Every adopted host declares its writers (Priority: P1)
+
+`customer_accounts`, `crm` and `catalog` publish hookable actions for the Commands that write their
+field sets. Field-rule checks and slot hooks can then reach every write path, as they do for
+`organizations` and `projects` (D-300.5, FR-110).
+
+**Acceptance Scenarios**:
+
+1. **Given** the published refs, **When** a module registers a `beforeCommit` hook on
+   `customer_account.update_profile`, `crm.opportunity.update` or `product.update`, **Then** it runs
+   inside the Command and can veto the write, under 176's semantics.
+2. **Given** a reversible Command that writes a field set, for example the product bulk update,
+   **Then** it is not hookable (176 §6). It is registered as a **rule-check-only writer**, so a
+   tightened rule still binds it, while slot hooks cannot attach to it (FR-113).
+
+---
+
+### User Story 10: The product editor adopts without a rewrite (Priority: P1)
+
+The product editor adopts section by section. Its existing `EditorField` renderers, including scope
+handling, are kept inside `DeclaredFormSection`. The `product.editor.field.after` mounts stay where
+they are, with the same props. The four PIM modules render their protection toggles unchanged
+(FR-082, FR-120 to FR-127).
+
+**Acceptance Scenarios**:
+
+1. **Given** no override and no slot, **When** the adopted editor renders at any scope, **Then** its
+   accessible structure (the roles, names and order of the fields, sections and zone mounts) equals
+   the pre-adoption snapshot.
+2. **Given** a deployment override relabelling `name`, **When** the editor renders at a channel
+   scope, **Then** the label applies at every scope, and scope inheritance is unchanged.
+3. **Given** a tightened `maxLength` on `name`, **When** any writer saves a scoped value over the
+   limit, at any scope, **Then** it is refused. A tightened `required` binds the global value only,
+   because an absent scoped value means the value is inherited (FR-124).
+
+---
+
 ### Edge Cases
 
 - **A slot anchored on a field that an override hides.** The slot renders in the hidden field's
@@ -290,12 +391,21 @@ A module that is switched off shows as "switched off".
   `422 COMMAND_EXTENSION_UNCLAIMED` for that key. The form refreshes presence, drops the field with
   the notice the save session already shows for a switched-off participant, and keeps the operator's
   other changes staged.
-- **A deployment that tightens `required` on a field that existing records lack.** OQ-193-4.
-- **Buyer self-service writes, such as storefront registration.** OQ-193-3.
+- **A deployment that tightens `required` on a field that existing records lack.** The rule does not
+  apply retroactively (D-300.4). A write that does not touch the field succeeds, and a write that
+  clears it is refused.
+- **Buyer self-service writes, such as storefront registration.** Not bound (D-300.3).
+- **An operator and a deployment override set the same label.** The operator's wins. Reset returns to
+  the deployment's value (FR-094).
+- **An operator override survives a deploy that removes `label` from a field's `accepts`.** The
+  removal goes through a deprecation release (R-2). In the removal release, the row is ignored and
+  shown as `no-longer-accepted`.
 - **A field key renamed by its owner.** The old key remains a deprecated alias for one release, and
   overrides and anchors on it are warned (FR-071).
-- **An override on a product field.** No product field set exists until the product editor adopts
-  (OQ-193-5). Until then, `product.editor.field.after` is unchanged.
+- **A product field with keys from a family (`attributeValues.<key>`).** An override or anchor may
+  name one member of the family, for example `attributeValues.color`. The member is validated against
+  the attribute definitions at render time and in the operator screen, not at composition, because
+  attributes are data (FR-123).
 
 ## Requirements *(mandatory)*
 
@@ -349,9 +459,11 @@ A module that is switched off shows as "switched off".
   validates the slice against the module's Zod schema, refusing with `422 FIELD_SLOT_INPUT_INVALID`
   and paths `extensions.<moduleId>.<key>`. It enforces `writePermission`, writes through the
   module's callback, and notes the changes.
-- **FR-015**: The form MUST read slot values from the host's admin detail read. [NEEDS
-  CLARIFICATION: OQ-193-1, which asks whether to reopen 187 OR-10 so that side-table loaders may opt
-  into `?extensions=` admin reads, or to have each slot read its own module's route.]
+- **FR-015**: The form MUST read slot values from the host's admin detail read (D-300.1). A
+  side-table loader MAY declare `adminReads: true`. Each adopting host's admin detail route MUST
+  serve `?extensions=<moduleId>[,…]` from D2 columns or `adminReads` loaders, omitting an absent or
+  switched-off module's key. A module MUST NOT serve both D2 columns and a loader under one key on one
+  host (`loader-and-columns-on-one-host`).
 - **FR-016**: A slot field MUST NOT be a save-session participant. Its value is part of the host's
   one request, folded into the host part (`specs/conventions/module-admin-surfaces.md` § *Zone-panel
   editors save once*, item 3).
@@ -379,9 +491,11 @@ A module that is switched off shows as "switched off".
   `contracts/field-overrides.md`). It is gated by an authenticated admin with no permission code, on
   `/api/v1/admin/module-presence`'s terms. The admin MUST take every override from it and MUST NOT
   bundle a second copy.
-- **FR-024**: The admin MUST refresh the effective forms whenever it refreshes module presence. The
-  server MUST compute them per process from the composition and the effective presence, so they need
-  no cache key of their own.
+- **FR-024**: The admin MUST refresh the effective forms whenever it refreshes module presence, and
+  after any operator-layout write. The server MUST compute them per process from the composition, the
+  effective presence and the operator layer. The memo MUST be invalidated by
+  `b2b:form-layout:changed`, which is announced after every committed operator-layout Command, with a
+  TTL bound if a subscription is lost (FR-097).
 - **FR-025**: An override's `label`, `help` and `placeholder` MUST be keys relative to the declaring
   module's bundle, present in `en` and `pl`. `help` follows the 280-character budget and `hint`
   follows the 80-character budget of `specs/conventions/module-i18n.md`.
@@ -423,9 +537,9 @@ A module that is switched off shows as "switched off".
   that constrains the UI only. A mask MUST declare in the override, as data, whether it has a
   server-side `pattern`. A derivation MUST pre-fill only while the target is untouched, and the server
   MUST NOT recompute it.
-- **FR-045**: Which writers a field-rule check binds MUST follow OQ-193-3. Whether a tightened
-  `required` binds existing records MUST follow OQ-193-4. [NEEDS CLARIFICATION: OQ-193-3 and
-  OQ-193-4.]
+- **FR-045**: The field-rule check MUST bind every operator, API-key and system write, and MUST skip
+  buyer self-service writes (D-300.3). A tightened `required` MUST be checked on create, and on an
+  update only when the update changes or clears the field (D-300.4).
 
 ### Trust tiers, presence and permissions
 
@@ -434,8 +548,7 @@ A module that is switched off shows as "switched off".
 - **FR-051**: `formOverrides` MUST be honoured from origin `deployment`, and from origin `package`
   only under a `formOverrideGrants` entry in the deployment's `divergence.ts` (per field set, per
   package, with a reason), following 189 `contracts/module-origin.md` §5. Origin `core` MUST NOT
-  override another module's field set. [NEEDS CLARIFICATION: OQ-193-2, which asks whether installed
-  packages may be granted overrides at all.]
+  override another module's field set (D-300.2).
 - **FR-052**: Every slot, override, control and behaviour of a module that is not effectively present
   MUST be absent everywhere, as if the module were never installed (XVII). The form renders the core
   field, the server enforces the core rules, and the effective-forms response omits the module.
@@ -465,13 +578,100 @@ A module that is switched off shows as "switched off".
 
 ### Core form adoption
 
-- **FR-080**: The first release MUST adopt the forms that OQ-193-5 selects. The recommended first set
-  is `organizations`' create and edit forms (research R-16).
+- **FR-080**: One release MUST adopt all five hosts (D-300.5): `organization.create` and
+  `organization.edit` (`organizations`), `project.create` and `project.edit` (`projects`),
+  `customer.edit` (rendered by `customers` over the `customer_account` field set of
+  `customer_accounts`), `opportunity.create` and `opportunity.edit` (`crm`), and `product.edit`
+  (`catalog`).
 - **FR-081**: A host MUST NOT adopt a form until each writer that FR-041 relies on is a declared
-  hookable action with `beforeCommit`. Hosts without hookable actions (`customers`,
-  `customer_accounts`, `crm`, `catalog`) declare them first, in the same release train.
+  hookable action with `beforeCommit`, or a rule-check-only writer (FR-113).
 - **FR-082**: The product field set MUST keep the existing `fieldPath` strings as its keys, so
   `product.editor.field.after` and its four external contributors are unchanged (R-16).
+- **FR-083**: An admin form MAY be declared by the module whose screen renders it, which differs from
+  the field set's owner when the screen and the entity have different owners (`customers` /
+  `customer_accounts`). The declaring module MUST depend on the field set's owner.
+
+### Operator form layout (D-300.6, R-21)
+
+- **FR-090**: `custom_fields` MUST own the operator layer. That means the table
+  `custom_field_form_layout_overrides` (one row per form and field key, platform-global), its
+  Commands, its routes and its screen. A migration scaffolded with `migration:new` creates the table.
+- **FR-091**: An operator override MUST carry only the kinds `label`, `help`, `placeholder`,
+  `position` (section, before or after), `hidden` and `readOnly`. Each kind MUST be in the field's
+  `accepts`. `hidden` MUST NOT be set on a core-required field, and neither `hidden` nor `readOnly`
+  may be set where `required-not-fillable` would follow. Slot fields accept `label`, `help`,
+  `position` and `hidden`.
+- **FR-092**: `label`, `help` and `placeholder` MUST be per-language maps over the supported admin
+  languages (`en`, `pl`), all present. Each is at most 200 characters, and `help` follows the
+  280-character budget. For a language added to the platform later, the field falls back to the code
+  value, or to core. It never falls back to another language.
+- **FR-093**: Writes MUST be Commands: `custom_fields.form_layout.set` (one form, a batch of fields)
+  and `custom_fields.form_layout.reset` (one form, some or all fields). Both MUST be reversible
+  (pre-state captured per row, undo with a conflict report) and audited with before and after.
+- **FR-094**: Precedence, per field and kind, MUST be core < deployment code (and granted packages)
+  < operator, for `label`, `help`, `placeholder` and `position`. `hidden` and `readOnly` MUST only
+  add: an operator cannot unhide or make writable what code hid or made read-only. Reset MUST remove
+  the operator layer only.
+- **FR-095**: The permission `custom_fields:forms` ("Manage form layout") MUST gate the write routes.
+  `custom_fields:read` gates the read routes. Both are registered following
+  `specs/conventions/module-admin-surfaces.md`, with labels in `en` and `pl`.
+- **FR-096**: The screen MUST live at `/custom-fields/forms` and `/custom-fields/forms/:formId`, with
+  the palette action "Form layout". It MUST show, per field, the core value, the code value (with its
+  module) and the operator value, the kinds the field accepts, and locks with reasons. It MUST reuse
+  the kit's reorder, `FormField`, `EditorSection` and save-session primitives (IX).
+- **FR-097**: After commit, the Command MUST announce `b2b:form-layout:changed`. Every process drops
+  its effective-forms memo, and the in-process operator-layer cache has a 60-second TTL as the bound
+  when a subscription is lost.
+- **FR-098**: An operator override on a field set whose owner is not effectively present MUST be
+  ignored by the effective forms and kept. `custom_fields` is non-deactivatable, so the layer itself
+  is never switched off.
+- **FR-099**: During a key's deprecation release, `custom_fields` MUST rewrite rows that name the
+  alias to the live key, once, at boot, through the system Command
+  `custom_fields.form_layout.rekey`. After the alias is removed, a row on an unknown key MUST be
+  ignored and listed as `orphaned`, and a row whose kind is no longer accepted MUST be ignored and
+  listed as `no-longer-accepted`. Both can be deleted from the screen.
+- **FR-100**: Operator overrides MUST NOT change what any API endpoint accepts, refuses or answers.
+
+### Hookable writers for the remaining hosts (D-300.5, R-22)
+
+- **FR-110**: `customer_accounts` MUST publish `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS` (`create`,
+  `updateProfile`, `customFieldsUpdate`) in `packages/contracts/src/customer-account-hooks.ts`, with
+  both phases, hook data that carries the after-state record and `changedFields`, and names-only
+  outbox data.
+- **FR-111**: `crm` MUST publish `OPPORTUNITY_HOOKABLE_ACTIONS` (`create`, `update`) in
+  `opportunity-hooks.ts`.
+- **FR-112**: `catalog` MUST publish `PRODUCT_HOOKABLE_ACTIONS` (`create`, `update`,
+  `scopedValuesSave`, `scopedValuesImport`) in `product-hooks.ts`. The scoped-value hook data carries
+  `{ productId, scope, after, changedFields }` per saved scope.
+- **FR-113**: A reversible Command that writes a field set MUST NOT be declared hookable (176 §6). It
+  MAY be registered as a rule-check-only writer, `ctx.fieldSets(... { ruleCheckOnly: true })`, which
+  admits the field-rule check alone. It MUST supply `hookData`. Undo actions are not writers.
+- **FR-114**: Each new action MUST have `expectHookableCommand` tests, be listed in its owner's
+  manifest `hookableActions`, and be announced in a changeset (additive).
+
+### Product editor adoption (D-300.5, R-23)
+
+- **FR-120**: `PRODUCT_FIELD_SET` MUST declare the editor's fields with the keys FR-082 fixes, plus
+  `type`, `attributeSetId`, `urlKey`, `status`, `audience` and `window`, and the key family
+  `attributeValues.*`.
+- **FR-121**: The editor MUST adopt section by section, each in its own merge request. Each section's
+  `DeclaredFormSection` renderer MUST wrap the existing `EditorField` (scope, inheritance, view and
+  `globalOnly` unchanged) rather than replace it.
+- **FR-122**: Every existing `product.editor.field.after` mount MUST stay, at its current place,
+  with its current props (`productId`, `fieldPath`, `scope`, `languageCodes`, `saveSession`). The
+  per-file mount counts that the module-owned-surface test holds MUST stay unchanged.
+- **FR-123**: A family member (`attributeValues.<code>`) MAY be the target of an override or an
+  anchor. Composition validates only the family. The operator screen and the editor check the member
+  against the live attribute definitions, and ignore a member that no longer exists, with a notice.
+- **FR-124**: For scoped writers, bounds, `pattern`, `format` and `options` MUST apply to the value at
+  every scope it is saved at. A tightened `required` MUST bind the global value only.
+- **FR-125**: An accessible-structure snapshot of the editor, taken before adoption at global,
+  channel and locale scope, MUST equal the adopted editor with no override, after every section's
+  merge request.
+- **FR-126**: Each catalog merge request MUST typecheck and build the four paid PIM modules' admin
+  layers against the built packages (read-only, `../paid-modules`). A failure blocks the merge.
+- **FR-127**: The product slot-field write path MUST be `product.update` and `product.create`. Slot
+  fields are global-scope only in this feature.
 
 ### Key Entities
 
@@ -485,6 +685,8 @@ A module that is switched off shows as "switched off".
 - **Field override**: data that changes how one core field is offered or tightens how it is
   validated. It is declared by a deployment module, or by a granted package.
 - **Input control**: a component with a declared output value type and an optional format.
+- **Operator layout override**: a row owned by `custom_fields`, one per form and field. It holds
+  presentation kinds only, with per-language text, and is written by reversible audited Commands.
 - **Field condition**: a small boolean expression over the field values of one form, evaluated by
   one shared function on the client and on the server.
 
@@ -507,58 +709,16 @@ A module that is switched off shows as "switched off".
   `product.editor.field.after` contributions compile and render unchanged.
 - **SC-007**: The effective-forms response adds at most one request per admin session refresh. It is
   fetched once, beside module presence, and never per form.
+- **SC-008**: An operator layout change is visible in every running process within 60 seconds, and
+  within one request when pub/sub is healthy. It is undoable, and an API write to the same fields is
+  unchanged by it.
+- **SC-009**: All five hosts ship in one release with the 4-path parity test (SC-002) passing for
+  each, and the four PIM modules build unchanged against it.
 
-## Open questions *(for the owner)*
+## Open questions
 
-Each question has options and a recommendation. Everything else was ruled by the architect in
-`research.md`.
-
-- **OQ-193-1: How does a form read slot values?**
-  A. Reopen 187 OR-10 narrowly. A side-table loader may opt in with `adminReads: true`, and each
-  adopting host's admin detail read serves its values on `?extensions=<moduleId>`, the wire 178
-  already has for `organizations`. This is the one-developer-day cost R-17 of 187 measured, per host.
-  B. Each slot reads its value from its own module's admin route.
-  C. Slots write only, with no value shown after save.
-  **Recommendation: A.** The value arrives with the record and its version, in one request. B costs
-  one request per contributing module per form open, and a second concurrency story. C does not meet
-  the need.
-- **OQ-193-2: May an installed package override another module's field?**
-  A. Only under a deployment grant per (field set, package), on 188's terms.
-  B. Never. Only the deployment may.
-  C. Freely, as for slots.
-  **Recommendation: A.** It is consistent with D-296 and 188. A package that needs it, for example a
-  PIM module making synced fields read-only, has a sanctioned path, and the deployment still decides.
-- **OQ-193-3: Which writes does a tightened rule bind?**
-  A. Every operator, API-key and system write of the entity, but not buyer self-service actions
-  (registration), whose storefront forms this feature does not extend.
-  B. Operator and API-key writes only. System integrations are exempt.
-  C. Every write, buyer self-service included.
-  **Recommendation: A.** "Imports, ports and the API cannot bypass it" is the issue's requirement. A
-  buyer cannot satisfy a rule whose field their form cannot show, so C would break registration
-  until a storefront feature exists.
-- **OQ-193-4: Does a tightened `required` bind records that predate it?**
-  A. It does not apply retroactively. It is checked on create, and on any write that changes or
-  clears the field. An unrelated write to a legacy record still succeeds.
-  B. Every write re-checks, on the custom-field SD-2 rule.
-  **Recommendation: A.** Under B, adding a rule blocks moderation, status and integration writes on
-  every legacy record until someone backfills them. A backfill is the deployment's own data task.
-- **OQ-193-5: Which forms come first, and in which release?**
-  A. Organization create and edit in the first release. Project, customer and opportunity follow in
-  the next release, after `customers`, `customer_accounts` and `crm` declare their hookable actions.
-  The product editor comes after that (R-16).
-  B. As A, with the product editor in the first release.
-  C. All five in one release.
-  **Recommendation: A.** `organizations` already has hookable actions, the D2 read wire, custom
-  fields and one Save, so it proves the mechanism with the smallest core change. The product editor
-  is 100 KB of scope-aware JSX with four external contributors, and adopting it first would put the
-  riskiest adoption on the critical path.
-- **OQ-193-6: Should business operators edit overrides at run time?**
-  A. Not in this feature. Overrides are deployment code, and the override shape stays pure data, so
-  a Settings-backed source can be added later without changing it.
-  B. Add now a Settings screen where an operator relabels, hides or reorders fields.
-  **Recommendation: A.** Tightened rules change what the API accepts, and that belongs to the
-  deployment's reviewed code (XV). A runtime editor for presentation alone is a separate product
-  decision, and the shape does not block it.
+None. OQ-193-1 to OQ-193-6 were answered by the owner on 2026-11-27 and are recorded above as D-300.
+`research.md` R-21 to R-23 rule on everything the answers left to the architect.
 
 ## Assumptions
 

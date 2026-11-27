@@ -48,9 +48,11 @@ GET /api/v1/admin/forms      preHandler: requireAdmin()   (no code — FR-023)
 ```ts
 export const EffectiveFieldSchema = z.object({
   key: z.string(),
-  label: z.object({ module: z.string(), key: z.string() }).optional(),
-  help: z.object({ module: z.string(), key: z.string() }).optional(),
-  placeholder: z.object({ module: z.string(), key: z.string() }).optional(),
+  // A code layer names a bundle key; the operator layer (operator-form-layout.md) carries
+  // per-language operator content. The admin resolves the reader's language.
+  label: EffectiveTextSchema.optional(),
+  help: EffectiveTextSchema.optional(),
+  placeholder: EffectiveTextSchema.optional(),
   section: z.string(), order: z.number().int(),           // post-position, per form
   default: z.unknown().optional(),
   readOnly: z.boolean(), hidden: z.boolean(),
@@ -60,7 +62,13 @@ export const EffectiveFieldSchema = z.object({
   requiredWhen: FieldConditionSchema.optional(),
   writePermission: z.string().optional(),                 // effective (owner's or deployment's)
   overriddenBy: z.array(z.object({ module: z.string(), origin: z.enum(MODULE_ORIGINS), kinds: z.array(z.string()) })),
+  /** Kinds the operator layer set on this field (operator-form-layout.md §3). */
+  operatorKinds: z.array(z.string()),
 });
+export const EffectiveTextSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('code'), module: z.string(), key: z.string() }),
+  z.object({ source: z.literal('operator'), text: z.record(z.string(), z.string()) }),
+]);
 export const EffectiveFormsResponseSchema = z.object({
   forms: z.array(z.object({ id: z.string(), fieldSet: z.string(), fields: z.array(EffectiveFieldSchema) })),
 });
@@ -68,8 +76,11 @@ export const EffectiveFormsResponseSchema = z.object({
 
 - Only forms of a **present** owner; only overrides of **present** declaring modules (FR-052); a
   `control` of an absent module resolves to `null`.
-- Computed per process from the sealed `FormRegistry` and `effectiveState`, memoised per presence
-  snapshot (R-18). Same body for every admin; the admin decides read-only for `writePermission` from
+- Computed per process from the sealed `FormRegistry`, `effectiveState` and the operator layer
+  (`FormLayoutOverrideSource` port, operator-form-layout.md §4), memoised per (presence snapshot,
+  operator-layer generation); the generation is bumped by `b2b:form-layout:changed` (R-18).
+- Layering per field and kind: core → deployment code / granted package → operator
+  (operator-form-layout.md §3). Same body for every admin; the admin decides read-only for `writePermission` from
   its own session permissions.
 - The admin-kit provider (`packages/admin-kit/src/lib/forms/`) fetches it beside
   `getModulePresence()` and refreshes with it.
@@ -97,7 +108,7 @@ field and remedy:
 | `unknown-permission` | `writePermission` outside the vocabulary |
 | `foreign-override` | origin `core` overriding another module's field set |
 | `override-owner-not-a-dependency` | declaring module does not depend on the field set's owner |
-| `PackageFormOverrideNotGrantedError` | origin `package`, no grant for that field set (OQ-193-2 A) |
+| `PackageFormOverrideNotGrantedError` | origin `package`, no grant for that field set (D-300.2) |
 | `InvalidFormOverrideGrantError` | grant `unknown-field-set` / `unknown-module` / `not-a-package` / `package-name-mismatch` / `unused` |
 | `deprecated-target` | warning (log + divergence `deprecated`) for an alias target; refusal one release later |
 

@@ -31,7 +31,11 @@ all patterns, all formats).
 fieldSets(entries: readonly {
   readonly set: FieldSetDeclaration;
   readonly writers: readonly {
-    readonly on: HookableActionRef<any>;               // must offer 'beforeCommit'
+    readonly on: HookableActionRef<any>;               // must offer 'beforeCommit', unless ruleCheckOnly
+    /** FR-113: a reversible Command (not hookable). Admits only the field-rule check; needs hookData. */
+    readonly ruleCheckOnly?: boolean;
+    /** FR-124: scoped writer — `project` returns one entry per saved scope. */
+    readonly scoped?: boolean;
     readonly mode: 'create' | 'update';
     /** Pure: hook data → field values. `before` null on create. Keys outside the set are ignored. */
     readonly project: (data: unknown) => {
@@ -49,7 +53,7 @@ fieldSets(entries: readonly {
   `before` on update). `accepts-unenforceable` (form-field-declaration §3) is decided from `writes`.
 - Where hook data carries no `before` (e.g. `OrganizationUpdateHookData` has the after-state and
   `changedFields`), the projection derives `before` only for what it needs: the platform needs
-  `changed` (for `writePermission`, OQ-193-4 A) — so `project` may instead return
+  `changed` (for `writePermission`, D-300.4) — so `project` may instead return
   `{ after, changed: readonly string[] }`. One of `before` or `changed` is required on update.
 - Test helpers (`@endora-commerce/test-kit`): `expectFieldSetMatchesSchemas(set, { create, update })`
   and `expectFieldSetWriters(set, commandsByAction)` — the latter runs each writer's Command in a
@@ -90,16 +94,19 @@ A `derive` that targets a field is what clears `required-not-fillable`.
 ## §5 The field-rule check (platform, per writer)
 
 Registered by `FormRegistry.seal` for every writer, as the first `beforeCommit` entry of that
-action, exempt from 176's ordering. For a Command:
+action, exempt from 176's ordering; for a `ruleCheckOnly` writer the bus runs it at the same
+position (after `run`, before commit) although the action admits no module hook. For a scoped
+writer, steps 3–4 run per projected scope, and `required` is evaluated for the global scope only
+(FR-124). For a Command:
 
 1. Skip entirely when no **present** module contributes a tightening, `requiredWhen`, format or
    `writePermission` to the set, and the owner declares no `writePermission` — the common case costs
    one map lookup.
-2. Skip when the actor is a buyer self-service actor (OQ-193-3 A: `actorCustomerAccountId` set and no
+2. Skip when the actor is a buyer self-service actor (D-300.3: `actorCustomerAccountId` set and no
    admin, or an anonymous storefront write).
 3. `{ before|changed, after } = project(hookData)`.
 4. For each field with an effective rule: evaluate `required` (create: on `after`; update: only if
-   the field is in `changed` — OQ-193-4 A), bounds, `options`, `pattern`, `format` on `after` when
+   the field is in `changed` — D-300.4), bounds, `options`, `pattern`, `format` on `after` when
    the value is present; `requiredWhen` via `evaluateFieldCondition(cond, after)`.
 5. `writePermission` for each field in `changed`: admin actor → `AdminPermissionChecker.hasPermission`;
    API-key actor → key `scopes` ([NEEDS CLARIFICATION, plan T-B6]); system actor → exempt.

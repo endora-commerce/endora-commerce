@@ -1,8 +1,8 @@
 # Research — Admin form extensions (193)
 
-Architect rulings, R-1 to R-20. Each states the decision, the rationale and the rejected
-alternatives. The owner questions are OQ-193-1 to OQ-193-6 in `spec.md`. The rulings here do not
-depend on them unless they say so.
+Architect rulings R-1 to R-23. Each one gives the decision, the reasons for it, and the
+alternatives that were rejected. On 2026-11-27 the owner answered OQ-193-1 to OQ-193-6; the answers
+are recorded as **D-300** in `spec.md`. R-21 to R-23 design what D-300.5 and D-300.6 require.
 
 Measured against `origin/master` at `419ffad74`.
 
@@ -117,9 +117,9 @@ transaction. The XIII thin layer is untouched.
 - *Host-owned generic JSON columns for extension values.* That would put another module's data in a
   core table and violate XV's schema rungs.
 
-## R-6: Reading slot values (owner question OQ-193-1)
+## R-6: Reading slot values (D-300.1, as recommended)
 
-The architect recommends option A: a side-table loader opts into admin reads (`adminReads: true`),
+**Ruled A.** A side-table loader opts into admin reads (`adminReads: true`),
 and the adopting host's admin detail route serves the value on `?extensions=<moduleId>`
 (`ExtensionsQuerySchema`, already used by `organizations` for D2). 187 R-17 recorded the
 implementation, the collision rule and the estimated cost (one module may not serve both D2 columns
@@ -145,7 +145,7 @@ anything registers, and an overlay module's presence gates it with no extra wiri
   gates them. `divergence.ts` belongs to no module, so its overrides could never be switched off.
 - *Bundling overrides into the admin build only.* The server would need a second copy to enforce
   the rules, and the frontends would hard-code presence (XVII forbids that).
-- *A runtime Settings source.* See OQ-193-6. The shape is kept pure data so that a source of this
+- *A runtime Settings source* for the deployment layer. D-300.6 adds an operator layer for presentation only (R-21). The code shape is kept pure data so that a source of this
   kind can be added later.
 
 ## R-8: What a field accepts, and how overrides combine
@@ -212,11 +212,11 @@ presentation overrides only, unless the owner adds the value to the hook data.
 - *Ordinary module hooks registered on the overlay's behalf.* They would hit the ordering refusal
   described above.
 
-**Constitution.** No amendment is needed. The check is a declared refusal inside a declared
-hookable action, which is XV's "declared command hooks" surface, and it writes nothing, as XIII's
-middleware sentence requires of `admit`. A PATCH clarification that names "accepted field
-overrides" in XV's bounded-surface list is recommended, to be bundled with the docs pass. It is not
-required.
+**Constitution.** The check is a declared refusal inside a declared hookable action, and it writes
+nothing, as XIII's middleware sentence requires of `admit`. On the owner's instruction (D-300.7),
+XV is amended (4.6.0, drafted on top of #2010's 4.5.0 and pending sign-off). The amendment adds
+"declared form extensions" to the bounded surface, and adds one bullet stating what a deployment may
+and may not adjust on a core form, and that operator overrides are presentation only.
 
 ## R-10: Input controls declare an output type; the fit is checked at composition
 
@@ -301,7 +301,7 @@ working when it carries the stored value unchanged.
 today. The plan's task T-B6 establishes how the check obtains the key's scopes from the request
 context, or records that API-key writes on such fields are refused until it can.]
 
-## R-13: Trust tiers (OQ-193-2 decides the package row)
+## R-13: Trust tiers (D-300.2 rules the package row: A, grant only)
 
 **Decision.** The capability table, using 189 `contracts/module-origin.md`'s words:
 
@@ -309,7 +309,7 @@ context, or records that API-key writes on such fields are refused until it can.
 | --- | --- | --- | --- |
 | slot fields on another module's field set | yes, by the field set's invitation | yes | yes |
 | `formOverrides` on its **own** field set | not applicable (it edits its own declaration) | yes | yes |
-| `formOverrides` on another module's field set | **no** (`foreign-override`) | yes, within `accepts` | only under a `formOverrideGrants` entry (OQ-193-2 A) |
+| `formOverrides` on another module's field set | **no** (`foreign-override`) | yes, within `accepts` | only under a `formOverrideGrants` entry (D-300.2) |
 | `inputControls` / `fieldFormats` | yes | yes | yes |
 | `fieldBehaviours` on another module's field | no | yes, within `accepts.behaviour` | under the same grant as overrides |
 
@@ -368,12 +368,13 @@ and the projection keeps core features working.
 | Opportunity create and edit | `crm` | **none** | none | n/a | `OpportunityCreatePage.tsx` 17.3 KB |
 | Product editor | `catalog` | **none** | none | yes (scope-aware) | `ProductEditor.tsx` 99.7 KB plus tabs; scoped values per channel and locale |
 
-**Decision (proposed; the order is OQ-193-5).** The first release adopts organization create and
-edit. The next release adopts project, then customer and opportunity, after their owners declare
-hookable writers (FR-081). The product editor comes last. Its field set keeps the existing
-`fieldPath` strings as keys: `name`, `description`, `categories`, `gallery`, `attachments`, and
-`attributeValues.<key>` as a key family. Scoped values add a scope dimension to the projection,
-which needs its own design pass.
+**Decision (D-300.5 = C, overriding the recommended A).** All five hosts adopt in one release.
+Inside the release they are sequenced by dependency. Organizations goes first and proves the
+mechanism. Projects needs only adoption. Then `customer_accounts`, `crm` and `catalog` declare their
+hookable writers (R-22), and customer and opportunity adopt after that. The product editor adopts
+last, section by section (R-23). Its field set keeps the existing `fieldPath` strings as keys:
+`name`, `description`, `categories`, `gallery`, `attachments`, and the key family
+`attributeValues.<key>`.
 
 **What adoption costs a core module, per form.**
 1. A field-set and form declaration in contracts, plus manifest entries.
@@ -382,7 +383,7 @@ which needs its own design pass.
 3. Writer projections registered with `ctx.fieldSets`, plus `expectFieldSetMatchesSchemas` and
    `expectFieldSetWriters` in its tests.
 4. The `extensions` body field on its admin create and update routes, and the `?extensions=` read
-   wire (OQ-193-1 A).
+   wire (D-300.1).
 5. Its keys becoming contract surface (R-2).
 
 **`../paid-modules`, read-only.** Fifteen modules were read: `autopay`, `comarch_xl`, `dhl_parcel`,
@@ -397,7 +398,7 @@ which needs its own design pass.
 - The four PIM modules read `fieldPath` on `product.editor.field.after` and pass it to admin-kit's
   `FieldProtectionToggle`. FR-082 keeps those strings unchanged, so no paid module needs a change.
 - The likely future consumer is a PIM module wanting synced product fields read-only. That would be
-  a granted package override (OQ-193-2 A) once the product field set exists.
+  a granted package override (D-300.2) once the product field set exists.
 
 **No breaking change is needed.** The owner's ruling on #1983 prefers early breaks while adoption is
 low, but only where a break is necessary. One break was considered: aligning the product keys with
@@ -418,16 +419,27 @@ so on) are worded by the backend in the request's language. This is case 1 of `m
 backend can resolve the reader's language, so it translates and ships the code beside the sentence.
 Platform control labels come from the `core` bundle.
 
-## R-18: Caching
+## R-18: Caching (revised for D-300.6)
 
-**Decision.** The effective forms are a pure function of the composition, which is fixed for the
-life of a process, and the effective presence. They are memoised per process, keyed by the presence
-snapshot the lifecycle pub/sub already propagates to every process. There is no new Redis key and no
-invalidation message. The admin fetches `GET /api/v1/admin/forms` with `/module-presence` and
-refetches whenever presence refreshes, and the response carries an `ETag`.
+**Decision.** The effective forms are computed from three inputs: the composition, which is fixed
+for a process; the effective presence; and the operator layer, which is data. Each process keeps one
+memo, keyed by the presence snapshot and an operator-layer generation counter.
 
-**Rationale.** A second cache keyed on the same fact would be a second answer to one question
-(D-100).
+- **Presence** reaches every process through the existing lifecycle pub/sub
+  (`b2b:module:state-changed`).
+- **The operator layer** is a small table, at most one row per form and field. Each process loads
+  it whole into an in-process cache. After its Command commits, `custom_fields` announces
+  `b2b:form-layout:changed`. Every process then bumps the generation and drops the cache, the same
+  way `SalesChannelAccessCache` publishes after a write (D-93). A process whose subscription is lost
+  is stale for at most the cache's 60-second TTL and never serves a wrong rule. No server-enforced
+  rule comes from this layer, so a stale entry is a presentation lag only.
+- **No shared Redis layer.** The table is read whole in one query, so a second shared copy would buy
+  nothing (IV).
+- The admin refetches `GET /api/v1/admin/forms` when presence refreshes and after its own layout
+  write. The response carries an `ETag`, which is a digest of the response.
+
+**Rationale.** Presence already has an invalidation channel, and the operator layer gets the
+existing write-then-announce pattern. Neither gets a second cache keyed on the same fact (D-100).
 
 ## R-19: Tenant scoping, Settings, palette, permissions, audit
 
@@ -435,11 +447,13 @@ refetches whenever presence refreshes, and the response carries an `ETag`.
   and the effective-forms response is the same for every admin. Slot data lives in side tables
   classified to follow their host (187 OR-9). A per-organization form variant was rejected, because
   presentation differing per tenant has no current case (IV).
-- **Settings.** There is no setting. Overrides are code (OQ-193-6). A module that wants its slot to
-  be operator-toggleable already has its activation control (XVII).
+- **Settings.** D-300.6 adds the operator layer (R-21). It is a table, not the settings store.
+  Deployment overrides remain code.
 - **Command palette.** `_lifecycle` declares one action, "Form extensions", for
-  `/platform/form-extensions`, gated by `platform.modules.read` (XVI). Slot fields add no routes.
-- **Permissions.** There are no new codes. The descriptor route has no code, on
+  `/platform/form-extensions`, gated by `platform.modules.read`. `custom_fields` declares one
+  action, "Form layout", for `/custom-fields/forms`, gated by `custom_fields:read` (XVI). Slot fields
+  add no routes.
+- **Permissions.** There is one new code, `custom_fields:forms` (R-21). The descriptor route has no code, on
   `/module-presence`'s reasoning. Slot modules and overrides name codes their own manifests declare,
   or codes the platform vocabulary holds. Composition refuses a `writePermission` that names an
   unknown code (`unknown-permission`).
@@ -463,3 +477,170 @@ refetches whenever presence refreshes, and the response carries an `ETag`.
 | Any module may change any field | Yes: **avoided** | Yes, via form extensions: **avoided** | n/a | Owner's `accepts`; deployment tier; packages by grant only |
 | Change a core field's type | Plugins plus EAV backend-type change: **avoided** | Override the entity mapping: **avoided** | Not possible | Replacement pattern; core change for shared needs |
 | Per-deployment full screen replacement | Layout override of the whole form: **kept available** (190) | Template override: **kept available** | Custom route: **kept available** | Overlay admin layer (190) stays the escape hatch, at the cost of re-doing every core change |
+
+## R-21: The operator layout layer (D-300.6)
+
+**Scope: the presentation kinds a business operator may set.** These are `label`, `help`,
+`placeholder`, `position` (section, before or after), `hidden` and `readOnly`. Each one is limited to
+what the field's `accepts` lists. A core-required field can never be hidden, and nothing may be made
+unfillable (`required-not-fillable`). Tightened validation, `requiredWhen`, `control`, `default`,
+`writePermission`, masks and derivations stay deployment code. Each of these either changes what the
+API accepts, which XV reserves to the deployment, or is code.
+
+- **`readOnly` is included.** It is presentation in the same sense as a custom field's admin access
+  level `read`, which operators already set (175, OD-8). The screen states that the setting does not
+  restrict the API, and links to permissions for real protection.
+- **`default` is excluded.** It is not unsafe, but a per-type value editor with type checks is not
+  worth its cost for a pre-fill (IV). It can be added later because the shape is open.
+
+**Owner and storage.** The layer belongs to `custom_fields`. Its table is
+`custom_field_form_layout_overrides`, platform-global (`@GlobalEntity`, like
+`custom_field_definitions`). Each row holds `id`, `form_id`, `field_key`, `labels jsonb`,
+`helps jsonb`, `placeholders jsonb`, `section`, `before`, `after`, `hidden`, `read_only`, `version`
+and `updated_at`, with a unique key on (`form_id`, `field_key`).
+
+- **Why `custom_fields`.** An operator thinks of "fields" as one subject, and `custom_fields` already
+  owns the operator's field-definition screen and the per-locale label design (XIV: reuse the
+  design). It is also non-deactivatable, so the layer cannot be switched off with its owner while
+  forms still depend on it. That removes an off-state case instead of handling it.
+- **Rejected: the settings store.** Settings are manifest-declared scalar codes, scoped per channel.
+  One JSON blob per form would mean one concurrency token and one coarse audit diff for every field
+  on the form, and an undo per blob.
+- **Rejected: a new module.** It would split one operator subject across two screens and two
+  activation controls, with no domain boundary between them.
+- **Rejected: `_lifecycle`.** That is platform surface (D-160.11), and the layer is business data.
+
+**Composition.** The platform declares the port `FormLayoutOverrideSource` in contracts
+(`Container name: formLayoutOverrideSource`), and `custom_fields` provides it. `FormRegistry`
+resolves it lazily when computing the effective forms. Because `custom_fields` is non-deactivatable,
+the port is always present. If the port is nonetheless missing in a composition, the layer is empty
+and the forms fail open to code and core, which only affects presentation.
+
+**Precedence.** For each field and kind: core < deployment code (and granted packages) < operator,
+for `label`, `help`, `placeholder` and `position`. The operator is the business owner of how the
+form reads, and deployment code sets the default. `hidden` and `readOnly` are monotone: an operator
+may add them but not remove what code set. Code may hide a field as part of the replacement pattern,
+and an operator who unhid it would get two fields for one value.
+
+- **What the screen shows.** It shows each layer with its source module, and offers *Reset to
+  deployment value* or *Reset to core* depending on which layer is underneath.
+- **Rejected: code always wins.** That makes the business ask a developer to change a label the
+  deployment once set.
+- **Rejected: a `lockedForOperators` flag on code overrides.** No case needs it (IV).
+
+**Validation.** The same `FormRegistry` rules apply on write: `override-not-accepted`,
+`hidden-required-field`, `required-not-fillable`, `unknown-field` and `unknown-section`. They run
+inside the Command, and a refusal answers `422 FORM_LAYOUT_OVERRIDE_INVALID` with
+`details[].code`. Positions are validated against the form after code overrides. If code later moves
+the anchor field away, the operator position falls back to the code position, and the screen shows a
+notice.
+
+**i18n.** Each text is a map with an entry for every language in `SUPPORTED_LANGUAGES` (`en` and
+`pl`), and all entries are required. This is operator content (`module-i18n.md`: per-language columns,
+never a bundle), served by the effective-forms response as
+`{ source: 'operator', text: { en, pl } }`, and the admin picks the reader's language. A language
+added later has no entry, so the field uses the code or core label in that language rather than
+another language's text. This is the rule a setting description already follows (issue #1522).
+
+**Commands and audit.**
+
+- `custom_fields.form_layout.set` takes one form and a batch of field rows, under per-row `version`
+  optimistic concurrency.
+- `custom_fields.form_layout.reset` takes one form and some or all of its keys.
+- `custom_fields.form_layout.rekey` is the system Command of FR-099.
+- `set` and `reset` are reversible: the pre-state is captured per row, and undo is all-or-nothing per
+  row with a conflict report (XIII). The audit state is the row before and after. Label text is
+  operator content and not personal data, so it is recorded.
+- After commit, the Command announces `b2b:form-layout:changed` (R-18).
+
+**Off-state.** When a field set's owner, or the rendering module of a form, is not effectively
+present, its rows are ignored and kept, and the screen lists them as belonging to a switched-off
+module. Switching the module back on restores them. An override that targets a slot field of an
+absent module behaves the same way.
+
+**Renamed keys.** During a deprecation release, a row on an alias is rewritten to the live key at
+boot. This is idempotent, uses one system Command per affected form, and is audited. A row whose
+alias the owner removed before any boot rewrote it becomes `orphaned`: it is ignored by the effective
+forms, shown in the screen and deletable there. A row holding a kind the field no longer accepts is
+`no-longer-accepted` and is treated the same way. Rewriting at read time instead was rejected,
+because it would keep the alias alive in data after the code had dropped it.
+
+**Permissions and palette.** The new code is `custom_fields:forms`, "Manage form layout". The routes
+are `GET /api/v1/admin/custom-fields/forms` and `GET /api/v1/admin/custom-fields/forms/:formId`
+(gated by `custom_fields:read`), and `PUT /api/v1/admin/custom-fields/forms/:formId` and
+`POST /api/v1/admin/custom-fields/forms/:formId/reset` (gated by `custom_fields:forms`). The palette
+action "Form layout" targets `/custom-fields/forms` and is gated by `custom_fields:read`.
+`check:action-route-permissions` and the permission inventory cover all of them.
+
+## R-22: Hookable writers for `customer_accounts`, `crm` and `catalog` (D-300.5)
+
+Measured actions:
+
+| Host | Commands that write the field set | Declared hookable here | Notes |
+| --- | --- | --- | --- |
+| `customer_account` | `customer_account.create`, `customer_account.update_profile`, `customer.custom_fields.update` | all three, both phases | the `customers` screen writes through `customer_accounts`' port (feature 075) |
+| `opportunity` | `crm.opportunity.create`, `crm.opportunity.update` | both | the custom-field port runs `crm.opportunity.update` |
+| `product` | `product.create`, `product.update`, `product.scoped_values.save`, `product.scoped_values.import` | all four | scoped hook data is per scope (FR-112) |
+| `product` | `product.bulk_update` (reversible, worker) | **no**; rule-check-only writer (FR-113) | 176 §6 forbids hooks on a reversible Command |
+
+**The rule-check-only writer.** The field-rule check writes nothing, so it does not break undo, which
+is the reason 176 keeps hooks off reversible Commands. It can therefore run on a reversible Command,
+and only it can. This holds because its registration path (`ctx.fieldSets`) is the platform's own and
+is not `ctx.commandHooks`. Undo restores the previous values and is not a writer, so a rule added
+after a bulk edit cannot block undoing it.
+
+Each Command named in the table must be verified as non-reversible before it is declared hookable
+(tasks T002, T006, T008). A Command found to be reversible becomes rule-check-only instead.
+
+Hook data follows 176 §6 and audit-state list 1 for the outbox. The `beforeCommit` data may carry the
+after-state record, as `OrganizationUpdateHookData` does.
+
+## R-23: How the product editor adopts without a big-bang rewrite
+
+**Constraints.**
+- `ProductEditor.tsx` is 99.7 KB.
+- Fields are scope-aware: `EditorField` handles the view, inheritance and `globalOnly` across
+  global, channel and locale scope.
+- There are twelve `product.editor.field.after` mounts, read by four external modules.
+- The editor already runs one scope-aware Save (180).
+
+**Strategy: a strangler, section by section.**
+
+1. **Declare first, change nothing (MR 1).** Add `PRODUCT_FIELD_SET` and `product.edit` to
+   contracts, the manifest and `ctx.fieldSets`, covering the writers and the scoped projection. No
+   render change yet. Its tests are `expectFieldSetMatchesSchemas` and `expectFieldSetWriters`, plus
+   the pre-adoption accessible-structure snapshots at three scopes (FR-125), which are recorded now.
+2. **Wrap, don't replace (MR 2 to MR 6, one per section).** Adopt in this order: *Content* (`name`,
+   `urlKey`, `description`), *Availability*, *Identity*, *Categories*, *Media* (`gallery`,
+   `attachments`). Each `DeclaredFormSection` renderer returns the existing `EditorField` unchanged,
+   with its `note={<AdminZone name="product.editor.field.after" …/>}`. The kit supplies only the label,
+   help, placeholder, order, visibility and slots around it.
+   `EditorField` gains optional `label`, `help` and `readOnly` inputs from the kit, so the scope
+   logic stays in `catalog`.
+3. **Attributes last (MR 7).** The `attributeValues.*` family is rendered by
+   `ProductAttributesTab.tsx` from attribute data. Overrides and anchors name a family member, which
+   is validated at render time (FR-123).
+4. **Untouched.** Pricing, SEO, channels and content-editor zones stay as they are. They are tabs
+   and zones, not fields.
+
+**Tests, after every MR.**
+- The three-scope accessible-structure snapshot matches (FR-125).
+- `batch-fifteen-surfaces.module-owned-surface.test.tsx` mount counts are unchanged (FR-122).
+- The existing catalog editor tests pass unedited.
+- The four PIM admin layers typecheck and build against the built packages (FR-126).
+- The 4-path parity test (SC-002) passes for `product.update` and `product.scoped_values.save`.
+- Off-state: with the fixture overlay off, the editor matches the snapshot.
+
+**Sequencing inside the release.** The catalog hookable actions (R-22) land first. The product
+adoption starts after organizations has merged, so the kit primitives it wraps are already proven
+on a smaller host. The product MRs run in parallel with the customer and opportunity adoptions,
+because they touch disjoint files.
+
+**Risks.**
+- *The scope interplay is subtler than wrapping.* Overrides at the editor level are presentation and
+  apply at all scopes. Rules apply per scope (FR-124). Nothing changes inheritance.
+- *A PIM contributor depends on DOM position.* The mounts stay inside the same `EditorField` `note`
+  slot, so their position does not move.
+- *The release slips because of the product editor.* Every MR leaves the editor shippable, so the
+  release can stop after any section with a partly adopted editor. The unadopted sections simply
+  accept no overrides, and the spec calls this out as the cut line rather than as a defect.

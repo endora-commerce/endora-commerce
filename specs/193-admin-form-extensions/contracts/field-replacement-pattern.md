@@ -34,7 +34,7 @@ deployment's beside it.
    - if the projection cannot be computed client-side, an `afterCommit` handler writes it through the
      owner's command port instead — eventual, its own audit entry; document which one you chose.
 5. **Reads.** Consumers that need the new value read it through the host's read port with
-   `include: ['extensions.<moduleId>']` (187) or the admin `?extensions=` wire (OQ-193-1 A).
+   `include: ['extensions.<moduleId>']` (187) or the admin `?extensions=` wire (D-300.1).
 
 ## §3 What you give up
 

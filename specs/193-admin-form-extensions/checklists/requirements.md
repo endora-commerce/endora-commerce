@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — three remain, each tied to an owner question (FR-015 → OQ-193-1, FR-045 → OQ-193-3/4, FR-051 → OQ-193-2); within the limit of three
+- [x] No [NEEDS CLARIFICATION] markers remain — the owner answered OQ-193-1 – OQ-193-6 (D-300); one plan-level clarification (API-key scopes, task T-B6 / T026) remains in research R-12
 - [x] Requirements are testable and unambiguous (each refusal has a code)
 - [x] Success criteria are measurable (SC-001 – SC-007)
 - [x] Acceptance scenarios defined for every story
@@ -29,5 +29,6 @@
 
 ## Notes
 
-- `tasks.md` deliberately deferred until the owner answers OQ-193-1, -2 and -5 (plan § Project Structure).
+- `tasks.md` written after D-300 (2026-11-27).
+- Constitution 4.6.0 (XV) drafted on PR #2010's 4.5.0, pending owner sign-off.
 - `.specify/feature.json` was not written: the brief restricts writes to this directory.
