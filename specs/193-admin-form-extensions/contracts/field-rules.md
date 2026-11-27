@@ -109,7 +109,7 @@ writer, steps 3–4 run per projected scope, and `required` is evaluated for the
    the field is in `changed` — D-300.4), bounds, `options`, `pattern`, `format` on `after` when
    the value is present; `requiredWhen` via `evaluateFieldCondition(cond, after)`.
 5. `writePermission` for each field in `changed`: admin actor → `AdminPermissionChecker.hasPermission`;
-   bound API-key actor → refused, `reason: 'api-key-scopes-unresolved'` (T-B6, research R-12: no scope resolution exists in a Command); system actor, an unbound key included → exempt.
+   API-key actor → key `scopes` ([NEEDS CLARIFICATION, plan T-B6]); system actor → exempt.
 6. Collect all violations; throw `HttpError(422, 'FIELD_RULE_VIOLATION', …, { details })` or
    `HttpError(403, 'FIELD_WRITE_FORBIDDEN', …, { details })` (403 wins when both). The transaction
    rolls back; no audit entry, no outbox row.

@@ -297,24 +297,9 @@ working when it carries the stored value unchanged.
 - *Per-field read permissions in this feature.* That would change what every admin read, export and
   search returns per role, which is a separate feature with a far larger blast radius.
 
-**API-key actors (T-B6, recorded by WP-B, T026).** No resolution exists. `CommandActor` carries no
-API-key id and no scopes; the key's scopes live on `request.actor`, which `auth` decorates and no
-code inside a Command can reach (the tenant context keeps only `{ kind: 'api_key', id }`, and the
-Command Bus maps it to an actor with neither). So:
-
-- A **bound** key (actor kind `api_key`) that changes a field with an effective `writePermission`
-  is refused `403 FIELD_WRITE_FORBIDDEN`, with `details[].reason: 'api-key-scopes-unresolved'`
-  (`FIELD_WRITE_FORBIDDEN_REASONS` in `@endora-commerce/contracts`). The refusal fails closed; a
-  write that leaves the field unchanged is not affected.
-- An **unbound** key acts in the system scope (feature 062, FR-020), so the Command sees a
-  `system` actor, which is exempt as every system actor is. The platform cannot tell it apart
-  from a worker.
-- The tightened rules themselves (`validation`, `requiredWhen`, formats) bind every API-key write;
-  only the permission question is unresolved.
-
-Lifting the refusal needs the key's scopes on the Command's actor (or a request-scoped accessor
-the check may read), which is a change to `auth`, the tenant context and `CommandActor`, outside
-this feature.
+[NEEDS CLARIFICATION, for the plan rather than the owner: `CommandActor` carries no API-key id
+today. The plan's task T-B6 establishes how the check obtains the key's scopes from the request
+context, or records that API-key writes on such fields are refused until it can.]
 
 ## R-13: Trust tiers (D-300.2 rules the package row: A, grant only)
 
