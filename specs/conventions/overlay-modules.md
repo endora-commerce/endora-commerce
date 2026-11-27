@@ -158,8 +158,15 @@ below is unchanged. What D-297 holds every overlay module to:
   from the `origin` the loader stamps on its module entry from where it discovered the module
   (`specs/189-command-middleware/contracts/module-origin.md`). No manifest field feeds it.
 
-`endora new module --entities` does not scaffold an overlay module's schema yet (#1852); the
-entity and the migration are written by hand until it does.
+`endora new module --entities` scaffolds an overlay module's entity and its first migration,
+and the next one is `endora new migration <id> --name <slug>` in an instance or
+`migration:new --module <id>` here (#1852, `module-migrations.md` §1).
+`apps/example/modules/example_erp_keys/` (#1856) is the **reference overlay module**: the one
+to copy, using each of those seams once — a side table on `organizations`, a `beforeCommit`
+hook, an extension-attribute loader, a port in `ports.ts`, a gated admin screen with its palette
+action, and an activation control. `example_overlay/` stays the worked example of a decoration,
+an interceptor and an `observe` command middleware; `overlay_notes_fixture/` and the other
+`*_fixture` modules are test fixtures, not examples.
 
 **D-106's stated reason is retired with it, so do not cite it.** That reason was "an overlay
 lives in the same repository and the same build as core, so own the table from a core module
@@ -178,3 +185,52 @@ package migration under the foreign-schema guard (`packages/platform/src/db/fore
 See `docs/docs/architecture/overlay-pattern.md` and
 `specs/057-overlay-pattern-multideploy/`.
 
+## Overlay module layout
+
+Normative for the loader, the CLI scaffolder and the overlay build
+(`specs/190-overlay-full-modules/contracts/overlay-module-layout.md`, FR-002 – FR-004). Paths
+are an instance's; in this repository prefix `backend/src/`.
+
+```text
+apps/<deployment>/
+├── divergence.ts                 # the deployment's declaration (hand-written)
+├── divergence.generated.{ts,md}  # derived report
+└── modules/
+    └── <id>/                     # one module; <id> = manifest id
+```
+
+**Flat, and not a package.** A directory is a module iff it is a direct child of `modules/`
+(hidden directories excluded). A `manifest.ts` or `manifest.js` anywhere deeper than
+`<id>/manifest.*` is refused as `nested-module`, naming the file and the remedy: make it a
+sibling module and declare the dependency. A `package.json`, any `tsconfig*.json`, or a
+`tsup`, `vite` or `vitest` configuration inside `<id>/` is refused as `package-in-disguise`:
+the one project the overlay build compiles is `backend/tsconfig.apps.json`, outside `apps/`.
+Both refusals are the platform's `overlay/overlay-layout.ts` and its CLI twin
+`build-overlays/layout.ts`, held to agree; `node_modules` and `dist` are not walked.
+
+**Fixed names** — read by something other than the module, so they are not the author's choice:
+
+| Path | Read by | Required |
+| --- | --- | --- |
+| `manifest.ts` | the loader, which identifies the module by it | yes |
+| `backend.ts` | the loader: `registerModule`, `entities`, `schemaExtensions` | no — a module may have no server half |
+| `i18n/en.json`, `i18n/pl.json` | the `manifest.i18n.bundlesDir` convention | when the module has any label |
+| `migrations/` | schema discovery, file by file | when the module owns schema |
+| `admin/index.tsx` | the deployment's admin registry | when the module has an admin surface |
+| `ports.ts` | a sibling overlay module, with `import type` only | when the module publishes port types |
+
+**Conventional names** — the module's own, read by nothing by name: `entities/` (whose entity
+classes must still all be in `backend.ts`'s `entities`, `overlay-entity-unexported`),
+`services/`, `workers/`, `routes.ts`, `commands/`, `hooks/`, and everything under `admin/`
+below `index.tsx`. A `services/` file is one of the module's files like any other.
+
+**Splitting a module.** When one overlay module grows two concerns, write two modules and a
+dependency — `acme_loyalty` (tables, port) and `acme_loyalty_reports`
+(`dependencies: ['acme_loyalty']`, `import type … from '../acme_loyalty/ports.js'`). The
+dependency is what the lifecycle, the migration order and the activation axis see; a nested
+directory is what none of them see.
+
+**Promotion to a package** keeps the id (OR-6), and maps one to one: `manifest.ts` → the
+package root export, `backend.ts` → `./backend`, `migrations/*` → the `./migrations` array (same
+classes), `ports.ts` → `./ports`, `admin/index.tsx` → `./admin`, `i18n/` → the package's
+`i18n/`. Consumers' type imports switch from the path to the subpath.
