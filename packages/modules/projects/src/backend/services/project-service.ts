@@ -161,6 +161,28 @@ export function assertConfigurationReadAt(
 }
 
 /**
+ * The `configurationVersion` a write of the Project's Organizations or Members
+ * holds (`specs/186-aggregate-ports/` R-22.3, addendum #1986):
+ *
+ * - a number — the caller's token, held from the read to the lock;
+ * - `'read'` — the version the write's own `loadVisible` read, held the same
+ *   way, so a set another caller committed in between is refused `409
+ *   PROJECT_CHANGED` rather than merged with a diff computed from the stale
+ *   read. `projectCommandPort` passes it when no `expectedVersion` is sent;
+ * - `undefined` — not checked: the admin `PUT` sent none, and its published
+ *   answer does not refuse such a client (last writer wins on the diff).
+ */
+export type ConfigurationToken = number | 'read' | undefined;
+
+/** The token a set holds, `'read'` resolved to what its `loadVisible` read. */
+function heldConfigurationVersion(
+  visible: Pick<VisibleProjectRow, 'configuration_version'>,
+  token: ConfigurationToken,
+): number | undefined {
+  return token === 'read' ? visible.configuration_version : token;
+}
+
+/**
  * Lock a Project for a write of its sets — Stages added, deleted or reordered,
  * the workflow, the Organizations, the Members (issue #449) — hold it to the
  * `configurationVersion` the caller read when one is sent, and move that
@@ -829,17 +851,22 @@ export class ProjectService {
 
   /**
    * The set itself — what the route and `projectCommandPort.setOrganizations`
-   * share (`specs/186-aggregate-ports/` R-22.1). `caller` reaches each child
+   * share (`specs/186-aggregate-ports/` R-22.1). `token` is the
+   * {@link ConfigurationToken} held from the read of the current set to the
+   * lock: the diff applied under the lock is the one computed from that read,
+   * so a held token is what stops a set committed in between being merged
+   * into it (#1986). `caller` reaches each child
    * Command, the hookable `organization_add` / `organization_remove`, and not
    * the parent, which records nothing and is not hookable (R-22.5).
    */
   async applyOrganizations(
     id: string,
     organizationIds: readonly string[],
-    version?: number,
+    token?: ConfigurationToken,
     caller: CallerOptions = {},
   ): Promise<VisibleProjectRow> {
     const visible = await this.deps.access.loadVisible(id);
+    const version = heldConfigurationVersion(visible, token);
     assertConfigurationReadAt(visible, version);
     const current = (
       (await this.deps.emFactory().execute(
@@ -933,14 +960,20 @@ export class ProjectService {
     return this.deps.read.afterWrite(visible.id, language);
   }
 
-  /** The set itself — what the route and `projectCommandPort.setMembers` share (R-22.1). */
+  /**
+   * The set itself — what the route and `projectCommandPort.setMembers` share
+   * (R-22.1). `token` is the {@link ConfigurationToken} held from the read of
+   * the held Roles — which decides whether an archived Role may stay — to the
+   * lock (#1986).
+   */
   async applyMembers(
     id: string,
     members: readonly ProjectMemberInput[],
-    version?: number,
+    token?: ConfigurationToken,
     caller: CallerOptions = {},
   ): Promise<VisibleProjectRow> {
     const visible = await this.deps.access.loadVisible(id);
+    const version = heldConfigurationVersion(visible, token);
     assertConfigurationReadAt(visible, version);
     const em = this.deps.emFactory();
     const held = (await em.execute(

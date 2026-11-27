@@ -46,6 +46,14 @@ import type { ProjectService } from './project-service.js';
  * Commands by `withCallerOptions`, inside the services, never by a second
  * Command.
  *
+ * With no `expectedVersion`, the two sets pass `'read'` — the
+ * `configurationVersion` their own read saw, held to the lock — where the
+ * admin `PUT`s pass nothing and are not checked (research R-22.3, addendum
+ * #1986): a port call is refused a set committed between its read and its
+ * lock; the routes keep their published answer. An `update` with an empty
+ * patch runs no Command, so no `extensions` key is refused on it — named
+ * beside the `setOrganizations` case on `ProjectCommandPort`.
+ *
  * The answer is the published record, read after the write under the
  * Organization rule alone (`ProjectAccess.rowAfterWrite`), so a write that took
  * the Project out of the caller's own visibility still answers it (R-22.6).
@@ -131,7 +139,7 @@ export class ProjectCommandService implements ProjectCommandPort {
     const caller = callerOf(options);
     const { organizationIds } = parseOrRefuse(organizationsInputSchema, input);
     const version = parseOrRefuse(expectedVersionSchema, options.expectedVersion);
-    const visible = await this.deps.projects.applyOrganizations(id, organizationIds, version, caller);
+    const visible = await this.deps.projects.applyOrganizations(id, organizationIds, version ?? 'read', caller);
     // The route's `{ outOfReach: true }`: the change committed, and took the
     // Project out of the caller's own reach.
     if (!(await this.deps.access.inReachAfterWrite(visible.id))) return null;
@@ -146,7 +154,7 @@ export class ProjectCommandService implements ProjectCommandPort {
     const caller = callerOf(options);
     const { members } = parseOrRefuse(membersInputSchema, input);
     const version = parseOrRefuse(expectedVersionSchema, options.expectedVersion);
-    const visible = await this.deps.projects.applyMembers(id, members, version, caller);
+    const visible = await this.deps.projects.applyMembers(id, members, version ?? 'read', caller);
     return this.#recordAfterWrite(visible.id);
   }
 
