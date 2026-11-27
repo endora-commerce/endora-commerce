@@ -152,6 +152,20 @@ export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta
     ownerModuleId: 'tasks',
     listFilter: true,
   },
+  // Issue #2005 — a note on an Opportunity or on a Project (a comment of kind
+  // `note`; a message is no host). Each follows its parent's module and
+  // inherits its parent's tenancy. No marker: there is no list of notes to
+  // filter, nothing is carried to or from a note, and no buyer form writes one.
+  opportunity_note: {
+    labelKey: 'customFields.entity.opportunityNote',
+    orgOwned: true,
+    ownerModuleId: 'crm',
+  },
+  project_note: {
+    labelKey: 'customFields.entity.projectNote',
+    orgOwned: true,
+    ownerModuleId: 'projects',
+  },
 };
 
 /** All registered entity-type codes. */

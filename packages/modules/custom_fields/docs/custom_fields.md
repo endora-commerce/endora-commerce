@@ -20,6 +20,8 @@ filtered on wherever records of that kind are handled.
 | Sales opportunities | while the `crm` module is on | yes — the Opportunities list |
 | Projects | while the `projects` module is on | yes — the Projects list |
 | Tasks | while the `tasks` module is on | yes — the Tasks list |
+| Opportunity notes | while the `crm` module is on | no |
+| Project notes | while the `projects` module is on | no |
 | Organizations | always | yes — the Organizations list |
 | Customers | always | yes — the Customers list |
 | Categories | always | no |
@@ -28,7 +30,8 @@ filtered on wherever records of that kind are handled.
 **A type that follows a module disappears with it.** While `quote_requests` is switched off, quote
 request fields are not listed, cannot be created or edited, and are not offered by the definitions
 API — exactly as opportunity fields are while `crm` is off, project fields while `projects` is off
-and task fields while `tasks` is off. Nothing is deleted: the fields, their options and every stored
+and task fields while `tasks` is off; opportunity note and project note fields follow `crm` and
+`projects` too. Nothing is deleted: the fields, their options and every stored
 value come back unchanged when the module is switched on again.
 
 ## Creating a field

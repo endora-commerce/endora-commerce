@@ -31,6 +31,15 @@ import {
   assertCommandMiddlewareRules,
   type CommandMiddlewarePhase,
 } from './command-middleware.js';
+import {
+  AdminFormDeclarationSchema,
+  FieldOverrideSchema,
+  FieldSetDeclarationSchema,
+  InputControlDeclarationSchema,
+  MAX_FORM_OVERRIDES_PER_MODULE,
+  assertAdminFormManifestRules,
+  fieldSetIdRe,
+} from './admin-forms.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -615,8 +624,38 @@ export const DeploymentDivergenceDeclarationSchema = z.object({
    * Absent means `[]`.
    */
   commandMiddlewareOrder: z.array(z.string().regex(moduleIdRe)).min(2).optional(),
+  // `specs/193-admin-form-extensions/` — kept last, in its own block.
+  /**
+   * Which installed packages (origin `package`) may override fields of which
+   * field set (`specs/193-admin-form-extensions/` FR-051, ruling D-300.2,
+   * `contracts/field-overrides.md` §4): field-set id → grants.
+   *
+   * A permission, not an origin: the package stays `package`, nothing carries
+   * over to another field set, and a grant matches on the module id **and** the
+   * installed package name (`specs/189-command-middleware/contracts/module-origin.md`
+   * §5). Composition refuses a grant naming an unknown field set or module, a
+   * module that is not a package, a mismatched package name, or one no override
+   * uses (`InvalidFormOverrideGrantError`).
+   *
+   * Optional rather than defaulted, for the reason `commandHookOrder` gives.
+   * Absent means `{}`.
+   */
+  formOverrideGrants: z
+    .record(
+      z.string().regex(fieldSetIdRe),
+      z
+        .array(
+          z.strictObject({
+            moduleId: z.string().regex(moduleIdRe),
+            packageName: z.string().min(1),
+            reason: z.string().min(1),
+          }),
+        )
+        .min(1),
+    )
+    .optional(),
 })
-  // Five fields are the whole vocabulary, so a sixth is a typo — and a
+  // These fields are the whole vocabulary, so another is a typo — and a
   // mistyped field name under a lenient object is silently stripped, which
   // reads as "this deployment declares nothing" for a file whose author wrote
   // a declaration. Refusing it names the key. A deployment that writes a field
@@ -1284,6 +1323,32 @@ export const ModuleManifestSchema = z.object({
    * of most modules and is not a finding.
    */
   commandMiddleware: z.array(CommandMiddlewareDeclarationSchema).optional(),
+  // `specs/193-admin-form-extensions/` — kept last, in its own block.
+  /**
+   * The field sets this module owns, one per host entity
+   * (`contracts/form-field-declaration.md` §2, FR-001): the constants its
+   * contracts file declares with `defineFieldSet`. `ownerModuleId` must equal
+   * this manifest's id.
+   */
+  fieldSets: z.array(FieldSetDeclarationSchema).readonly().optional(),
+  /**
+   * The admin forms this module's screens render, each over a field set
+   * (`defineAdminForm`). The field set may be another module's — the module
+   * whose screen renders the form declares it, and depends on the set's owner
+   * (FR-083).
+   */
+  adminForms: z.array(AdminFormDeclarationSchema).readonly().optional(),
+  /**
+   * Overrides of fields of another module's field set (`contracts/field-overrides.md`
+   * §1, FR-020): honoured from origin `deployment`, and from `package` only
+   * under a `formOverrideGrants` entry (FR-051); at most 200.
+   */
+  formOverrides: z.array(FieldOverrideSchema).max(MAX_FORM_OVERRIDES_PER_MODULE).readonly().optional(),
+  /**
+   * The input controls this module's admin layer supplies (`contracts/input-controls.md`
+   * §1, FR-031), each `<moduleId>.<name>`; the components are its admin `controls`.
+   */
+  inputControls: z.array(InputControlDeclarationSchema).readonly().optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -1859,6 +1924,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   assertHookableActionRules(m);
   assertEntityExtensionRules(m);
   assertCommandMiddlewareRules(m);
+  assertAdminFormManifestRules(m);
   return ModuleManifestSchema.parse(m);
 }
 

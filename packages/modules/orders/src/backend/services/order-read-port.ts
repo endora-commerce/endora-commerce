@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  EntityExtensionReadOptions,
   OrderCustomerContext,
   OrganizationPermissionPort,
   OrderItemRecord,
   OrderReadPort,
   OrderRecord,
   OrderStatusDefinitionRecord,
+  WithEntityExtensions,
 } from '@endora-commerce/contracts';
+import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { Order } from '../entities/order.entity.js';
 import { OrderStatus } from '../entities/order-status.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
@@ -26,7 +29,16 @@ import { isUuidShape } from '@endora-commerce/contracts';
  * `decimal(14,2)`, the entity carries them as strings because a `number`
  * cannot round-trip a monetary value, and four of the consumers forward the
  * figure straight to a payment provider.
+ *
+ * `findById`, `findByIdForCustomer`, `findByIds` and `listAll` take
+ * `options.include` (`specs/187-side-table-extensions/` FR-058): the orders
+ * found under the caller's scope — the tenant filter, and for
+ * `findByIdForCustomer` the own-orders rule too — are handed, on the entity
+ * manager that found them, to the platform's `entityExtensionReads`. Without
+ * `include` nothing is resolved.
  */
+const HOST = 'orders.Order';
+
 export class OrderReadService implements OrderReadPort {
   readonly #access: OrderAccessService;
 
@@ -45,6 +57,8 @@ export class OrderReadService implements OrderReadPort {
      * invalidated by the instance that writes it.
      */
     private readonly graph: () => Pick<OrderStatusGraphService, 'loadGraph'>,
+    /** The kernel's `entityExtensionReads`; absent in a hand-built service, which has no loader to offer. */
+    private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
   ) {
     this.#access = new OrderAccessService(organizationPermissions);
   }
@@ -62,10 +76,11 @@ export class OrderReadService implements OrderReadPort {
     return (await this.graph().loadGraph()).isTerminal(order.status);
   }
 
-  async findById(id: string): Promise<OrderRecord | null> {
+  async findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OrderRecord> | null> {
     if (!isUuidShape(id)) return null;
-    const order = await this.emFactory().findOne(Order, { id });
-    return order ? toOrderRecord(order) : null;
+    const em = this.emFactory();
+    const order = await em.findOne(Order, { id });
+    return order ? this.#attachOne(toOrderRecord(order), options, em) : null;
   }
 
   /**
@@ -78,22 +93,38 @@ export class OrderReadService implements OrderReadPort {
   async findByIdForCustomer(
     id: string,
     customer: Pick<OrderCustomerContext, 'customerAccountId' | 'organizationId'>,
-  ): Promise<OrderRecord | null> {
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrderRecord> | null> {
     if (!isUuidShape(id)) return null;
     const where = await this.#access.scopedWhere(customer, { id });
-    const order = await this.emFactory().findOne(Order, where);
-    return order ? toOrderRecord(order) : null;
+    const em = this.emFactory();
+    const order = await em.findOne(Order, where);
+    return order ? this.#attachOne(toOrderRecord(order), options, em) : null;
   }
 
-  async findByIds(ids: readonly string[]): Promise<OrderRecord[]> {
+  async findByIds(
+    ids: readonly string[],
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrderRecord>[]> {
     if (ids.length === 0) return [];
-    const orders = await this.emFactory().find(Order, { id: { $in: [...ids] } });
-    return orders.map(toOrderRecord);
+    const em = this.emFactory();
+    const orders = await em.find(Order, { id: { $in: [...ids] } });
+    return [...(await this.extensionReads.attach(HOST, orders.map(toOrderRecord), options, em))];
   }
 
-  async listAll(): Promise<OrderRecord[]> {
-    const orders = await this.emFactory().find(Order, {}, { orderBy: { placedAt: 'desc' } });
-    return orders.map(toOrderRecord);
+  async listAll(options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OrderRecord>[]> {
+    const em = this.emFactory();
+    const orders = await em.find(Order, {}, { orderBy: { placedAt: 'desc' } });
+    return [...(await this.extensionReads.attach(HOST, orders.map(toOrderRecord), options, em))];
+  }
+
+  async #attachOne(
+    record: OrderRecord,
+    options: EntityExtensionReadOptions | undefined,
+    em: EntityManager,
+  ): Promise<WithEntityExtensions<OrderRecord>> {
+    const [attached] = await this.extensionReads.attach(HOST, [record], options, em);
+    return attached ?? record;
   }
 
   async findIdsByBusinessIdLike(fragment: string, limit: number): Promise<string[]> {

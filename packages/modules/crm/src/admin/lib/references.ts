@@ -115,8 +115,10 @@ export function useOpportunityComments(
   return useMemo(
     () => ({
       list: () => crmApi.listComments(opportunityId, kind),
-      add: (body: string) => crmApi.addComment(opportunityId, kind, body),
-      update: (commentId: string, body: string) => crmApi.updateComment(opportunityId, commentId, body),
+      add: (body: string, customFieldValues?: Record<string, unknown>) =>
+        crmApi.addComment(opportunityId, kind, body, customFieldValues),
+      update: (commentId: string, body: string, customFieldValues?: Record<string, unknown>) =>
+        crmApi.updateComment(opportunityId, commentId, body, customFieldValues),
       remove: (commentId: string) => crmApi.deleteComment(opportunityId, commentId),
     }),
     [opportunityId, kind],

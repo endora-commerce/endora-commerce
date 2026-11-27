@@ -191,10 +191,13 @@ export function registerModule(ctx: ModuleContext): void {
 - **`requireAdmin('store_notice:read')`** guards the second route with the permission from the
   manifest. The code must match exactly.
 
-Nothing in an instance compiles this file: Node runs it directly and removes the types as it goes.
-So write plain TypeScript — an `enum`, a `namespace` or a constructor parameter property stops the
-start with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. `pnpm run typecheck` reports all three before
-that, together with any type error in `apps/`, and `pnpm run setup` runs it before `migrate`.
+The instance compiles this file like the rest of its backend: `pnpm run build` runs
+`endora build overlays`, which compiles `apps/` into `backend/dist/apps`, and `pnpm run dev:all`
+rebuilds it on every change. The API and every `module:*` command compare the compiled code with
+`apps/` before they start, and stop — naming both files — on an edit that was not rebuilt. Write
+plain TypeScript: `pnpm run typecheck` checks `apps/` with `erasableSyntaxOnly` set, so an `enum`, a
+`namespace` or a constructor parameter property is reported, together with any type error, and
+`pnpm run setup` runs it before `migrate`.
 
 ## Step 5 — Add the translations
 
@@ -368,21 +371,51 @@ recorded in the module registry rather than in a Setting, a running API hears it
 and `pnpm run module:status` shows it. A module is present only when both say so —
 [Module lifecycle](./modules/lifecycle.md) has the rest, including `module:uninstall`.
 
-## What an overlay module cannot be
+## Going further: a table, a port and an admin screen {#going-further}
 
-Three limits decide what your first module can be:
+The store notice keeps its one value in a Setting. An overlay module is a full module, so when
+yours needs more it can own a database table, publish a port and ship an admin screen. The
+scaffold writes each of them with a flag:
 
-- **An overlay module cannot own a database table.** It contributes settings, routes, permissions
-  and translations, and no entity and no migration — nothing in an instance would run them, so no
-  table would be created. A `migrations/` or `entities/` directory inside an overlay module is
-  refused, naming each file, by `pnpm run generate`, by `pnpm run migrate`, by every `module:*`
-  command and by the API and the worker when they start. Keep small state in Settings, as this
-  module does.
-- **A module that needs its own table is a module package**, and so is a module with its own admin
-  screen. Inside an instance `endora new module` writes an overlay module, and refuses `--entities`
-  and `--admin` with the reason. It scaffolds a package — with `--entities` for a table and
-  `--admin` for a screen — only inside a checkout of the Endora Commerce repository. This tutorial
-  does not cover writing a package by hand.
+```bash
+pnpm exec endora new module loyalty_points \
+  --name "Loyalty points" \
+  --description "Points customers collect on their orders." \
+  --permission "loyalty_points:read=View loyalty points" \
+  --entities --ports \
+  --admin catalog --action open-loyalty-points=/loyalty-points
+```
+
+- **`--entities`** writes an entity under `entities/`, listed in the `entities` export of
+  `backend.ts`, and its first migration under `migrations/`. The entity carries exactly one tenancy
+  decorator (`--tenant-scope` picks which; organisation-scoped by default), and its MikroORM
+  decorators come from `@mikro-orm/decorators/legacy` — which is why the module needs the build.
+  Run `pnpm run build`, then `pnpm run migrate` to create the table. Each later change to it is a
+  new migration:
+
+  ```bash
+  pnpm exec endora new migration loyalty_points --name add_expiry
+  ```
+
+  The platform reads `migrations/` file by file, so the file is the whole of registering it. A
+  migration may write only the tables the module's own entities map; anything else is refused at
+  `migrate`.
+- **`--ports`** writes `ports.ts` with the port's interface, and the `ctx.di.providePort` call
+  registering it. Another overlay module of your deployment uses it with `import type` from
+  `../loyalty_points/ports.js` and `lazyPort`, and lists `loyalty_points` in its `dependencies`.
+- **`--admin`** writes `admin/index.tsx` and a screen in the sidebar section you name, and
+  **`--action`** its command-palette entry. `pnpm run generate` adds the screen to your
+  deployment's admin build, and the admin started with your `DEPLOYMENT` shows it.
+
+Each one adds an entry to your divergence report where it reaches into the platform, so
+`pnpm run generate` asks for its sentence in `divergence.ts`, as in step 6.
+
+Two limits remain:
+
+- **A module is a directory, not a package.** It sits directly in `modules/`, and it has no
+  `package.json` or build configuration of its own. When it grows two concerns, write two modules
+  and list the first in the second's `dependencies`. A module you intend to publish or install into
+  a second instance is a package, and keeps its module id when you move it into one.
 - **This tutorial does not show the notice in the storefront.** The storefront the installer wrote
   beside your instance is yours to edit — see [The storefront](./getting-started.md#the-storefront)
   — and the route is what it would call.
@@ -409,13 +442,15 @@ The part in `$(…)` prints the exact version of the contracts package your inst
 uses, so the two stay on one release.
 
 On those releases `pnpm run generate` also exits 0 with an unexplained entry in the divergence
-report, and it does not refuse a `migrations/` directory in an overlay module: read its output
-rather than its exit code.
+report: read its output rather than its exit code. An overlay module there cannot own a table at
+all; that needs an instance on release 0.113.0 or later.
 
 ## Where to go next
 
 - [Overlay pattern](./architecture/overlay-pattern.md) — everything an overlay module may do,
-  including changing what a platform service does with `ctx.di.decorate`.
+  including owning its schema and changing what a platform service does with `ctx.di.decorate`.
+- [Database migrations](./architecture/migrations.md#how-to-create-a-migration-in-an-overlay-module)
+  — how an overlay module's migrations are named, ordered and guarded.
 - [The customisation ladder](./architecture/customisation-ladder.md) — which seam to reach for
   first, and what each one costs you at the next upgrade.
 - [Permissions](./architecture/permissions.md) — how permission codes, roles and modules relate.

@@ -16,11 +16,16 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
   `backend/src/apps/<deployment>/modules/<id>/…`. The active deployment is chosen
   by the `DEPLOYMENT` environment variable at build time; unset (or a deployment
   with no overlay directory) means a bare-core build.
-- **An overlay module owns every file it ships.** Nothing in it shadows, replaces
-  or extends a file of another module. There is no classification of its contents
-  and no rule about what it may put where — it is an ordinary module that happens
-  to belong to one client. (This was not always so; see *There used to be file
-  shadowing* below.)
+- **An overlay module is a full module, and owns every file it ships.** It may
+  own tables and migrations, publish a port to the deployment's other modules,
+  and ship an admin screen with its command-palette actions — under the same
+  guards as a module package. Nothing in it shadows, replaces or extends a file of
+  another module; it is an ordinary module that happens to belong to one client.
+  (This was not always so; see *There used to be file shadowing* below.)
+- **Flat, and not a package** — a module is a direct child of `modules/`, and it
+  has no `package.json`, `tsconfig*.json` or bundler configuration of its own. Two
+  concerns are two sibling modules and a declared dependency; see *Overlay module
+  layout* below.
 - **One id, one owner** — an overlay module id already claimed by core, by a
   workspace module package, by an installed package or by another overlay module
   fails composition, naming every claimant's file.
@@ -58,19 +63,28 @@ own:
   installer. Unset, the instance starts as the bare platform and none of its overlay modules is
   composed.
 - **Scaffolding** — `pnpm exec endora new module <id> --name … --description …` writes an overlay
-  module there: `manifest.ts`, `backend.ts` and both `i18n/` bundles. It refuses the flags that
-  ask for what an overlay module cannot be — a table (`--entities`), an admin screen (`--admin`,
-  `--action`), a published port (`--ports`) — naming why. A queue consumer or an event
-  subscription is written by hand in `backend.ts`, with `ctx.worker(…)` and `ctx.subscribe(…)`.
-- **No build** — Node loads the overlay module's TypeScript directly and strips the types, so it
-  is written in the subset stripping accepts: no `enum`, no `namespace`, no constructor parameter
-  property.
+  module there: `manifest.ts`, `backend.ts` and both `i18n/` bundles. `--entities` adds an entity
+  under `entities/` and its first migration under `migrations/`; `--ports` adds `ports.ts` and the
+  `ctx.di.providePort` call that registers the port; `--admin` and `--action` add
+  `admin/index.tsx`, a screen and its palette entry. It refuses `--worker` and `--subscriber`,
+  naming why: each is one call in `backend.ts`, `ctx.worker(…)` or `ctx.subscribe(…)`.
+  `pnpm exec endora new migration <id> --name <slug>` writes the module's next migration.
+- **A build** — `pnpm run build` runs `endora build overlays`, which compiles `apps/` with the
+  instance's own `tsc -p backend/tsconfig.apps.json` into `backend/dist/apps` and copies each
+  module's `i18n/` beside the code; `pnpm run dev` does the same on every change. The API, the
+  worker and every `module:*` command run the compiled code and compare it with `apps/` first: an
+  edit that was not rebuilt, a module that was never built or a compiled file whose source is
+  gone stops them, naming both files. `pnpm run typecheck` checks the overlay code with
+  `erasableSyntaxOnly` set, so keep to plain TypeScript: no `enum`, no `namespace`, no
+  constructor parameter property.
 - **The divergence report** — `pnpm run generate` renders
   `apps/<deployment>/divergence.generated.md`, and exits 1 — after writing the report — while a
   derived divergence has no sentence in `divergence.ts`, or a sentence describes one that is gone.
   `pnpm run setup` runs it, so neither slips through.
 - **Lifecycle** — `pnpm run module:install <id>`, `module:enable`, `module:disable`,
-  `module:uninstall` and `module:status` treat an overlay module like any other.
+  `module:uninstall` and `module:status` treat an overlay module like any other. `pnpm run
+  migrate` applies its migrations, `module:status <id>` lists them, switching it off or a soft
+  uninstall keeps its tables and rows, and `module:uninstall --hard` reverts them.
 
 [Create your first Module](../create-your-first-module.md) walks through all of it.
 
@@ -84,56 +98,100 @@ takes one.
 | Change what a core service does | `ctx.di.decorate('<name>', (inner) => …)` from the deployment's own overlay module — see *Service overrides are decorations* below |
 | Add a capability | a client-only overlay module under `backend/src/apps/<deployment>/modules/<id>/`, shipping `backend.ts` and `manifest.ts` |
 | Run before or after another module's endpoint; veto it; rewrite its response | `ctx.interceptors` |
+| Take part in a write the owner declared hookable — add your own row, or refuse it | a command hook, `ctx.commandHooks` |
+| Refuse, or measure, every Command whose action matches a filter | command middleware, `ctx.commandMiddleware` — `admit` or `observe`; see *Moving a bus wrap to command middleware* below |
 | Vary a behaviour the owner anticipated | a strategy port the owner publishes, registered behind `ctx.di.providePort` and read through `lazyPort` |
 | Change configuration | a manifest-declared Setting, and `divergence.ts` to omit a module |
-| Add client-specific tables | today, from a module package you install (in a platform repository, from a module of its own tree), read from the overlay through that module's port. An overlay module does not contribute schema yet, see below |
+| Add client-specific tables | the overlay module's own: a side table it owns, or declared extension columns on an extensible core table — see *An overlay module owns its schema* below |
+| Share a service between two of the deployment's modules | a port the owner registers with `ctx.di.providePort`, its types in the owner's `ports.ts` |
 | **Replace a route handler wholesale** | **No seam. Not offered.** See *The one thing there is no seam for* below |
 
-## An overlay module contributes no schema
+## An overlay module owns its schema {#an-overlay-module-owns-its-schema}
 
-A per-deployment overlay module contributes registrations, routes, decorations,
-interceptors, permissions, i18n bundles and a manifest. It contributes **no
-schema**: no `@Entity()` class and no migration.
+A per-deployment overlay module may own entities and migrations, from release
+0.113.0, both in an instance and in a platform repository's own `apps/` tree. It
+contributes them the way an installed package does, and the same rules hold it:
 
-This page used to say the opposite ("ship new schema as a client-only overlay
-module that owns its own tables"), and the generator has refused it the whole
-time.
+- **Entities** — `backend.ts` exports `entities`, an array of the module's entity
+  classes, and every entity class under its `entities/` must be in it. Each
+  entity takes exactly one tenancy decorator (`@OrgScoped`, `@CustomerScoped`,
+  `@TransitivelyScoped`, `@RuleScoped` or `@GlobalEntity`) and its MikroORM
+  decorators from `@mikro-orm/decorators/legacy`. A process with an unclassified
+  entity does not start.
+- **Migrations** — the module's `migrations/` directory, read file by file: there
+  is no index file and no registry. Each file is named
+  `<YYYYMMDDTHHmmss>_<module>_<slug>.ts` and exports one class whose name derives
+  from the filename. Its chain is ordered by the module's manifest
+  `dependencies`, so a migration referencing a core table runs after the one that
+  created it.
+- **The foreign-schema guard, with no exemption** — an overlay migration may write
+  only the tables its own entities map, exactly like an installed package's. Being
+  the deployment's own buys nothing here.
+- **Extension columns** — an overlay module may declare `schemaExtensions` on an
+  extensible core table, as an installed package does; see
+  [Declared extension columns](./schema-extensions.md).
+- **Promotion keeps the id** — a module later moved from the overlay into a
+  package keeps its module id, so the migrations a database has already recorded
+  still match.
 
-**The reason is not migration ordering.** This page used to give one — that the
-registry's execution order is "only meaningful over a fixed set", so a set that
-varies per deployment has no single correct order to commit. That argument was
-measured and is false: adding a leaf module's migrations leaves the relative
-order of every existing migration exactly unchanged, because a leaf contributes
-dependency edges only out of itself. It is retired; do not repeat it.
+`apps/example/modules/example_erp_keys/` in the platform repository is the
+reference overlay module, and the one to copy: a side table on `organizations`
+with its migration, a command hook filling it, a port in `ports.ts`, and an admin
+screen with its palette action.
 
-**This rule is being lifted.** The reason this page gave for it was that an
-overlay lives in the same repository and the same build as core, so a table can
-always be shipped from a core module. That does not hold in an instance, which
-depends on released packages and has no core tree to put a table in, so the
-reason is retired too. A later release makes an overlay module a full module. It
-may then own entities and migrations, publish a port, and ship admin screens and
-command-palette actions, both in an instance and in a platform repository's own
-`apps/` tree. The same rules apply to it as to a package:
+**The reason this used to be refused is retired.** An overlay module once
+contributed no schema, on the reasoning that it lives in the same repository and
+the same build as core, so a table can always be shipped from a core module. That
+does not hold in an instance, which depends on released packages and has no core
+tree to put a table in. The other reason once given — that the migration order
+is "only meaningful over a fixed set" — was measured and is false: adding a leaf
+module's migrations leaves the relative order of every existing migration
+exactly unchanged. Do not repeat either.
 
-- its migrations face the same foreign-schema guard as an installed package's,
-  with no exemption for being the deployment's own;
-- one build compiles the whole deployment's overlay code; there is no build,
-  `package.json` or `exports` map per module;
-- a module later promoted from an overlay to a package keeps its module id, so
-  the migrations a database has already recorded still match.
+**What is never offered** is changing another module's schema: a core column,
+constraint, index or entity class is not overridable from an overlay module or
+from anywhere else. That is the
+[data ladder](./customisation-ladder.md#the-data-ladder-where-new-data-lives).
 
-**Until that release the refusal stands.** In an instance, a table the
-deployment needs ships in a module package you install, and the overlay module
-reads it through that package's port. The overlay module keeps everything else:
-its own services, its routes, its decorations and its permissions.
+## Overlay module layout {#overlay-module-layout}
 
-**An extension package may already ship schema.** A third-party package author
-has no core module to ship a table from, so for a package the rule would not be
-a constraint to design around. It would forbid the whole extension-package
-programme, every family of which persists state. A package therefore has its own
-entities and migrations. The platform discovers them at runtime and runs every
-package migration under the foreign-schema guard, which refuses a write to a
-table the package does not own.
+```text
+apps/<deployment>/
+├── divergence.ts                 # the deployment's declaration (hand-written)
+├── divergence.generated.{ts,md}  # derived report
+└── modules/
+    └── <id>/                     # one module; <id> = manifest id
+```
+
+A few names inside `<id>/` are read by something other than the module, so they
+are fixed:
+
+| Path | Read by | Required |
+| --- | --- | --- |
+| `manifest.ts` | the loader, which identifies the module by it | yes |
+| `backend.ts` | the loader: `registerModule`, `entities`, `schemaExtensions` | no — a module may have no server half |
+| `i18n/en.json`, `i18n/pl.json` | the manifest's `i18n.bundlesDir` | when the module has any label |
+| `migrations/` | schema discovery, file by file | when the module owns schema |
+| `admin/index.tsx` | the deployment's admin build | when the module has an admin screen |
+| `ports.ts` | a sibling overlay module, with `import type` only | when the module publishes a port |
+
+Everything else — `entities/`, `services/`, `hooks/`, `routes.ts` — is the
+module's own naming. A `manifest.ts` below `<id>/` is refused as `nested-module`,
+and a `package.json`, `tsconfig*.json` or `tsup`, `vite` or `vitest` configuration
+inside it as `package-in-disguise`: one project compiles the whole deployment's
+overlay code. When a module grows two concerns, make two sibling modules and
+declare the dependency.
+
+**Between two overlay modules only port types cross.** A module may import a
+sibling's `ports.ts`, and nothing else of it, with `import type`, when both are
+in the same deployment and its manifest `dependencies` name the sibling; it then
+resolves the port with `lazyPort`. Every other import between two overlay modules
+is refused, naming each failed condition.
+
+**The admin layer is per deployment.** `admin/index.tsx` exports the same
+`contributions` a package's `./admin` layer does, and lands in the admin build of
+its own deployment only. Palette coverage and the permission inventory judge it
+for that deployment.
 
 ## Service overrides are decorations
 
@@ -219,9 +277,11 @@ from the root the module was discovered under,
 `backend/src/apps/<deployment>/modules/`, so core has no way to assert it and
 `overlay:check` fails on a hand-edited artefact.
 
-**The exemption stops at an installed extension package.** An overlay may
-wrap anything core or another of the deployment's own modules registers, and it
-may not wrap a registration a package installed from `node_modules` owns —
+**The exemption stops at an installed extension package, and at the guard
+seams.** An overlay may wrap anything core or another of the deployment's own
+modules registers, and any name a composition root supplies (`redis`, `orm`,
+`requireAdmin`, …) — except the four guard seams below. It may not wrap a
+registration a package installed from `node_modules` owns —
 `PackageDecorationNotOfferedError`, refused at composition, naming the overlay,
 the package and the registration. The reason is that there is nothing to write
 the wrap *against*: a package's `exports` map publishes `registerModule`, its
@@ -234,6 +294,20 @@ either — for a package the compiler would be holding the deployment to a
 declaring which of its registrations are decoratable, `./ports` being the natural
 home, where changing the shape costs a major version bump. Until then, ask the
 package's author for a port, an event, or use an interceptor around its routes.
+
+**The four guard seams are not decoratable from 0.114.0.** `commandBus`,
+`auditLogService`, `eventBus` and `emFactory` are the names through which tenant
+isolation and write auditing are enforced. An overlay's decoration of one is
+**deprecated in 0.113.0** — it still composes, logs `kernel.decoration.deprecated`
+once and is a `deprecated-decoration` warning in the divergence report — and
+**refused from 0.114.0**. Each has a replacement:
+
+| Instead of decorating | Use |
+| --- | --- |
+| `commandBus` | command middleware: `admit` to refuse, `observe` to measure; a command hook for one declared action |
+| `auditLogService` | an `observe` middleware for an extra sink, or a read of `audit_log_entries` for a durable one; the audit writer itself is not replaceable |
+| `eventBus` | `ctx.subscribe` for a reaction; an `afterCommit` hook for durable delivery |
+| `emFactory` | nothing — tenant scoping is not overridable; ask the owning module for a port |
 
 Decorations are **applied after every module has registered**, not at the call.
 Which array a module was composed from therefore has no bearing on what
@@ -278,10 +352,10 @@ gets silence.
 Retired with it: **Conflict** (two overlays targeting one core unit),
 **Unknown target** (an overlay file whose core equivalent does not exist) and
 **Schema override** (an overlay file under a core module's `entities/` or
-`migrations/`). The schema rule itself is *not* retired — an overlay module
-still contributes no schema, and it is refused rather than ignored: by
-`generate-composer.ts` in this repository, and in an instance by the commands
-listed under *Fail-closed guards* below.
+`migrations/`). What that last refusal stood for is *not* retired: no overlay
+changes another module's schema. An overlay module's own `entities/` and
+`migrations/` are its own schema, held by the foreign-schema guard — see *An
+overlay module owns its schema* above.
 
 **Why it was not repaired instead.** Shadowing a file inside a published package
 is not a coherent operation. The platform composes a module through
@@ -322,13 +396,24 @@ silently — on:
 - **Module id collision** — an overlay module claiming an id already held by
   core, a workspace module package, an installed package or another overlay
   module. The refusal names every claimant's file.
-- **Overlay schema** — an `@Entity()` class or a migration under
-  `backend/src/apps/`, refused by `generate-composer.ts`. In an instance a
-  `migrations/` or `entities/` directory, or an `@Entity()` class, under
-  `apps/<deployment>/modules/` is refused, naming each file and the remedy, by
-  `pnpm run generate`, by `pnpm run migrate`, by every `module:*` command and by
-  the API and the worker when they start — so a tree that never ran `generate`
-  still cannot compose a module over a table that does not exist.
+- **Layout** — a manifest nested below a module (`nested-module`), or a
+  `package.json` or build configuration inside one (`package-in-disguise`),
+  refused by the overlay build and by every process that resolves overlay
+  modules, naming the file and the remedy.
+- **A stale build** — compiled overlay code that does not match `apps/`: an edit
+  that was not rebuilt (`stale`), a module never built (`unbuilt`), a compiled
+  file whose source is gone (`orphan`). The API, the worker and every `module:*`
+  command refuse to start on it.
+- **An unclassified entity** — an overlay entity with no tenancy decorator, or
+  more than one, stops every process that configures the ORM before it opens a
+  connection. So does an entity class under `entities/` missing from the
+  module's `entities` export, and a migration file whose name, class or module
+  segment do not agree.
+- **A foreign write** — an overlay migration touching a table its own entities
+  do not map, refused at `migrate` by the foreign-schema guard.
+- **An import across overlay modules** — anything but `import type` from a
+  sibling's `ports.ts` that the importer's manifest depends on, reported by
+  `check:module-boundary` here and by `pnpm run generate` in an instance.
 - **Missing manifest** — an overlay module directory carrying no
   `manifest.js`/`manifest.ts`. The refusal names both candidates.
 - **Unregisterable backend** — an overlay module whose `backend.js`/`backend.ts`
@@ -338,20 +423,152 @@ silently — on:
 - **Foreign decoration** — a core module decorating a registration it does not own.
 - **Package decoration** — an overlay decorating a registration an installed
   extension package owns; not offered yet, and the refusal says so.
+- **Guard-seam decoration** — an overlay decorating `commandBus`,
+  `auditLogService`, `eventBus` or `emFactory`: a warning in 0.113.0, refused
+  from 0.114.0.
 
 ## Guards still apply
 
 A decoration wraps an *implementation*, never a guard seam: overlay code runs
 under the same tenant isolation, sales-channel scoping and Command-Bus auditing
-as core. Overlay
-modules are ordinary lifecycle participants and must register their permissions
-and pass the permission-inventory check per deployment.
+as core, and cross-cutting behaviour on Commands is contributed as declared
+command middleware. Overlay modules are ordinary lifecycle participants and must
+register their permissions and pass the permission-inventory check per
+deployment.
+
+What an overlay module may contribute across owners follows from **where the
+platform found it**, never from anything it declares: it is of origin
+`deployment` because the loader discovered it under `apps/<deployment>/modules/`,
+whether or not it owns a table. That origin may contribute an `admit` command
+middleware, which an installed extension package (origin `package`) may not.
+
+## Moving a bus wrap to command middleware {#moving-a-bus-wrap-to-command-middleware}
+
+A deployment that measured or rate-limited writes by wrapping `commandBus` moves
+the wrap to command middleware before 0.114.0. Before — one decoration doing
+both:
+
+```ts
+// apps/acme/modules/acme_write_limits/backend.ts — deprecated in 0.113.0, refused from 0.114.0
+ctx.di.decorate<Bus>('commandBus', (inner) => ({
+  ...inner,
+  async run(command) {
+    if (overLimit(command)) throw new HttpError(429, 'RATE_LIMITED', 'Too many writes');
+    const started = performance.now();
+    try { return await inner.run(command); }
+    finally { metrics.observe(command.action, performance.now() - started); }
+  },
+}));
+```
+
+It saw only the Command handed to `run`, never the child Commands that one runs;
+it kept running while its module was switched off; and nothing downstream could
+tell its refusal from a failed write. After — the same behaviour as two declared middleware, with the
+decoration deleted. The manifest declares both, with their filters:
+
+```ts
+// apps/acme/modules/acme_write_limits/manifest.ts
+export const acmeWriteLimitsErrorCodes = defineModuleErrorCodes(['ACME_WRITE_LIMITS_RATE_LIMITED']);
+
+export const manifest = defineModuleManifest({
+  id: 'acme_write_limits',
+  // …
+  errorCodes: [{ code: 'ACME_WRITE_LIMITS_RATE_LIMITED' }],
+  commandMiddleware: [
+    { id: 'quote-rate-limit', phase: 'admit', actions: ['quote_request.create'] },
+    { id: 'write-metrics', phase: 'observe', actions: '*' },
+  ],
+});
+```
+
+and `backend.ts` registers the code under the same ids and phases:
+
+```ts
+// apps/acme/modules/acme_write_limits/backend.ts
+import { CommandRefusedError } from '@endora-commerce/platform/commands';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { acmeWriteLimitsErrorCodes } from './manifest.js';
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.commandMiddleware([
+    {
+      id: 'quote-rate-limit',
+      phase: 'admit',
+      admit: (meta) => {
+        if (meta.organizationId !== null && overLimit(meta.organizationId)) {
+          throw new CommandRefusedError(acmeWriteLimitsErrorCodes.ACME_WRITE_LIMITS_RATE_LIMITED, {
+            status: 429,
+            retryAfterSeconds: 60,
+          });
+        }
+      },
+    },
+    {
+      id: 'write-metrics',
+      phase: 'observe',
+      observe: (outcome) => {
+        metrics.observe(outcome.root.action, outcome.committed, outcome.durationMs);
+      },
+    },
+  ]);
+}
+```
+
+- **`admit`** runs before the Command does anything — before the transaction
+  opens — and for a matching child Command too. It receives metadata only (the
+  action, the object, the actor, the organisation, the request id, the lineage)
+  and may only pass or throw `CommandRefusedError` with a code the module
+  declares. A refused Command writes nothing and records no audit entry; the
+  caller receives the code and the status. It has a time budget (100 ms by
+  default, at most 500 ms), and one that does not answer in time fails closed.
+- **`observe`** runs after the run has committed or rolled back, never awaited by
+  the writer. It receives the outcome — committed or not, the refusal or error
+  code, the duration, and every Command the run attempted — as ids, codes and
+  booleans, and cannot change anything. A throw in it is logged and swallowed.
+- Both are skipped while their module is switched off, and both appear in the
+  divergence report as `command-middleware`. Two of the deployment's modules with
+  overlapping `admit` filters and no dependency between them are ordered in
+  `divergence.ts` (`commandMiddlewareOrder`), or composition refuses.
+
+`apps/example/modules/example_overlay/backend.ts` in the platform repository
+registers an `observe` middleware of this shape:
+
+<!-- verbatim-from: backend/src/apps/example/modules/example_overlay/backend.ts -->
+```ts
+ctx.commandMiddleware([
+  {
+    id: 'organization-timing',
+    phase: 'observe',
+    observe: (outcome, { log }) => {
+      log.info(
+        {
+          root: outcome.root.action,
+          committed: outcome.committed,
+          errorCode: outcome.errorCode,
+          commands: outcome.commands.length,
+          durationMs: Math.round(outcome.durationMs * 10) / 10,
+        },
+        'example_overlay.organization-timing',
+      );
+    },
+  },
+]);
+```
+
+:::note Operator commands run no middleware
+A Command Bus an operator command builds for itself, outside the application —
+today the schema-extension lifecycle commands — runs **no command middleware and
+no command hooks**. Its Commands are still audited. `admit` is a business policy
+gate for the application's paths; do not rely on it to stop a maintenance
+command run by someone with shell and database access.
+:::
 
 ## Adding an overlay
 
 ```bash
 # 1. Add the deployment's overlay module (it ships backend.ts, never plugin.ts):
 #    backend/src/apps/acme/modules/acme_loyalty/{manifest,backend}.ts
+#    — with entities/ and migrations/ if it owns a table
 
 # 2. Override a core service from its registerModule, by registration name:
 #    ctx.di.decorate('pricingService', (inner) => wrap(inner))

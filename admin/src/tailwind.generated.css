@@ -83,4 +83,5 @@
  * on disk, that ships `admin/index.tsx` (`specs/190-overlay-full-modules/` FR-082).
  * They are no package, so no `./tailwind.css` of theirs declares them.
  */
+@source "../../backend/src/apps/example/modules/example_erp_keys/admin";
 @source "../../backend/src/apps/example/modules/overlay_notes_fixture/admin";

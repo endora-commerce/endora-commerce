@@ -284,7 +284,7 @@ function editableFields(project: Project): Record<'description' | 'startOn' | 't
 }
 
 /** Sorted keys whose value differs between two custom-field bags. */
-function changedCustomFieldKeys(before: Record<string, unknown>, after: Record<string, unknown>): string[] {
+export function changedCustomFieldKeys(before: Record<string, unknown>, after: Record<string, unknown>): string[] {
   return [...new Set([...Object.keys(before), ...Object.keys(after)])]
     .filter((key) => !isDeepStrictEqual(before[key], after[key]))
     .sort();
