@@ -1,21 +1,18 @@
 import {
+  type CatalogAttributeCommandPort,
   type CatalogCategoryCommandPort,
   type CatalogCategoryReadPort,
   type CatalogCategoryWritePort,
+  type CatalogProductCommandPort,
   type CatalogProductScopeWritePort,
   type CatalogProductWritePort,
   type CatalogPromoAttributePort,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '@endora-commerce/platform/commands';
-import { assertIntegrationCall, runScopedImport, type ScopedImportDeps } from './scoped-values-import.js';
+import { assertIntegrationCall } from './scoped-values-import.js';
 import type { CatalogAdminService } from './catalog-admin.service.js';
 import type { CatalogQueryService } from './catalog-query.service.js';
 import type { CategoryAdminService } from './category-admin.service.js';
 import { toCatalogCategoryRecord } from './catalog-category-read.service.js';
-import {
-  toCatalogProductRecord,
-  toCatalogProductVariantRecord,
-} from './catalog-product-read.service.js';
 
 /**
  * The published write surface of `catalog` (feature 075, Phase P).
@@ -31,34 +28,38 @@ import {
  * and a singleton may not hold a gate.
  */
 
-export function createCatalogProductWritePort(
-  getService: () => CatalogAdminService,
-): CatalogProductWritePort {
+/**
+ * `catalogProductWritePort` — deprecated since 0.113.0 (`specs/186-aggregate-ports/`, issue
+ * #1825). Every write delegates to its replacement on `catalogProductCommandPort` or
+ * `catalogAttributeCommandPort`, so the entries, the refusals and the records are those of the
+ * aggregate ports; `auditCtx` was never read (the actor is ambient) and is not passed on. A
+ * `version` in `updateProduct`'s request travels as `options.expectedVersion`. The two reads
+ * stay on the admin service until the port is removed: `listAttributesByFlag` takes two flags
+ * the read port has not.
+ */
+export function createCatalogProductWritePort(deps: {
+  products: () => Pick<CatalogProductCommandPort, 'create' | 'update' | 'createVariant' | 'updateVariant' | 'deleteVariant'>;
+  attributes: () => Pick<CatalogAttributeCommandPort, 'create' | 'update' | 'addOption' | 'updateOption'>;
+  attributeReads: () => Pick<CatalogAdminService, 'listAttributes' | 'listAttributesByFlag'>;
+}): CatalogProductWritePort {
   return {
-    async createProduct(req, auditCtx) {
-      return toCatalogProductRecord(await getService().createProduct(req, auditCtx));
+    createProduct: (req) => deps.products().create(req),
+    updateProduct(id, req) {
+      const { version, ...patch } = req;
+      // R-19.7 — only a decimal token converts; anything else becomes NaN, which the port refuses
+      // `422 VALIDATION_FAILED` before anything is read (`Number('')` would be 0, `Number('0x1F')` 31).
+      const expectedVersion = version === undefined ? undefined : /^\d+$/.test(version) ? Number(version) : Number.NaN;
+      return deps.products().update(id, patch, expectedVersion === undefined ? {} : { expectedVersion });
     },
-    async updateProduct(id, req) {
-      return toCatalogProductRecord(await getService().updateProductAudited(id, req));
-    },
-    listAttributes: () => getService().listAttributes(),
-    listAttributesByFlag: (flag) => getService().listAttributesByFlag(flag),
-    createAttribute: (req) => getService().createAttribute(req),
-    updateAttributeByIdOrKey: (idOrKey, req, auditCtx) =>
-      getService().updateAttributeByIdOrKey(idOrKey, req, auditCtx),
-    addAttributeOption: (attributeIdOrKey, input) =>
-      getService().addAttributeOption(attributeIdOrKey, input),
-    patchAttributeOption: (optionId, input) => getService().patchAttributeOption(optionId, input),
-    async createVariant(parentProductId, req) {
-      return toCatalogProductVariantRecord(await getService().createVariant(parentProductId, req));
-    },
-    async updateVariant(parentProductId, variantId, req) {
-      return toCatalogProductVariantRecord(
-        await getService().updateVariant(parentProductId, variantId, req),
-      );
-    },
-    deleteVariant: (parentProductId, variantId) =>
-      getService().deleteVariant(parentProductId, variantId),
+    listAttributes: () => deps.attributeReads().listAttributes(),
+    listAttributesByFlag: (flag) => deps.attributeReads().listAttributesByFlag(flag),
+    createAttribute: (req) => deps.attributes().create(req),
+    updateAttributeByIdOrKey: (idOrKey, req) => deps.attributes().update(idOrKey, req),
+    addAttributeOption: (attributeIdOrKey, input) => deps.attributes().addOption(attributeIdOrKey, input),
+    patchAttributeOption: (optionId, input) => deps.attributes().updateOption(optionId, input),
+    createVariant: (parentProductId, req) => deps.products().createVariant(parentProductId, req),
+    updateVariant: (parentProductId, variantId, req) => deps.products().updateVariant(parentProductId, variantId, req),
+    deleteVariant: (parentProductId, variantId) => deps.products().deleteVariant(parentProductId, variantId),
   };
 }
 
@@ -105,28 +106,21 @@ export function createCatalogPromoAttributePort(
 
 /**
  * Feature 174 (T083; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the scoped write of a
- * connector, v2: the call-level checks (a registered `source`, the cell cap, no duplicate cell),
- * then one Command `product.scoped_values.import` on the save's planner and writers
- * (`scoped-values-import.ts`): per-cell refusals, the integration allowlist, every subject bound to
- * the product, no completeness gate (A-6), URL keys in `integration` mode (FR-093).
+ * connector, v2. Deprecated since 0.113.0 (`specs/186-aggregate-ports/`, issue #1825): its own
+ * rule — `source` a module of the registry (R21) — then `catalogProductCommandPort.applyScopedValues`,
+ * which runs the Command `product.scoped_values.import` with the call-level checks (the cell cap,
+ * no duplicate cell), per-cell refusals, the integration allowlist and URL keys in `integration`
+ * mode (FR-093).
  */
 export function createCatalogProductScopeWritePort(deps: {
-  commandBus: () => CommandBus;
-  importDeps: () => ScopedImportDeps;
+  products: () => Pick<CatalogProductCommandPort, 'applyScopedValues'>;
   /** Whether `moduleId` names a module of the registry (R21: `options.source`). */
   isRegisteredModule: (moduleId: string) => boolean;
 }): CatalogProductScopeWritePort {
   return {
     async applyScopes(productId, input, options) {
       assertIntegrationCall(input.cells, options.source, deps.isRegisteredModule);
-      const { changedFields: _changed, ...result } = await runScopedImport(
-        deps.commandBus(),
-        deps.importDeps(),
-        productId,
-        input.cells,
-        { source: options.source },
-      );
-      return result;
+      return deps.products().applyScopedValues(productId, input, { source: options.source });
     },
   };
 }

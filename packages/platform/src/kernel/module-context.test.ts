@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import type { Worker } from 'bullmq';
+import { CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
 import { registerErrorEnvelope } from '../http/error-envelope.js';
 import { EventBus } from '../events/index.js';
 import { registryCache } from './lifecycle/registry-cache.js';
@@ -615,5 +616,46 @@ describe('ModuleContext — subscribe delegates to subscribeForModule', () => {
     bus.emit('fixture.happened', { eventId: '2', occurredAt: 'now' });
     await Promise.resolve();
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ModuleContext.commandMiddleware (189 T015, FR-002)', () => {
+  const quiet = { info: () => {}, warn: () => {}, error: () => {} };
+  function context(registry?: CommandMiddlewareRegistry): ModuleContext {
+    return createModuleContext({
+      module: { id: 'acme_hold', version: '1.0.0' },
+      container: createRootContainer(),
+      eventBus: new EventBus(),
+      sink: createModuleRegistrationSink(),
+      log: quiet,
+      ...(registry ? { commandMiddlewareRegistry: registry } : {}),
+    });
+  }
+
+  it("stamps the registering module's id, never one the entry names", () => {
+    const registry = new CommandMiddlewareRegistry({ log: quiet });
+    context(registry).commandMiddleware([
+      { id: 'hold', phase: 'admit', admit: () => undefined, moduleId: 'someone_else' } as never,
+    ]);
+    registry.seal({
+      declarations: [{ moduleId: 'acme_hold', id: 'hold', phase: 'admit', actions: '*' }],
+      moduleDependencies: {},
+      origins: { acme_hold: 'deployment' },
+    });
+    expect(registry.plan().map((entry) => `${entry.moduleId}#${entry.id}`)).toEqual(['acme_hold#hold']);
+  });
+
+  it('refuses a registration once the registry is sealed', () => {
+    const registry = new CommandMiddlewareRegistry({ log: quiet });
+    registry.seal({ declarations: [], moduleDependencies: {}, origins: {} });
+    expect(() => context(registry).commandMiddleware([{ id: 'hold', phase: 'observe', observe: () => undefined }])).toThrow(
+      /sealed[\s\S]*acme_hold/,
+    );
+  });
+
+  it('refuses outright in a composition that mounts no registry', () => {
+    expect(() => context().commandMiddleware([{ id: 'hold', phase: 'observe', observe: () => undefined }])).toThrow(
+      /acme_hold[\s\S]*command-middleware registry/,
+    );
   });
 });

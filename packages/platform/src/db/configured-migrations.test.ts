@@ -149,6 +149,83 @@ describe('configuredMigrationsFrom — an overlay module is merged as a package 
   });
 });
 
+/**
+ * `specs/187-side-table-extensions/` T015 — the merge resolves every composed
+ * module's side-table declarations over the composed graph, whatever its origin,
+ * so an instance — no committed half — gets its packages' and overlays' without
+ * a line of its own wiring.
+ */
+describe('configuredMigrationsFrom — side-table declarations (187 FR-004, FR-005)', () => {
+  const hostDeps = new Map<string, readonly string[]>([
+    ['core', []],
+    ['organizations', []],
+    ['orders', ['organizations']],
+  ]);
+  const onOrganizations = { entity: 'organizations.Organization', table: 'acme_links_organization_refs' };
+  const acmePackage = (dependencies: readonly string[]): PackageSchemaContribution => ({
+    id: 'acme_links',
+    packageName: '@acme/mod-acme-links',
+    version: '1.0.0',
+    migrationsDirectory: null,
+    migrations: [],
+    entities: [],
+    dependencies,
+    schemaExtensions: [],
+    entityExtensions: [onOrganizations],
+  });
+  const mergeWith = (inputs: {
+    packages?: readonly PackageSchemaContribution[];
+    overlays?: readonly OverlaySchemaContribution[];
+    core?: Parameters<typeof configuredMigrationsFrom>[0]['coreEntityExtensions'];
+  }) =>
+    configuredMigrationsFrom({
+      coreEntries: [],
+      coreModuleDependencies: hostDeps,
+      packages: inputs.packages ?? [],
+      overlays: inputs.overlays ?? [],
+      baseline: [],
+      foreignWriteExemptions: [],
+      ...(inputs.core === undefined ? {} : { coreEntityExtensions: inputs.core }),
+    });
+
+  it('declares nothing, and resolves nothing, for a composition with no `extends` (inert)', () => {
+    expect(mergeWith({}).entityExtensions).toEqual([]);
+  });
+
+  it('resolves a package declaration whose host owner is reached through a core module', () => {
+    const merged = mergeWith({ packages: [acmePackage(['orders'])] });
+    expect(merged.entityExtensions).toEqual([
+      expect.objectContaining({ moduleId: 'acme_links', origin: 'package', declaration: onOrganizations }),
+    ]);
+  });
+
+  it('resolves an overlay declaration and a core one on identical terms', () => {
+    const merged = mergeWith({
+      overlays: [
+        overlay({ id: 'acme_links', migrations: [], dependencies: ['organizations'], entityExtensions: [onOrganizations] }),
+      ],
+      core: [
+        {
+          moduleId: 'quote_requests',
+          origin: 'core',
+          dependencies: ['organizations'],
+          extends: [{ entity: 'organizations.Organization', table: 'quote_request_org_policies' }],
+        },
+      ],
+    });
+    expect(merged.entityExtensions?.map((resolved) => `${resolved.origin}:${resolved.moduleId}`)).toEqual([
+      'core:quote_requests',
+      'overlay:acme_links',
+    ]);
+  });
+
+  it('refuses the merge — before any migration runs — when the host owner is not a dependency', () => {
+    expect(() => mergeWith({ packages: [acmePackage([])] })).toThrow(
+      expect.objectContaining({ name: 'EntityExtensionInvalidError', rule: 'host-not-a-dependency' }),
+    );
+  });
+});
+
 describe('discoverConfiguredMigrations — the deployment root reaches the merge (FR-035)', () => {
   const roots: string[] = [];
   afterAll(() => {

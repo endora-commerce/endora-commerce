@@ -98,6 +98,8 @@ describe('crm published ports (User Story 14)', () => {
         closedAt: null,
         createdAt: expect.any(Date),
         updatedAt: expect.any(Date),
+        // `specs/186-aggregate-ports/` R-8 — the bag the aggregate port writes.
+        customFieldValues: {},
       });
       expect(record).not.toBeInstanceOf(CrmOpportunity);
       expect(Object.getPrototypeOf(record)).toBe(Object.prototype);

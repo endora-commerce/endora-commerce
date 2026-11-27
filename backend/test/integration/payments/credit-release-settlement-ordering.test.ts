@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { LockMode } from '@mikro-orm/core';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { OrderTransitionPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
+import type { OrderCommandPort, PaymentMethodReadPort } from '@endora-commerce/contracts';
 import type {
   OrderPaymentSettlementEffectsPort,
   OrderPaymentStatusApplyPort,
@@ -123,7 +123,7 @@ describe('#1576 credit release across settlement and admin payment-status writes
   const handler = () => new ReceivePaymentHandler(
     h.em,
     h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-    h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+    h.container.resolve<OrderCommandPort>('orderCommandPort'),
     h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
     h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
     { warn: () => undefined },
@@ -292,7 +292,7 @@ describe('#1576 credit release across settlement and admin payment-status writes
     const failingHandler = new ReceivePaymentHandler(
       h.em,
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      h.container.resolve<OrderCommandPort>('orderCommandPort'),
       {
         async applyPaymentStatus(tx, input) {
           const result = await apply.applyPaymentStatus(tx, input);
@@ -412,7 +412,7 @@ describe('#1576 credit release across settlement and admin payment-status writes
     const writerA = new ReceivePaymentHandler(
       h.em,
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      h.container.resolve<OrderCommandPort>('orderCommandPort'),
       {
         async applyPaymentStatus(tx, input) {
           const stale = await tx.findOneOrFail(Order, { id: orderId });
@@ -478,7 +478,7 @@ describe('#1576 credit release across settlement and admin payment-status writes
     const handler = new ReceivePaymentHandler(
       h.em,
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
-      h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
+      h.container.resolve<OrderCommandPort>('orderCommandPort'),
       h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
       h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
       { warn: () => undefined },

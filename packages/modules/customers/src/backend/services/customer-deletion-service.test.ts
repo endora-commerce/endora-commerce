@@ -6,7 +6,7 @@ import {
   ORGANIZATION_AUDIT_KEEP_KEYS,
   type AddressServicePort,
   type CartAnonymizationPort,
-  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountCommandPort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type EmailDeliveryAnonymizationPort,
@@ -20,7 +20,6 @@ import {
   type AnonymizedHistoryDeps,
 } from './customer-deletion-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
-import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 
 /**
  * Issue #800 — the order of the anonymisation sweep, without a database.
@@ -63,7 +62,7 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
       fail('account');
       return due.find((d) => d.id === id)!;
     },
-  } as unknown as CustomerAccountLifecycleWritePort;
+  } as unknown as CustomerAccountCommandPort;
   const personalOrganizations = {
     anonymizeIfOrphaned: async (id: string) => {
       calls.push(['org', id]);
@@ -105,12 +104,11 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
     },
   };
   const service = new CustomerDeletionService(
-    {} as CustomerAccountReadPort,
+    // The work list is the read port's since `specs/186-aggregate-ports/`.
+    accountWrites as unknown as CustomerAccountReadPort,
     accountWrites,
     personalOrganizations,
     {} as CustomerAuthorityService,
-    { destroyAllForCustomer: async () => undefined },
-    {} as OrganizationDepletionGuard,
     addresses,
     async () => 365,
     retiredBook,
@@ -194,7 +192,7 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
     const accountWrites = {
       listDueForAnonymization: async () => options.due.map((id) => record(id, `org-${id}`, null)),
       anonymize: async (id: string) => record(id, `org-${id}`, new Date()),
-    } as unknown as CustomerAccountLifecycleWritePort;
+    } as unknown as CustomerAccountCommandPort;
     const accounts = {
       listByOrganization: async (organizationId: string) => {
         if (options.disabledAt === 'listByOrganization') throw disabled;
@@ -215,12 +213,11 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
       },
     } as unknown as PersonalOrganizationPort;
     const service = new CustomerDeletionService(
-      accounts,
+      // The work list is the read port's since `specs/186-aggregate-ports/`.
+      { ...accountWrites, ...accounts } as unknown as CustomerAccountReadPort,
       accountWrites,
       personalOrganizations,
       {} as CustomerAuthorityService,
-      { destroyAllForCustomer: async () => undefined },
-      {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
       // Issue #927 — the retired personal book; these harnesses seed no row of it.
@@ -337,7 +334,7 @@ describe('CustomerDeletionService.hasDue (issue #857)', () => {
         asked.push('accounts');
         return options.accountsDue;
       },
-    } as unknown as CustomerAccountLifecycleWritePort;
+    } as unknown as CustomerAccountCommandPort;
     const personalOrganizations = {
       hasIncompletelyScrubbed: async () => {
         asked.push('organizations');
@@ -346,12 +343,11 @@ describe('CustomerDeletionService.hasDue (issue #857)', () => {
       },
     } as unknown as PersonalOrganizationPort;
     const service = new CustomerDeletionService(
-      {} as CustomerAccountReadPort,
+      // The work list is the read port's since `specs/186-aggregate-ports/`.
+      accountWrites as unknown as CustomerAccountReadPort,
       accountWrites,
       personalOrganizations,
       {} as CustomerAuthorityService,
-      { destroyAllForCustomer: async () => undefined },
-      {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
       // Issue #927 — the retired personal book; these harnesses seed no row of it.
@@ -429,7 +425,7 @@ describe("CustomerDeletionService.sweep — the subject's audit history (issue #
         calls.push('account');
         return record;
       },
-    } as unknown as CustomerAccountLifecycleWritePort;
+    } as unknown as CustomerAccountCommandPort;
     const personalOrganizations = {
       anonymizeIfOrphaned: async () => {
         calls.push('org');
@@ -455,12 +451,11 @@ describe("CustomerDeletionService.sweep — the subject's audit history (issue #
       retiredAddressBook: { listIdsForAccount: async () => options.legacyIds ?? [] },
     };
     const service = new CustomerDeletionService(
-      {} as CustomerAccountReadPort,
+      // The work list is the read port's since `specs/186-aggregate-ports/`.
+      accountWrites as unknown as CustomerAccountReadPort,
       accountWrites,
       personalOrganizations,
       {} as CustomerAuthorityService,
-      { destroyAllForCustomer: async () => undefined },
-      {} as OrganizationDepletionGuard,
       {
         anonymizeForOrganization: async () => {
           calls.push('addresses');

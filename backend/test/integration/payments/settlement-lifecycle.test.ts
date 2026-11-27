@@ -190,7 +190,7 @@ describe('payment settlement moves the order through the lifecycle (085 Phase D)
     const entries = await transitionEntries(orderId);
     expect(entries).toHaveLength(1);
     expect(entries[0]?.stateBefore).toEqual({ status: 'new' });
-    expect(entries[0]?.stateAfter).toEqual({ status: 'on_hold' });
+    expect(entries[0]?.stateAfter).toEqual({ status: 'on_hold', source: 'payment' });
   });
 
   /**

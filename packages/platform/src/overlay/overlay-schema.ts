@@ -73,6 +73,11 @@ export interface OverlaySchemaContribution {
   readonly nonDeactivatable: boolean;
   /** The `schemaExtensions` export, held to V9 – V11 with the overlay as the declaring module. */
   readonly schemaExtensions: readonly ColumnExtension[];
+  /**
+   * The manifest's `extends` (`specs/187-side-table-extensions/` FR-001, OR-5),
+   * unvalidated: judged by the migration merge exactly as a package's are.
+   */
+  readonly entityExtensions?: readonly unknown[];
 }
 
 /** The refusals of `overlay-schema-discovery.md` §1. */
@@ -306,6 +311,7 @@ interface OverlayManifestShape {
   readonly version?: unknown;
   readonly dependencies?: unknown;
   readonly activation?: { readonly nonDeactivatable?: unknown };
+  readonly extends?: unknown;
 }
 
 /**
@@ -366,6 +372,7 @@ export async function overlaySchemaContributionsUnder(
       dependencies: Array.isArray(manifest.dependencies) ? (manifest.dependencies as string[]) : [],
       nonDeactivatable: manifest.activation?.nonDeactivatable === true,
       schemaExtensions: [],
+      entityExtensions: Array.isArray(manifest.extends) ? (manifest.extends as unknown[]) : [],
     });
   }
 

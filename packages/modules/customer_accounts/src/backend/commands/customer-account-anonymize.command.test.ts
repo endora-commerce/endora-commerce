@@ -5,19 +5,26 @@ import {
   CustomerAccountAnonymizedEventV1Schema,
   type CustomerAccountAnonymizedEventV1,
 } from '@endora-commerce/contracts';
+import { CommandBus } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
-import { CustomerAccountLifecycleWriteService } from './customer-account-lifecycle-ports.js';
+import { CustomerAccountCommandService } from '../services/customer-account-command-port.js';
 
 /**
+ * `customer_account.anonymized` as a Command (`specs/186-aggregate-ports/` T047, T050, issue
+ * #1822), run by `customerAccountCommandPort.anonymize` on the **real** `CommandBus` over an
+ * in-memory EntityManager — until 0.113.0 it was the lifecycle port's hand-audited transaction,
+ * and these cases were that service's.
+ *
  * `customer_account.anonymized.v1` (`specs/170-forms-module/` contracts/events-and-webhook.md §3,
- * research R-17): `anonymize` announces the irreversible step once, after its write and its audit
- * row, so a module holding data attributed to the account can erase it in the same sweep step. An
+ * research R-17): the port announces the irreversible step once, after the Command has committed,
+ * so a module holding data attributed to the account can erase it in the same sweep step. An
  * account that was already anonymised announces nothing.
  *
  * Issue #802: the write and its audit row commit in one transaction, and the announcement follows
- * the commit, so a failed audit write leaves the account unscrubbed, still due and unannounced.
+ * the commit, so a failed commit leaves the account unscrubbed, still due and unannounced. Under
+ * the sweep's system scope the entry has no actor.
  */
 
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000c0a01';
@@ -26,7 +33,7 @@ const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000c0a02';
 function harness(options: { failCommit?: boolean } = {}) {
   const steps: string[] = [];
   const emitted: CustomerAccountAnonymizedEventV1[] = [];
-  const audited: Array<{ action: string; stateBefore: unknown; stateAfter: unknown }> = [];
+  const audited: Array<{ action: string; actorAdminUserId: string | null; stateBefore: unknown; stateAfter: unknown }> = [];
   const account = Object.assign(Object.create(CustomerAccount.prototype) as CustomerAccount, {
     id: ACCOUNT_ID,
     organizationId: ORGANIZATION_ID,
@@ -47,6 +54,7 @@ function harness(options: { failCommit?: boolean } = {}) {
     flush: async () => {
       steps.push('flush');
     },
+    fork: () => em,
     transactional: async <T>(work: (tem: EntityManager) => Promise<T>): Promise<T> => {
       steps.push('begin');
       const result = await work(em);
@@ -62,36 +70,53 @@ function harness(options: { failCommit?: boolean } = {}) {
     record: async (entry: { action: string }) => {
       steps.push(`audit-outside-transaction:${entry.action}`);
     },
-    recordWithin: (tem: EntityManager, entry: { action: string; stateBefore: unknown; stateAfter: unknown }) => {
+    recordWithin: (
+      tem: EntityManager,
+      entry: { action: string; actorAdminUserId: string | null; stateBefore: unknown; stateAfter: unknown },
+    ) => {
       steps.push(`audit:${entry.action}${tem === em ? '' : ':foreign-em'}`);
       audited.push(entry);
     },
   } as unknown as AuditPort;
-  const service = new CustomerAccountLifecycleWriteService(
-    () => em,
-    audit,
-    async () => new Set<string>(),
-    {} as PersonalOrganizationProvisionApi,
-    undefined,
-    async (payload) => {
+  const events = { run: async <T>(fn: () => Promise<T>) => fn(), emit: () => undefined };
+  const commandBus = new CommandBus({ em } as never, audit, events as never);
+  const unwired = (): never => {
+    throw new Error('not used by anonymize');
+  };
+  const port = new CustomerAccountCommandService({
+    commandBus,
+    emFactory: () => em,
+    twoFactorEnrolments: async () => new Set<string>(),
+    roles: { findRole: unwired, predefinedRoleId: unwired },
+    isPersonal: unwired,
+    personalOrganizations: { provisionFor: unwired },
+    sessions: { destroyAllForCustomer: unwired },
+    afterCommit: unwired,
+    announceAnonymized: async (payload: CustomerAccountAnonymizedEventV1) => {
       steps.push('emit');
       emitted.push(payload);
     },
-  );
+  });
+  // The retention sweep runs in a system scope.
+  const service = {
+    anonymize: (id: string) => withSystemScope('customer_accounts anonymize test', () => port.anonymize(id)),
+  };
   return { service, steps, emitted, account, audited };
 }
 
-describe('CustomerAccountLifecycleWriteService.anonymize — the anonymisation event', () => {
+describe('customer_account.anonymized — the anonymisation event', () => {
   it('names the event as the contract does', () => {
     expect(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT).toBe('customer_account.anonymized.v1');
   });
 
   it('emits once on the transition, after the scrub and its audit row commit, with the account and its organisation', async () => {
-    const { service, steps, emitted } = harness();
+    const { service, steps, emitted, audited } = harness();
 
     await service.anonymize(ACCOUNT_ID);
 
-    expect(steps).toEqual(['begin', 'audit:customer_account.anonymized', 'flush', 'commit', 'emit']);
+    expect(steps).toEqual(['begin', 'flush', 'audit:customer_account.anonymized', 'commit', 'emit']);
+    // The sweep's system scope: the entry names no administrator.
+    expect(audited[0]!.actorAdminUserId).toBeNull();
     expect(emitted).toHaveLength(1);
     const event = CustomerAccountAnonymizedEventV1Schema.parse(emitted[0]);
     expect(event).toMatchObject({ customerAccountId: ACCOUNT_ID, organizationId: ORGANIZATION_ID });
@@ -123,7 +148,7 @@ describe('CustomerAccountLifecycleWriteService.anonymize — the anonymisation e
   });
 });
 
-describe('CustomerAccountLifecycleWriteService.anonymize — the scrub (#802)', () => {
+describe('customer_account.anonymized — the scrub (#802)', () => {
   it('clears every custom field value (owner ruling Q1)', async () => {
     const { service, account } = harness();
 
@@ -150,7 +175,7 @@ describe('CustomerAccountLifecycleWriteService.anonymize — the scrub (#802)', 
   });
 });
 
-describe('CustomerAccountLifecycleWriteService.anonymize — the block reason (#843)', () => {
+describe('customer_account.anonymized — the block reason (#843)', () => {
   const REASON = 'Ada threatened the courier';
 
   it('erases the block reason and keeps the block, recording only that a reason existed', async () => {
@@ -188,7 +213,7 @@ describe('CustomerAccountLifecycleWriteService.anonymize — the block reason (#
   });
 });
 
-describe('CustomerAccountLifecycleWriteService.anonymize — finishing an earlier scrub (#843, design #923 §2.3)', () => {
+describe('customer_account.anonymized — finishing an earlier scrub (#843, design #923 §2.3)', () => {
   it('U-5 — finishes an account anonymised before #802 that has custom field values and no block reason', async () => {
     const { service, account, audited, emitted, steps } = harness();
     const anonymizedAt = new Date('2026-01-02T03:04:05Z');
@@ -221,7 +246,7 @@ describe('CustomerAccountLifecycleWriteService.anonymize — finishing an earlie
 });
 
 
-describe('CustomerAccountLifecycleWriteService.anonymize — the preferred language (#652, D-292)', () => {
+describe('customer_account.anonymized — the preferred language (#652, D-292)', () => {
   it('erases the preferred language with the rest of the personal data, and records no tag', async () => {
     const { service, account, audited } = harness();
     Object.assign(account, { preferredLanguage: 'pl-PL' });

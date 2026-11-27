@@ -13,6 +13,11 @@ import {
 import { SchemaExtensionInvalidError } from '../kernel/schema-extensions/errors.js';
 import { recordActiveSchemaExtensions } from '../kernel/schema-extensions/registry.js';
 import type { ColumnExtension } from '../kernel/schema-extensions/types.js';
+import type { ResolvedEntityExtension } from '../kernel/entity-extensions/declarations.js';
+import type { EntityExtensionOrigin } from '../kernel/entity-extensions/errors.js';
+import { recordActiveEntityExtensions } from '../kernel/entity-extensions/context.js';
+import { assertEntityExtensionMetadata } from './entity-extension-metadata.js';
+import { CORE_MODULE_ID, PLATFORM_ENTITIES } from './platform-schema.js';
 
 /**
  * MikroORM configuration for an Endora platform.
@@ -72,6 +77,40 @@ export interface OrmConfigurationInputs {
    * the platform's own tests pass a throwaway host table here.
    */
   readonly extensibleHosts?: ExtensibleHostSet;
+  /**
+   * The side tables to verify (`specs/187-side-table-extensions/`
+   * `contracts/verification-rules.md` §1). Defaults to what the migration merge
+   * resolved over every composed module — core, packages and overlays — so the
+   * ORM and the order agree on which declarations exist.
+   */
+  readonly entityExtensions?: readonly ResolvedEntityExtension[];
+  /**
+   * Which committed module contributes which entity classes — the owner of
+   * the tables they map (`ENTITY_OWNERS` in this repository's generated entity
+   * registry). An instance has no committed half and passes none: its modules
+   * are packages and overlays, whose entities the merge already attributes.
+   */
+  readonly coreEntityOwners?: ReadonlyArray<readonly [moduleId: string, entities: readonly unknown[]]>;
+}
+
+/**
+ * Module id → its entity classes and origin, over every producer: the
+ * platform's own, the committed modules' and each package's and overlay's.
+ */
+function entityOwnersOf(inputs: OrmConfigurationInputs): {
+  readonly entitiesByModule: Map<string, readonly unknown[]>;
+  readonly moduleOrigins: Map<string, EntityExtensionOrigin>;
+} {
+  const entitiesByModule = new Map<string, readonly unknown[]>([[CORE_MODULE_ID, PLATFORM_ENTITIES]]);
+  const moduleOrigins = new Map<string, EntityExtensionOrigin>([[CORE_MODULE_ID, 'core']]);
+  const add = (moduleId: string, entities: readonly unknown[], origin: EntityExtensionOrigin): void => {
+    entitiesByModule.set(moduleId, [...(entitiesByModule.get(moduleId) ?? []), ...entities]);
+    if (!moduleOrigins.has(moduleId)) moduleOrigins.set(moduleId, origin);
+  };
+  for (const [moduleId, entities] of inputs.coreEntityOwners ?? []) add(moduleId, entities, 'core');
+  for (const contribution of inputs.migrations.packages) add(contribution.id, contribution.entities, 'package');
+  for (const contribution of inputs.migrations.overlays) add(contribution.id, contribution.entities, 'overlay');
+  return { entitiesByModule, moduleOrigins };
 }
 
 /**
@@ -148,6 +187,16 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     ownership: inputs.migrations.ownership,
   });
 
+  // `specs/187-side-table-extensions/` FR-010 – FR-013 — the side tables'
+  // metadata rules run right after D2's table-mapping rule, in the same
+  // `afterDiscovered`, so every ORM initialisation refuses before a query. The
+  // context is recorded here without table facts and again by discovery with
+  // them; with nothing declared the rules still hold the bindings (M0).
+  const entityExtensions = inputs.entityExtensions ?? inputs.migrations.entityExtensions ?? [];
+  const owners = entityOwnersOf(inputs);
+  recordActiveEntityExtensions({ extensions: entityExtensions, tables: null });
+  const d2Discovery = schemaExtensionDiscovery(projections.allowed);
+
   return defineConfig({
     clientUrl: databaseUrl(),
     namingStrategy: PluralizingNamingStrategy,
@@ -157,7 +206,19 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     // backend/src/db/entities-registry.generated.ts for the rationale and for
     // what emits it, and ./configured-entities.ts for the package half.
     entities: [...inputs.entities, ...projections.schemas],
-    discovery: schemaExtensionDiscovery(projections.allowed),
+    discovery: {
+      checkDuplicateTableNames: d2Discovery.checkDuplicateTableNames,
+      afterDiscovered: (storage) => {
+        d2Discovery.afterDiscovered(storage);
+        const tables = assertEntityExtensionMetadata(storage, {
+          extensions: entityExtensions,
+          entitiesByModule: owners.entitiesByModule,
+          moduleOrigins: owners.moduleOrigins,
+          projections: projections.allowed,
+        });
+        recordActiveEntityExtensions({ extensions: entityExtensions, tables });
+      },
+    },
     // The tenant guard on the write side (D-260/A). One subscriber, over the
     // classification registry the `@OrgScoped()` decorators already write, so
     // there is nothing per entity and nothing per module to declare here as

@@ -16,6 +16,7 @@ import {
   type CustomFieldListFilterField,
   type CustomFieldListFilterPort,
   type CustomFieldCarryPort,
+  type CustomFieldMerge,
   type CustomFieldValuePort,
   type OpportunityCreatedEvent,
   type OpportunityBoardCardField,
@@ -67,6 +68,7 @@ import { storedReferencesOf, type ReferenceService, type ReferenceSource } from 
 import type { TagService } from './tag-service.js';
 import { mergeOpportunityCustomFields } from './opportunity-custom-fields.js';
 import { auditSnapshot, opportunityValues, recordValueChange } from './opportunity-audit-state.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 export interface OpportunityServiceDeps {
@@ -245,7 +247,13 @@ function decodeCursor(cursor: string | undefined): number {
 export class OpportunityService {
   constructor(private readonly deps: OpportunityServiceDeps) {}
 
-  async create(input: CreateOpportunityRequest): Promise<OpportunityDetail> {
+  /**
+   * `crm.opportunity.create` — `POST /opportunities` and
+   * `opportunityCommandPort.create`. Answers the new Opportunity's id; the
+   * caller reads what it shows. `caller` is the port's `source` and
+   * `extensions` (`commands/caller-options.ts`), absent on the route.
+   */
+  async create(input: CreateOpportunityRequest, caller: CallerOptions = {}): Promise<string> {
     const { organizations, customerAccounts, assignment } = this.deps;
 
     // The Organization exists *and* the caller may see it. `organizations` is
@@ -290,7 +298,7 @@ export class OpportunityService {
     );
 
     const created = await this.deps.commandBus.run(
-      this.#createCommand({ ...input, assignedAdminUserId, customFieldValues }, initial.code),
+      withCallerOptions(this.#createCommand({ ...input, assignedAdminUserId, customFieldValues }, initial.code), caller),
     );
     await assignment.notifyAssigned({
       opportunityId: created.id,
@@ -304,7 +312,7 @@ export class OpportunityService {
       number: created.number,
       adminUserIds: newlyMentioned(null, input.description),
     });
-    return this.get(created.id);
+    return created.id;
   }
 
   /**
@@ -712,11 +720,17 @@ export class OpportunityService {
     return this.#detail(opportunity, graph);
   }
 
+  /**
+   * `crm.opportunity.update` — `PATCH /opportunities/:id` and
+   * `opportunityCommandPort.update`. `ifMatch` is the route's `If-Match`, the
+   * port's `expectedVersion`.
+   */
   async update(
     id: string,
     patch: UpdateOpportunityRequest,
     ifMatch: number | null,
-  ): Promise<OpportunityDetail> {
+    caller: CallerOptions = {},
+  ): Promise<void> {
     // The parent first: an Opportunity the caller cannot see is a 404 before
     // any of the request's own values is looked at.
     const visible = await loadOpportunity(this.deps.emFactory(), id);
@@ -747,19 +761,25 @@ export class OpportunityService {
     let reassigned: ReassignedOpportunity | null = null;
     for (let attempt = 0; ; attempt += 1) {
       const stale: { current: Record<string, unknown> | null } = { current: null };
-      reassigned = await this.#updateCommand(id, patch, ifMatch, {
-        customFieldValues,
-        validatedAgainst,
-        onStale: (bag) => {
-          stale.current = bag;
+      reassigned = await this.#updateCommand(
+        id,
+        patch,
+        ifMatch,
+        {
+          customFieldValues,
+          validatedAgainst,
+          onStale: (bag) => {
+            stale.current = bag;
+          },
+          onBecameComputed: () => {
+            becameComputed = true;
+          },
+          onMentioned: (saved) => {
+            mentioned.saved = saved;
+          },
         },
-        onBecameComputed: () => {
-          becameComputed = true;
-        },
-        onMentioned: (saved) => {
-          mentioned.saved = saved;
-        },
-      });
+        caller,
+      );
       if (stale.current === null) break;
       if (attempt + 1 >= MAX_CUSTOM_FIELD_REVALIDATIONS) {
         throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The opportunity was updated concurrently.');
@@ -776,14 +796,37 @@ export class OpportunityService {
     // The stored computed figure is not maintained while the mode is manual,
     // so it is brought up to date the moment it becomes the value.
     if (becameComputed) await this.deps.recalculateValue(id);
-    return this.get(id);
+  }
+
+  /**
+   * `opportunityCommandPort.setCustomFieldValues` — the `crm.opportunity.update`
+   * the route's `PATCH` records for a body of `customFieldValues` alone
+   * (`specs/186-aggregate-ports/` R-8). The caller's `merge` runs on a copy of
+   * the bag under the Opportunity's row lock, inside the Command, so the bag is
+   * read, validated (by the caller, inside `merge`) and written atomically; a
+   * refusal it throws propagates unchanged and writes nothing. Nothing else
+   * of the Opportunity changes, so nobody is told and nothing is recalculated.
+   */
+  async setCustomFieldValues(id: string, merge: CustomFieldMerge, caller: CallerOptions = {}): Promise<void> {
+    // The parent first, as an edit reads it: a 404 before the caller's merge runs.
+    await loadOpportunity(this.deps.emFactory(), id);
+    const ignored = (): void => undefined;
+    await this.#updateCommand(
+      id,
+      {},
+      null,
+      { customFieldValues: {}, validatedAgainst: {}, merge, onStale: ignored, onBecameComputed: ignored, onMentioned: ignored },
+      caller,
+    );
   }
 
   /**
    * The edit Command. `custom` carries the custom-field bag the caller merged
    * and validated outside the transaction, and the bag it was validated
    * against: when the locked Opportunity holds another, nothing is written and
-   * `onStale` is handed the bag it holds now.
+   * `onStale` is handed the bag it holds now. `custom.merge`, when given, is
+   * the port's values-only write instead: run over the locked bag, its answer
+   * stored.
    */
   #updateCommand(
     id: string,
@@ -792,13 +835,16 @@ export class OpportunityService {
     custom: {
       customFieldValues: Record<string, unknown>;
       validatedAgainst: Record<string, unknown>;
+      /** The port's read-modify-write of the bag; `patch.customFieldValues` is then absent. */
+      merge?: CustomFieldMerge;
       onStale: (current: Record<string, unknown>) => void;
       onBecameComputed: () => void;
       /** Handed the people the saved description mentions and the one it replaces did not. */
       onMentioned: (saved: SavedMentions) => void;
     },
+    caller: CallerOptions,
   ): Promise<ReassignedOpportunity | null> {
-    return this.deps.commandBus.run({
+    return this.deps.commandBus.run(withCallerOptions<ReassignedOpportunity | null>({
       action: 'crm.opportunity.update',
       objectType: 'crm_opportunity',
       objectId: id,
@@ -851,6 +897,8 @@ export class OpportunityService {
         if (patch.manualValue !== undefined) opportunity.manualValue = normalizeAmount(patch.manualValue);
         if (patch.expectedCloseDate !== undefined) opportunity.expectedCloseDate = patch.expectedCloseDate;
         if (patch.customFieldValues !== undefined) opportunity.customFieldValues = custom.customFieldValues;
+        // A copy, so a merge that mutates its argument cannot rewrite the before-state.
+        if (custom.merge) opportunity.customFieldValues = await custom.merge({ ...(opportunity.customFieldValues ?? {}) });
         opportunity.version += 1;
         // An edit that changes the assignee is an assignment too: announced
         // with the previous one, and the new assignee is told.
@@ -879,11 +927,11 @@ export class OpportunityService {
         };
       },
       event: (result) => (result ? assignedEvent(result) : undefined),
-    });
+    }, caller));
   }
 
-  async delete(id: string): Promise<void> {
-    await this.deps.commandBus.run({
+  async delete(id: string, caller: CallerOptions = {}): Promise<void> {
+    await this.deps.commandBus.run(withCallerOptions({
       action: 'crm.opportunity.delete',
       objectType: 'crm_opportunity',
       objectId: id,
@@ -895,7 +943,7 @@ export class OpportunityService {
         em.remove(opportunity);
         return { result: undefined, before, after: null };
       },
-    });
+    }, caller));
   }
 
   /**
@@ -904,11 +952,11 @@ export class OpportunityService {
    * value store and the entry names `tags` (#470). Setting the set it already
    * has writes nothing.
    */
-  async setTags(id: string, tagIds: readonly string[]): Promise<OpportunityDetail> {
+  async setTags(id: string, tagIds: readonly string[], caller: CallerOptions = {}): Promise<void> {
     // The parent first: an Opportunity the caller cannot see is a 404 before
     // the tags are looked at.
     await loadOpportunity(this.deps.emFactory(), id);
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions({
       action: 'crm.opportunity.tag_set',
       objectType: 'crm_opportunity',
       objectId: id,
@@ -923,8 +971,7 @@ export class OpportunityService {
         });
         return { result: undefined, before: null, after: { ...values } };
       },
-    });
-    return this.get(id);
+    }, caller));
   }
 
   /**

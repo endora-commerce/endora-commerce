@@ -5,7 +5,6 @@ import {
   type CustomerAccountRecord,
   type OrderReadPort,
   type OrderRecord,
-  type OrderTransitionPort,
   type PaymentAdapter,
   type PaymentAdapterRegistryPort,
   type StartPaymentResult,
@@ -118,19 +117,14 @@ function build(over: {
     listForOrder: async () => [],
   } as unknown as PaymentService;
   const service = new PaymentRetryService({
+    // The read port only (terminality moved there in 0.113.0,
+    // `specs/186-aggregate-ports/`): a retry moves money, never the lifecycle.
     orderRead: {
       findById: async () => ('order' in over ? over.order : orderRecord()) ?? null,
+      isTerminal: async () => ('terminal' in over ? (over.terminal ?? null) : false),
     } as unknown as OrderReadPort,
     customerAccountRead: buyerRead,
     paymentService,
-    orderTransition: {
-      // The read half only. A retry moves money, never the lifecycle, and a
-      // fixture that quietly allowed the write would let one grow here.
-      applyStatus: async () => {
-        throw new Error('the retry path does not write the order lifecycle');
-      },
-      isTerminal: async () => ('terminal' in over ? (over.terminal ?? null) : false),
-    } satisfies OrderTransitionPort,
     paymentAdapterRegistry: () =>
       registryWith('adapter' in over ? over.adapter : adapterReturning({ kind: 'none' })),
     assertOrganizationCanTransact: over.assertCanTransact ?? (async () => undefined),
