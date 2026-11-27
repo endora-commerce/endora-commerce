@@ -5,6 +5,7 @@ import { CommandBus } from './command-bus.js';
 import type { Command } from './command.js';
 import { CommandHookRegistry, type CommandHookCompositionInput } from './hooks/registry.js';
 import type { FieldRuleCheck, FieldRuleCheckContext } from './hooks/types.js';
+import { DuplicateBuyerSelfServiceActionError, UndeclaredBuyerSelfServiceActionError } from './hooks/errors.js';
 import { EventBus, type EventBase } from '../events/bus.js';
 import { HttpError } from '../http/error-envelope.js';
 import type { AuditPort, RecordAuditInput } from '../kernel/ports/audit.js';
@@ -55,7 +56,13 @@ function makeHarness() {
 }
 
 const adminCtx: TenantContext = { mode: 'all', actor: { kind: 'admin', id: 'admin-1' } };
+const systemCtx: TenantContext = { mode: 'system', actor: { kind: 'system' } };
 const run = <T>(fn: () => Promise<T>): Promise<T> => runWithTenantContext(adminCtx, fn);
+const runAs = <T>(tenant: TenantContext, fn: () => Promise<T>): Promise<T> => runWithTenantContext(tenant, fn);
+const DECLARED = [
+  { moduleId: 'widgets', action: 'widget.update' },
+  { moduleId: 'widgets', action: 'widget.register' },
+];
 
 interface WidgetHookData {
   readonly widget: { readonly id: string; readonly name: string };
@@ -210,6 +217,103 @@ describe('CommandBus — the field-rule check (193 T021)', () => {
     expect(asked).toBe(0);
     expect(h.committedAudit).toHaveLength(1);
     expect(h.committedRows).toEqual([{ table: 'widgets', id: 'w-1' }]);
+  });
+
+  it('tells the check whether the write is buyer self-service, and a child inherits it (D-300.10)', async () => {
+    const h = makeHarness();
+    h.registry.seal(composition({ buyerSelfServiceActions: DECLARED }));
+    const seen: [string, boolean][] = [];
+    h.registry.useFieldRuleCheck(checkFor(['widget.update'], (ctx) => void seen.push([ctx.objectId, ctx.buyerSelfService])));
+    const child = updateWidget('widget.update', { objectId: 'child' } as never);
+    const parent = (flag: boolean, action = 'widget.register'): WidgetCommand => ({
+      action,
+      objectType: 'widget',
+      objectId: 'parent',
+      ...(flag ? { buyerSelfService: true as const } : {}),
+      async run(ctx) {
+        await ctx.run!(child);
+        return { result: { id: 'p', name: 'P' }, after: null };
+      },
+    });
+
+    await run(() => h.bus.run(updateWidget('widget.update', { buyerSelfService: true })));
+    await run(() => h.bus.run(updateWidget()));
+    await run(() => h.bus.run(parent(true)));
+    await run(() => h.bus.run(parent(false)));
+
+    expect(seen).toEqual([
+      ['w-1', true],
+      ['w-1', false],
+      ['child', true],
+      ['child', false],
+    ]);
+  });
+
+  it('refuses the flag on an action no module declares, before run, writing nothing (#2027)', async () => {
+    const h = makeHarness();
+    h.registry.seal(composition({ buyerSelfServiceActions: DECLARED }));
+    const seen: string[] = [];
+    h.registry.useFieldRuleCheck(checkFor(['widget.update', 'widget.import'], (ctx) => void seen.push(ctx.action)));
+    let ran = false;
+    const undeclared = updateWidget('widget.import', {
+      buyerSelfService: true,
+      async run() {
+        ran = true;
+        return { result: { id: 'w-1', name: 'Gizmo' }, after: null };
+      },
+    });
+
+    await expect(runAs(systemCtx, () => h.bus.run(undeclared))).rejects.toBeInstanceOf(UndeclaredBuyerSelfServiceActionError);
+    expect(ran).toBe(false);
+    expect(seen).toEqual([]);
+    expect(h.committedAudit).toHaveLength(0);
+    expect(h.committedRows).toHaveLength(0);
+  });
+
+  it('passes the flag of a declared action under a system actor (#2027)', async () => {
+    const h = makeHarness();
+    h.registry.seal(composition({ buyerSelfServiceActions: DECLARED }));
+    const seen: boolean[] = [];
+    h.registry.useFieldRuleCheck(checkFor(['widget.update'], (ctx) => void seen.push(ctx.buyerSelfService)));
+    await runAs(systemCtx, () => h.bus.run(updateWidget('widget.update', { buyerSelfService: true })));
+    expect(seen).toEqual([true]);
+    expect(h.committedAudit).toHaveLength(1);
+  });
+
+  it('a child inherits the flag only below a declared root (#2027)', async () => {
+    const h = makeHarness();
+    h.registry.seal(composition({ buyerSelfServiceActions: [{ moduleId: 'widgets', action: 'widget.register' }] }));
+    const seen: boolean[] = [];
+    h.registry.useFieldRuleCheck(checkFor(['widget.update'], (ctx) => void seen.push(ctx.buyerSelfService)));
+    const child = updateWidget();
+    const parent = (action: string): WidgetCommand => ({
+      action,
+      objectType: 'widget',
+      objectId: 'parent',
+      buyerSelfService: true,
+      async run(ctx) {
+        await ctx.run!(child);
+        return { result: { id: 'p', name: 'P' }, after: null };
+      },
+    });
+
+    await runAs(systemCtx, () => h.bus.run(parent('widget.register')));
+    await expect(runAs(systemCtx, () => h.bus.run(parent('widget.join')))).rejects.toBeInstanceOf(UndeclaredBuyerSelfServiceActionError);
+    expect(seen).toEqual([true]);
+  });
+
+  it('refuses at composition an action two modules declare (#2027)', () => {
+    const h = makeHarness();
+    expect(() =>
+      h.registry.seal(
+        composition({
+          buyerSelfServiceActions: [
+            { moduleId: 'widgets', action: 'widget.register' },
+            { moduleId: 'acme_erp', action: 'widget.register' },
+          ],
+        }),
+      ),
+    ).toThrow(DuplicateBuyerSelfServiceActionError);
   });
 
   it('accepts one field-rule check source per composition', () => {

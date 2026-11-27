@@ -79,6 +79,7 @@ import {
   forkScopedEm,
   healthRoutePlugin,
   hookableActionsFrom,
+  buyerSelfServiceActionsFrom,
   moduleDependencyClosureFrom,
   platformLogger,
   registerOrm,
@@ -571,6 +572,8 @@ export async function composeTestServer(
       commandHooks: {
         hookableActions: hookableActionsFrom(manifests),
         moduleDependencies: moduleDependencyClosureFrom(manifests),
+        // 193 D-300.10, #2027 — the actions whose Commands may declare buyerSelfService.
+        buyerSelfServiceActions: buyerSelfServiceActionsFrom(manifests),
         commandHookOrder: options.commandHookOrder,
       },
       // 189 P1 — sealed after the hook registry, against the same manifest set.

@@ -179,3 +179,38 @@ export function hookDataMissing(action: string, member: 'hookData' | 'outboxData
     `The Command '${action}' is declared hookable and supplies no ${member}.`,
   );
 }
+
+/**
+ * Two modules list one action in `buyerSelfServiceActions`
+ * (`specs/193-admin-form-extensions/` D-300.10, issue #2027). The action has
+ * one owner, so the composition refuses rather than picking one.
+ */
+export class DuplicateBuyerSelfServiceActionError extends Error {
+  constructor(
+    readonly action: string,
+    readonly moduleIds: readonly string[],
+  ) {
+    super(
+      `[command-hooks] buyer self-service action '${action}' is declared by ${moduleIds.map((id) => `'${id}'`).join(' and ')}. ` +
+        'An action is the owner module’s: only the module that runs it lists it in buyerSelfServiceActions.',
+    );
+    this.name = 'DuplicateBuyerSelfServiceActionError';
+  }
+}
+
+/**
+ * A Command set `buyerSelfService: true` on an action no composed module lists
+ * in `buyerSelfServiceActions` (D-300.10, issue #2027). Thrown before the
+ * Command runs, so nothing is written: the flag skips the field-rule check,
+ * and an undeclared opt-out — a worker, an import, a callback — fails closed.
+ * A defect, not a client error, so it answers 500.
+ */
+export class UndeclaredBuyerSelfServiceActionError extends Error {
+  constructor(readonly action: string) {
+    super(
+      `[command-hooks] the Command '${action}' sets buyerSelfService, and no composed module lists '${action}' in ` +
+        'its manifest buyerSelfServiceActions. Declare the action in its owner’s manifest, or drop the flag.',
+    );
+    this.name = 'UndeclaredBuyerSelfServiceActionError';
+  }
+}

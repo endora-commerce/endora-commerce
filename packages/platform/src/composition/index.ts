@@ -182,6 +182,7 @@ export { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
 // it registers through `ctx.commandHooks`.
 export { CommandHookRegistry } from '../commands/hooks/registry.js';
 export {
+  buyerSelfServiceActionsFrom,
   commandMiddlewareFrom,
   hookableActionsFrom,
   moduleDependencyClosureFrom,

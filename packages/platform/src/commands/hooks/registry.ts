@@ -4,6 +4,7 @@ import type {
   HookableActionDeclaration,
 } from '@endora-commerce/contracts';
 import {
+  DuplicateBuyerSelfServiceActionError,
   DuplicateCommandHookError,
   DuplicateHookableActionError,
   HookOwnerNotDependedOnError,
@@ -52,6 +53,13 @@ export interface CommandHookCompositionInput {
   readonly moduleDependencies: Readonly<Record<string, readonly string[]>>;
   /** The deployment's tie-break, from its `divergence.ts` (OD-1). */
   readonly commandHookOrder?: Readonly<Record<string, readonly string[]>> | undefined;
+  /**
+   * Every composed module's `buyerSelfServiceActions`, with its owner
+   * (`buyerSelfServiceActionsFrom`, `specs/193-admin-form-extensions/`
+   * D-300.10, #2027). The bus refuses `buyerSelfService` on any other action.
+   * Absent means none.
+   */
+  readonly buyerSelfServiceActions?: readonly { readonly moduleId: string; readonly action: string }[] | undefined;
 }
 
 /** A registered `beforeCommit` hook, as the bus runs it. */
@@ -94,6 +102,7 @@ export class CommandHookRegistry {
   #claimants = new Map<string, ReadonlySet<string>>();
   #seq = 0;
   #fieldRules: FieldRuleCheckSource | undefined;
+  #buyerSelfServiceActions: ReadonlySet<string> = new Set();
 
   constructor(options: CommandHookRegistryOptions = {}) {
     this.#isPresent = options.isPresent ?? ((): boolean => true);
@@ -221,6 +230,17 @@ export class CommandHookRegistry {
       for (const handler of handlers) afterCommitByKey.set(`${handler.moduleId}\0${handler.id}`, handler);
     }
 
+    const buyerOwners = new Map<string, string[]>();
+    for (const { moduleId, action } of input.buyerSelfServiceActions ?? []) {
+      const list = buyerOwners.get(action) ?? [];
+      if (!list.includes(moduleId)) list.push(moduleId);
+      buyerOwners.set(action, list);
+    }
+    for (const [action, list] of [...buyerOwners].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+      if (list.length > 1) throw new DuplicateBuyerSelfServiceActionError(action, [...list].sort());
+    }
+
+    this.#buyerSelfServiceActions = new Set(buyerOwners.keys());
     this.#declarations = declarations;
     this.#beforeCommit = beforeCommit;
     this.#afterCommit = afterCommit;
@@ -281,6 +301,11 @@ export class CommandHookRegistry {
   /** The field-rule check of `action`, or `undefined` when none applies (no source, or no rule). */
   fieldRuleCheck(action: string): FieldRuleCheck | undefined {
     return this.#fieldRules?.fieldRuleCheck(action);
+  }
+
+  /** Whether a composed module declares `action` a buyer self-service action (D-300.10, #2027). */
+  isBuyerSelfServiceAction(action: string): boolean {
+    return this.#buyerSelfServiceActions.has(action);
   }
 
   /** Whether a hook module is present on the effective state right now. */

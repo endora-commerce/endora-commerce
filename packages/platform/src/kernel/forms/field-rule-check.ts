@@ -2,6 +2,7 @@ import {
   ERROR_CODES,
   evaluateFieldCondition,
   isEmptyFieldValue,
+  type FieldCondition,
   type FieldRuleViolationDetail,
   type FieldValidationTightening,
   type FieldWriteForbiddenDetail,
@@ -34,10 +35,11 @@ import type { FieldProjection, FieldScopedProjection } from './types.js';
  * owner's projection, writes nothing, and refuses by throwing, so the Command
  * rolls back with no audit entry and no outbox row.
  *
- * **Not retroactive (D-300.4).** On an update only the fields the write set or
- * cleared are held to a rule — tightened `required` and `requiredWhen`, and
- * the bounds, options, patterns and formats too — so a record stored before a
- * rule existed stays editable in every other field. A create holds every
+ * **Not retroactive (D-300.4, D-300.11).** On an update only the fields the
+ * write set or cleared are held to a rule — tightened `required`, the bounds,
+ * options, patterns and formats — so a record stored before a rule existed
+ * stays editable in every other field; `requiredWhen` is also held when the
+ * write changed a field its condition reads. A create holds every
  * field it sets. `writePermission` is likewise asked of changed fields only.
  */
 
@@ -62,9 +64,25 @@ function guardedKeys(set: SealedFieldSet, writes: readonly string[]): string[] {
   return [...keys].sort();
 }
 
-/** D-300.3: a buyer's own storefront write is not bound. An administrator impersonating one is. */
-function isBuyerSelfService(actor: CommandActor): boolean {
-  return actor.kind === 'customer' && actor.actorAdminUserId === null;
+/**
+ * D-300.3, D-300.10: a buyer's own storefront write is not bound. It is one
+ * when a customer acts for itself, or when the Command (or one it runs below)
+ * declared `buyerSelfService` and the actor has no acting admin and is
+ * `system` (an anonymous storefront request) or `customer`. An admin, an API
+ * key and an impersonating admin are bound whatever the flag says.
+ */
+function isBuyerSelfService(actor: CommandActor, flagged: boolean): boolean {
+  if (actor.actorAdminUserId !== null) return false;
+  if (actor.kind === 'customer') return true;
+  return flagged && actor.kind === 'system';
+}
+
+/** The fields a condition reads: its leaves' `field`. */
+function conditionFields(condition: FieldCondition): string[] {
+  if ('all' in condition) return condition.all.flatMap(conditionFields);
+  if ('any' in condition) return condition.any.flatMap(conditionFields);
+  if ('not' in condition) return conditionFields(condition.not);
+  return [condition.field];
 }
 
 function changedKeys(projection: FieldProjection, mode: 'create' | 'update'): ReadonlySet<string> {
@@ -149,7 +167,7 @@ export function fieldRuleCheckFor(writers: readonly SealedWriter[], deps: FieldR
       .filter((entry) => entry.force.size > 0);
     if (live.length === 0) return;
     // Step 2 — D-300.3.
-    if (isBuyerSelfService(ctx.actor)) return;
+    if (isBuyerSelfService(ctx.actor, ctx.buyerSelfService)) return;
 
     const violations: FieldRuleViolationDetail[] = [];
     const forbidden: FieldWriteForbiddenDetail[] = [];
@@ -166,18 +184,25 @@ export function fieldRuleCheckFor(writers: readonly SealedWriter[], deps: FieldR
         const after = projection.after;
         const isCreate = writer.mode === 'create';
         for (const [key, rules] of force) {
+          // D-300.11 — a field is held only when the write set or cleared it,
+          // and its `requiredWhen` also when the write changed a field the
+          // condition reads.
           const touched = isCreate || changed.has(key);
-          if (!touched) continue;
+          const conditions = rules.requiredWhen.filter(
+            (condition): condition is FieldCondition =>
+              condition !== undefined && (touched || conditionFields(condition).some((name) => changed.has(name))),
+          );
+          if (!touched && conditions.length === 0) continue;
           const field = set.field(key);
           if (field === undefined) continue;
           const merged = mergeValidation(rules.validations);
           const value = valueOf(after, key);
           // Step 4 — required binds the global value only (FR-124).
-          const required =
-            merged.required !== undefined || rules.requiredWhen.some((condition) => condition !== undefined && evaluateFieldCondition(condition, after));
+          const required = (touched && merged.required !== undefined) || conditions.some((condition) => evaluateFieldCondition(condition, after));
           if (required && projection.scope === null && isEmptyFieldValue(value)) {
             violations.push(ruleDetail(key, { moduleId: merged.required?.moduleId ?? FIELD_RULE_MESSAGES_MODULE, messageKey: merged.required?.messageKey, code: 'required' }));
           }
+          if (!touched) continue;
           for (const violation of violationsOf(field.type, value, merged, deps.validateFormat)) {
             violations.push(ruleDetail(key, violation));
           }

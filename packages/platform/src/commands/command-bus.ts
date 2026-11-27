@@ -8,7 +8,7 @@ import type { EventBus } from '../events/bus.js';
 import { COMMAND_HOOK_MAX_DEPTH, outboxDataViolations } from '@endora-commerce/contracts';
 import { resolveCommandActor } from './actor.js';
 import type { AuditState, Command, CommandActor, CommandContext } from './command.js';
-import { extensionUnclaimed, hookCycle, hookDataMissing } from './hooks/errors.js';
+import { UndeclaredBuyerSelfServiceActionError, extensionUnclaimed, hookCycle, hookDataMissing } from './hooks/errors.js';
 import { runWithCommandHookOrigin } from './hooks/origin.js';
 import type { CommandHookRegistry } from './hooks/registry.js';
 import { middlewareLabel, middlewareReentry } from './middleware/errors.js';
@@ -157,9 +157,14 @@ interface RunState {
 interface Lineage {
   readonly ancestors: readonly string[];
   readonly viaHook: boolean;
+  /**
+   * A Command at or above this point declared `buyerSelfService`
+   * (`specs/193-admin-form-extensions/` D-300.10): the flag reaches every child.
+   */
+  readonly buyerSelfService: boolean;
 }
 
-const ROOT_LINEAGE: Lineage = { ancestors: [], viaHook: false };
+const ROOT_LINEAGE: Lineage = { ancestors: [], viaHook: false, buyerSelfService: false };
 
 /** A noted change is a field name: list 1 of `audit-state.md`, never a value. */
 const NOTED_FIELD_RE = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
@@ -309,8 +314,19 @@ export class CommandBus {
         : undefined;
     // FR-019 — before capture, so a refused extension costs no write.
     this.assertExtensionsClaimed(command);
+    // `specs/193-admin-form-extensions/` D-300.10, #2027 — the flag skips the
+    // field-rule check, so only an action its owner declared may carry it.
+    // Fail closed, before anything is written; a bus without a registry
+    // knows of no declared action.
+    if (command.buyerSelfService === true && !(hooks?.isBuyerSelfServiceAction(command.action) ?? false)) {
+      throw new UndeclaredBuyerSelfServiceActionError(command.action);
+    }
 
-    const below: Lineage = { ancestors: [...lineage.ancestors, command.action], viaHook: lineage.viaHook };
+    const below: Lineage = {
+      ancestors: [...lineage.ancestors, command.action],
+      viaHook: lineage.viaHook,
+      buyerSelfService: lineage.buyerSelfService || command.buyerSelfService === true,
+    };
     const ctx: CommandContext = {
       em,
       actor,
@@ -446,11 +462,12 @@ export class CommandBus {
         objectId: command.objectId,
         data,
         actor,
+        buyerSelfService: below.buyerSelfService,
       });
       if (present.length === 0) return undefined;
     }
     const noted = new Map<string, Set<string>>();
-    const viaHook: Lineage = { ancestors: below.ancestors, viaHook: true };
+    const viaHook: Lineage = { ancestors: below.ancestors, viaHook: true, buyerSelfService: below.buyerSelfService };
     for (const hook of present) {
       await runWithCommandHookOrigin({ moduleId: hook.moduleId, hookId: hook.id, action: command.action }, () =>
         hook.handler({

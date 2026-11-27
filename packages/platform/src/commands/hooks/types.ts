@@ -44,6 +44,12 @@ export interface FieldRuleCheckContext {
   readonly objectId: string;
   readonly data: unknown;
   readonly actor: CommandActor;
+  /**
+   * The Command, or one it runs below, declared `buyerSelfService`
+   * (D-300.10). The check honours it only for an actor with no acting admin
+   * whose kind is `system` or `customer`.
+   */
+  readonly buyerSelfService: boolean;
 }
 
 /** Refuses by throwing; the bus does not catch, so the Command rolls back. */

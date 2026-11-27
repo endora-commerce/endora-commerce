@@ -104,7 +104,7 @@ async function refusal(promise: Promise<unknown> | unknown): Promise<HttpError> 
   throw new Error('the check did not refuse');
 }
 
-const ctx = (action: string, data: unknown, actor: CommandActor = admin) => ({ action, objectType: 'widget', objectId: 'w-1', data, actor });
+const ctx = (action: string, data: unknown, actor: CommandActor = admin, buyerSelfService = false) => ({ action, objectType: 'widget', objectId: 'w-1', data, actor, buyerSelfService });
 const detailsOf = (error: HttpError) => error.details as unknown as { path: string; code: string; params?: Record<string, unknown>; message: string }[];
 
 describe('fieldRuleCheckFor — the codes (193 T020, FIELD_RULE_CODES)', () => {
@@ -221,7 +221,7 @@ describe('fieldRuleCheckFor — merging, conditions, presence (193 T020)', () =>
         permissionChecker: () => undefined,
         validateFormat: () => true,
       })!;
-      const outcome = await Promise.resolve(check({ action: 'vector.create', objectType: 'vector', objectId: 'v', data: vector.values, actor: admin })).then(
+      const outcome = await Promise.resolve(check({ action: 'vector.create', objectType: 'vector', objectId: 'v', data: vector.values, actor: admin, buyerSelfService: false })).then(
         () => false,
         () => true,
       );
@@ -278,6 +278,27 @@ describe('fieldRuleCheckFor — actors and retroactivity (193 T020, D-300.3, D-3
     for (const actor of [admin, system, apiKey]) {
       expect((await refusal(check(ctx('widget.create', { name: 'N' }, actor)))).code).toBe('FIELD_RULE_VIOLATION');
     }
+  });
+
+  it('skips a write declared buyer self-service under a system or customer actor with no admin (D-300.10)', async () => {
+    const check = checkOf(required, 'widget.create')!;
+    await expect(check(ctx('widget.create', { name: 'N' }, system, true))).resolves.toBeUndefined();
+    await expect(check(ctx('widget.create', { name: 'N' }, buyer, true))).resolves.toBeUndefined();
+  });
+
+  it('ignores the flag for an admin, an API key and an impersonating admin; an unflagged system actor is bound (D-300.10)', async () => {
+    const check = checkOf(required, 'widget.create')!;
+    for (const actor of [admin, apiKey, impersonating]) {
+      expect((await refusal(check(ctx('widget.create', { name: 'N' }, actor, true)))).code, actor.kind).toBe('FIELD_RULE_VIOLATION');
+    }
+    expect((await refusal(check(ctx('widget.create', { name: 'N' }, system, false)))).code).toBe('FIELD_RULE_VIOLATION');
+  });
+
+  it('holds requiredWhen when an update changes a field its condition reads, the target untouched (D-300.11)', async () => {
+    const check = checkOf([{ moduleId: 'acme', override: { target: 'widget.emails', requiredWhen: { all: [{ field: 'kind', op: 'equals', value: 'b' }] } } }], 'widget.update')!;
+    const refused = await refusal(check(ctx('widget.update', { after: { kind: 'b', emails: [] }, changed: ['kind'] })));
+    expect(detailsOf(refused)).toEqual([expect.objectContaining({ path: 'emails', code: 'required' })]);
+    await expect(check(ctx('widget.update', { after: { name: 'N', kind: 'b', emails: [] }, changed: ['name'] }))).resolves.toBeUndefined();
   });
 
   it('checks required on create, and on an update only when it changes or clears the field (D-300.4)', async () => {

@@ -646,6 +646,9 @@ describe('T075 — a converted module costs no test-helper edit', () => {
       // Once in `registerValues` (the route reads it from the container), once to `composeModules`.
       expect([...code.matchAll(/\bformRegistry,/g)].length, `${root} registers it and composes with it`).toBeGreaterThanOrEqual(2);
       expect(code, `${root} hands it to composeModules`).toMatch(/\bformRegistry,\s*forms: formDeclarationsFrom\(/);
+      // D-300.10, #2027 — the declared buyer self-service actions, without
+      // which the bus refuses every flagged Command.
+      expect(code, `${root} seals the hook registry against the buyer self-service actions`).toMatch(/buyerSelfServiceActions: buyerSelfServiceActionsFrom\(/);
     }
   });
 

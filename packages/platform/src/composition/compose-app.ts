@@ -110,6 +110,7 @@ import {
   commandMiddlewareFrom,
   hookableActionsFrom,
   moduleDependencyClosureFrom,
+  buyerSelfServiceActionsFrom,
 } from '../kernel/lifecycle/command-hook-inputs.js';
 import { platformLogger } from '../kernel/logging.js';
 import {
@@ -995,6 +996,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     commandHooks: {
       hookableActions: hookableActionsFrom(resolvedRegistry.map((entry) => entry.manifest)),
       moduleDependencies: moduleDependencyClosureFrom(resolvedRegistry.map((entry) => entry.manifest)),
+      // 193 D-300.10, #2027 — the actions whose Commands may declare buyerSelfService.
+      buyerSelfServiceActions: buyerSelfServiceActionsFrom(resolvedRegistry.map((entry) => entry.manifest)),
       commandHookOrder: options.commandHookOrder,
     },
     // 189 P1 — sealed after the hook registry, against the same manifest set;

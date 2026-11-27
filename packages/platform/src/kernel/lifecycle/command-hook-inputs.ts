@@ -23,6 +23,18 @@ export function hookableActionsFrom(manifests: readonly ModuleManifest[]): reado
 }
 
 /**
+ * Every composed module's `buyerSelfServiceActions`, each with its owner
+ * (`specs/193-admin-form-extensions/` D-300.10, issue #2027): the actions whose
+ * Commands may declare `buyerSelfService`. The hook registry is sealed against
+ * them, and the bus refuses the flag on any other action.
+ */
+export function buyerSelfServiceActionsFrom(
+  manifests: readonly ModuleManifest[],
+): readonly { readonly moduleId: string; readonly action: string }[] {
+  return manifests.flatMap((manifest) => (manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: manifest.id, action })));
+}
+
+/**
  * Every composed module's `commandMiddleware` declarations, each with its
  * module (`specs/189-command-middleware/` FR-002, research R-12): what the
  * composer seals the command-middleware registry against, derived by the root

@@ -826,7 +826,7 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // sealed against. Beside `requiredModulesFrom` for its reason; the test kit's
   // `composeTestServer` and its `command-hooks` helper are the consumers.
   'commands/hooks/registry.ts': ['CommandHookRegistry'],
-  'kernel/lifecycle/command-hook-inputs.ts': ['commandMiddlewareFrom', 'hookableActionsFrom', 'moduleDependencyClosureFrom'],
+  'kernel/lifecycle/command-hook-inputs.ts': ['buyerSelfServiceActionsFrom', 'commandMiddlewareFrom', 'hookableActionsFrom', 'moduleDependencyClosureFrom'],
   // `specs/189-command-middleware/` P1 — the command-middleware registry, beside
   // the hook registry for its reason; the test kit's `composeTestServer` and
   // its `command-middleware` helpers are the consumers.
