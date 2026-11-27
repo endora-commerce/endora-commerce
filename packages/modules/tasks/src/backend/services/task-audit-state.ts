@@ -37,6 +37,9 @@ export const TASKS_AUDIT_KEYS: ReadonlySet<string> = new Set([
   // Issue #505 — a code and a count on the entry of a changed time zone.
   'reason',
   'remindersMoved',
+  // The integration that wrote through `taskCommandPort`, a code
+  // (`specs/186-aggregate-ports/` R-4, D-293.6).
+  'source',
 ]);
 
 /** What an audit entry says of a value change: the names, and the store row. */

@@ -2,7 +2,7 @@
 SYNC IMPACT REPORT
 ==================
 Version change: 4.5.0 → 4.6.0
-Status: PENDING OWNER SIGN-OFF (Governance step 4). Drafted by
+Status: APPROVED by the owner on 2026-11-27 (Governance step 4). Drafted by
 `specs/193-admin-form-extensions/` on the owner's instruction of 2026-11-27
 (D-300.7). The draft chains from 4.5.0 as written by PR #2010 (spec 190 docs
 pass), which merges first.
@@ -51,8 +51,7 @@ Deferred items / TODOs:
 --- The 4.5.0 report follows unchanged.
 
 SYNC IMPACT REPORT
-==================
-Version change: 4.4.0 → 4.5.0
+===========Version change: 4.4.0 → 4.5.0
 Rationale: MINOR. Principle XV is rewritten around the sentences
 `specs/189-command-middleware/` landed in 4.4.0, as specified by
 `specs/190-overlay-full-modules/contracts/constitution-xv-amendment.md` and
@@ -1248,12 +1247,11 @@ capability meant to be per-deployment overridable:
   the same guards as a module package. Its migrations pass the platform's foreign-schema guard
   with no deployment exemption, and every entity it registers is classified (Principle XI) or the
   platform does not boot. Overlay code is compiled and type-checked by one deployment-level build.
-  An overlay is never a package in disguise: it has no per-module build, manifest or exports map.
-  Overlay modules are ordinary module-lifecycle
-  participants (install / uninstall / reconcile), MUST register their permissions and pass the
-  permission-inventory check **per deployment**, and MUST run under the same tenant-isolation guard
-  (Principle XI), sales-channel scoping (Principle XII), and Command-Bus auditing (Principle XIII)
-  as core — an override swaps an **implementation**, never a guard seam: no module, an overlay
+  An overlay is never a package in disguise: it has no per-module build, package manifest or
+  exports map. Overlay modules are ordinary module-lifecycle participants (install / uninstall /
+  reconcile), MUST register their permissions and pass the permission-inventory check **per
+  deployment**, and MUST run under the same tenant-isolation guard (Principle XI), sales-channel
+  scoping (Principle XII), and Command-Bus auditing (Principle XIII) as core — an override swaps an **implementation**, never a guard seam: no module, an overlay
   module included, decorates the guard seams a composition root supplies (`commandBus`,
   `auditLogService`, `eventBus`, `emFactory`), and cross-cutting behaviour on Commands is
   contributed as declared command middleware.
@@ -1268,8 +1266,8 @@ capability meant to be per-deployment overridable:
   never transforms a Command's input. A deployment needing new schema ships it from a module of
   its own (an overlay module or an installed module package) on one of three rungs: a **side
   table** the module owns, **declared extension columns** on an extensible table (Principle I), or
-  a **variant the owning module provides**. Schema, entity or migration overrides of existing core units — a core column, a
-  constraint, an index or entity metadata — are never offered. Resolution MUST be a
+  a **variant the owning module provides**. Schema, entity or migration overrides of existing core
+  units — a core column, a constraint, an index or entity metadata — are never offered. Resolution MUST be a
   build/composition-time concern on the **existing toolchain** — no new runtime dependency
   (Principle IV).
 - **Core forms: accepted overrides and slots, never a type change.** A core admin form is

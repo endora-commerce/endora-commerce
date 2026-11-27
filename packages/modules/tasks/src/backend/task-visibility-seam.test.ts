@@ -215,7 +215,8 @@ const RULE_SCOPED_READ_LEDGER: Readonly<Record<string, number>> = {
   'services/hierarchy-service.ts': 5,
   'services/maintenance-service.ts': 4,
   'services/priority-service.ts': 2,
-  'services/record-link-service.ts': 3,
+  // + `linkRecord`'s id of the link it wrote, keyed by the Task `loadVisible` handed out (186 R-23.5).
+  'services/record-link-service.ts': 4,
   'services/relation-service.ts': 2,
   'services/reminder-schedule.ts': 3,
   'services/reminder-service.ts': 12,

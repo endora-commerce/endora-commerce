@@ -30,5 +30,5 @@
 ## Notes
 
 - `tasks.md` written after D-300 (2026-11-27).
-- Constitution 4.6.0 (XV) drafted on PR #2010's 4.5.0, pending owner sign-off.
+- Constitution 4.6.0 (XV) drafted on PR #2010's 4.5.0, approved by the owner on 2026-11-27.
 - `.specify/feature.json` was not written: the brief restricts writes to this directory.

@@ -3,6 +3,7 @@ import { calendarDateSchema, isoDateTimeSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import { customFieldFilterSchema, customFieldValuesSchema } from './custom-fields.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 import type { SupportedLanguage } from './platform-language.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
 import { twoDecimalAmountString } from './money-input.js';
@@ -1627,23 +1628,38 @@ export interface OpportunityRecord {
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`.
  */
 export interface OpportunityReadPort {
-  findById(id: string): Promise<OpportunityRecord | null>;
-  findByDocument(kind: OpportunityDocumentKind, documentId: string): Promise<OpportunityRecord | null>;
-  listOpenForOrganization(organizationId: string): Promise<OpportunityRecord[]>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`, loaded for the
+   * Opportunities the caller's scope returned and no other; absent or empty,
+   * the answer is exactly what it was without it. The same holds for
+   * {@link findByDocument}, {@link listOpenForOrganization}, {@link findByIds}
+   * and {@link search}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OpportunityRecord> | null>;
+  findByDocument(
+    kind: OpportunityDocumentKind,
+    documentId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OpportunityRecord> | null>;
+  listOpenForOrganization(
+    organizationId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OpportunityRecord>[]>;
   /**
    * The Opportunities of `ids` in the caller's tenant scope, in no particular
    * order — a missing or malformed id is simply absent. One query for a page of
    * references (`specs/165-task-management/` R-5). Checks no permission: the
    * caller checks `crm:read`, as for every other method.
    */
-  findByIds(ids: readonly string[]): Promise<OpportunityRecord[]>;
+  findByIds(ids: readonly string[], options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OpportunityRecord>[]>;
   /**
    * Opportunities in the caller's tenant scope whose number or title contains
    * `q` (case-insensitively; every one for an empty `q`), newest first, at most
    * `limit` (≤ 20) — the Opportunities group of the `@@` list and the Tasks
    * link picker (R-5, R-16).
    */
-  search(query: OpportunitySearchQuery): Promise<OpportunityRecord[]>;
+  search(query: OpportunitySearchQuery, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OpportunityRecord>[]>;
   /**
    * A status's name in `language`, by this module's own rule: the operator's
    * name in that language, else the status's default name, else the code (a
