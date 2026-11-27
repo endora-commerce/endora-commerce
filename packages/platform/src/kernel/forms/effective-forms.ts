@@ -1,5 +1,7 @@
 import {
   OPERATOR_KINDS,
+  applyFieldMoves,
+  type FormLayoutMove,
   type EffectiveField,
   type EffectiveFormsResponse,
   type EffectiveText,
@@ -27,6 +29,9 @@ import type { SealedFieldSet, SealedForm, SealedForms, SealedOverride } from './
 
 const SERVER_KINDS: ReadonlySet<FieldOverrideKind> = new Set(['validation', 'requiredWhen', 'writePermission']);
 
+/** The module an operator layout move sorts as (`operator-form-layout.md` §3, R-24.6). */
+const OPERATOR_LAYER_MODULE = 'custom_fields';
+
 /** The operator kinds a stored row sets. */
 function operatorKindsOf(row: FormLayoutOverrideRow): OperatorKind[] {
   const set: OperatorKind[] = [];
@@ -51,38 +56,6 @@ function rowInForce(row: FormLayoutOverrideRow | undefined, field: FieldDeclarat
   if (kinds.some((kind) => !field.accepts.includes(kind))) return null;
   if (row.hidden && field.required) return null;
   return { row, kinds };
-}
-
-interface Position {
-  readonly section?: string | null | undefined;
-  readonly before?: string | null | undefined;
-  readonly after?: string | null | undefined;
-}
-
-/** Move `key` per `position` in `layout`; answers whether it moved. An anchor or section the layout lacks leaves it where it is. */
-function move(layout: Map<string, string[]>, key: string, position: Position): boolean {
-  const anchor = position.before ?? position.after ?? null;
-  if (anchor === key) return false;
-  let target: string | undefined;
-  if (anchor !== null) {
-    target = [...layout].find(([, keys]) => keys.includes(anchor))?.[0];
-  } else if (position.section !== null && position.section !== undefined && layout.has(position.section)) {
-    target = position.section;
-  }
-  if (target === undefined) return false;
-  if (anchor !== null && position.section !== null && position.section !== undefined && position.section !== target) return false;
-  for (const keys of layout.values()) {
-    const at = keys.indexOf(key);
-    if (at >= 0) keys.splice(at, 1);
-  }
-  const keys = layout.get(target)!;
-  if (anchor === null) {
-    keys.push(key);
-  } else {
-    const at = keys.indexOf(anchor);
-    keys.splice(position.before !== null && position.before !== undefined ? at : at + 1, 0, key);
-  }
-  return true;
 }
 
 /**
@@ -131,24 +104,53 @@ function formFields(set: SealedFieldSet, form: SealedForm, isPresent: (moduleId:
   const present = set.overrides.filter((sealed) => isPresent(sealed.moduleId));
   const onForm = (key: string) => present.filter((sealed) => sealed.fieldKey === key && sealed.forms.includes(form.id));
 
-  // Layout: declared, then code positions by (module, key), then operator positions by key.
-  const layout = new Map(form.sections.map((section) => [section.key, [...section.keys]] as [string, string[]]));
-  for (const sealed of present.filter((s) => s.override.position !== undefined && s.forms.includes(form.id)).sort((a, b) => byCodePoint(a.moduleId, b.moduleId) || byCodePoint(a.fieldKey, b.fieldKey))) {
-    move(layout, sealed.fieldKey, sealed.override.position!);
-  }
   const keys = form.sections.flatMap((section) => [...section.keys]);
   const operator = new Map<string, { row: FormLayoutOverrideRow; kinds: OperatorKind[] }>();
   for (const key of keys) {
     const inForce = rowInForce(rows.get(`${form.id}\0${key}`), set.field(key)!);
     if (inForce !== null) operator.set(key, inForce);
   }
-  for (const [key, { row, kinds }] of [...operator].sort(([a], [b]) => byCodePoint(a, b))) {
-    if (kinds.includes('position')) move(layout, key, row);
+
+  // Layout (D-300.14): contracts' one implementation. Each key's move is the
+  // operator's when the row sets a position whose anchor or section is on the
+  // form — sorting as module `custom_fields` (R-24.6) — and otherwise the code
+  // override's (one per key and form; a second is `override-conflict`).
+  const sectionKeys = new Set(form.sections.map((section) => section.key));
+  const onTheForm = (row: FormLayoutOverrideRow): boolean => {
+    const anchor = row.before ?? row.after;
+    return anchor !== null ? keys.includes(anchor) && anchor !== row.fieldKey : row.section !== null && sectionKeys.has(row.section);
+  };
+  const moves: FormLayoutMove[] = [];
+  for (const key of keys) {
+    const fromOperator = operator.get(key);
+    if (fromOperator !== undefined && fromOperator.kinds.includes('position') && onTheForm(fromOperator.row)) {
+      const { row } = fromOperator;
+      moves.push({
+        moduleId: OPERATOR_LAYER_MODULE,
+        key,
+        ...(row.section === null ? {} : { section: row.section }),
+        ...(row.before === null ? {} : { before: row.before }),
+        ...(row.after === null ? {} : { after: row.after }),
+      });
+      continue;
+    }
+    const code = present.find((sealed) => sealed.fieldKey === key && sealed.forms.includes(form.id) && sealed.override.position !== undefined);
+    if (code !== undefined) {
+      const { section, before, after } = code.override.position!;
+      moves.push({
+        moduleId: code.moduleId,
+        key,
+        ...(section === undefined ? {} : { section }),
+        ...(before === undefined ? {} : { before }),
+        ...(after === undefined ? {} : { after }),
+      });
+    }
   }
+  const layout = applyFieldMoves(form.sections, moves);
 
   let order = 0;
   const placed = new Map<string, { section: string; order: number }>();
-  for (const [section, sectionKeys] of layout) for (const key of sectionKeys) placed.set(key, { section, order: order++ });
+  for (const section of layout) for (const key of section.keys) placed.set(key, { section: section.key, order: order++ });
 
   return [...placed.keys()].map((key): EffectiveField => {
     const field = set.field(key)!;
