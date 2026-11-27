@@ -41,7 +41,9 @@ import type { Redis } from 'ioredis';
 import {
   effectiveState,
   enterSystemScope,
+  lazyEntityExtensionReads,
   lazyPort,
+  type EntityExtensionReads,
   type ModuleContext,
   type AuditPort,
   type RequireAdminFactory,
@@ -1091,6 +1093,9 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             crmWorkflowReadService,
             () => ctx.cradle<CrmCradle>().crmOpportunityCommentService,
+            // `specs/187-side-table-extensions/` FR-058 — `include` on the
+            // record reads; resolved only for a read that names one.
+            lazyEntityExtensionReads(() => ctx.cradle<{ entityExtensionReads: EntityExtensionReads }>().entityExtensionReads),
           ),
       )
       .singleton(),

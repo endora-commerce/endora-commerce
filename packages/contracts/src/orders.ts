@@ -33,6 +33,7 @@ import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import { vatSummaryRowSchema } from './invoices.js';
 import { payerCommercialTermsSchema } from './related-payers.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 
 /**
  * Orders module contracts — Source of truth per Principle V.
@@ -1451,7 +1452,14 @@ export interface OrderItemRecord {
  * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
 export interface OrderReadPort {
-  findById(id: string): Promise<OrderRecord | null>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`, loaded for the
+   * orders the caller's scope returned and no other; absent or empty, the
+   * answer is exactly what it was without it. The same holds for
+   * {@link findByIdForCustomer}, {@link findByIds} and {@link listAll}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OrderRecord> | null>;
   /**
    * The order with this id **if this customer may read it**, else `null` — the
    * rule `GET /api/v1/orders/:id` applies (`specs/170-organization-roles/`
@@ -1470,10 +1478,11 @@ export interface OrderReadPort {
   findByIdForCustomer(
     id: string,
     customer: Pick<OrderCustomerContext, 'customerAccountId' | 'organizationId'>,
-  ): Promise<OrderRecord | null>;
-  findByIds(ids: readonly string[]): Promise<OrderRecord[]>;
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OrderRecord> | null>;
+  findByIds(ids: readonly string[], options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OrderRecord>[]>;
   /** Every order, newest first — for the bulk export adapter. */
-  listAll(): Promise<OrderRecord[]>;
+  listAll(options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OrderRecord>[]>;
   /** The order's lines, in insertion order. */
   listItems(orderId: string): Promise<OrderItemRecord[]>;
   /**
