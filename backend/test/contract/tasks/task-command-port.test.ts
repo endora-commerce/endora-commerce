@@ -348,7 +348,7 @@ describe('taskCommandPort — the admin routes’ Commands (#1829)', () => {
       const both = <M extends 'setParent' | 'setPriority' | 'setTags' | 'setPrivate'>(method: M, key: string, id: string) => {
         const call = port[method] as (id: string, input: Input<M>) => Promise<unknown>;
         cases.push([method, `{}`, () => call.call(port, id, {} as Input<M>)]);
-        cases.push([method, `{ ${key}: undefined }`, () => call.call(port, id, { [key]: undefined } as Input<M>)]);
+        cases.push([method, `{ ${key}: undefined }`, () => call.call(port, id, { [key]: undefined } as unknown as Input<M>)]);
       };
       both('setParent', 'parentTaskId', task.id);
       both('setPriority', 'priorityCode', task.id);
