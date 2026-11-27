@@ -112,6 +112,8 @@ cross-cutting migrations under `packages/platform/src/migrations/`. Both command
 repository's layout. If you are writing a module that ships as an installed npm package,
 neither is available to you: skip to
 [How to create a migration in an extension package](#how-to-create-a-migration-in-an-extension-package).
+A per-deployment overlay module has a section of its own:
+[How to create a migration in an overlay module](#how-to-create-a-migration-in-an-overlay-module).
 
 ```bash
 pnpm --filter backend run migration:new -- --module orders --name placement_intents
@@ -152,9 +154,10 @@ pnpm --filter backend run composer:generate
 The generator walks the platform's `packages/platform/src/migrations/` and every module's own `migrations/`
 directory, located the same way the scaffolder locates it, derives each class name from its filename, and refuses — rather than skips — a file it
 cannot place: an unrecognized `.ts` in a migrations directory, a class the file does
-not export, two files deriving the same name, or a migration under
-`src/apps/<deployment>/` (overlay modules cannot ship migrations, so registering one
-would be a new capability rather than a side effect of generating the list).
+not export, or two files deriving the same name. A migration under
+`src/apps/<deployment>/` is **validated and never registered**: an overlay module's
+migrations are read at runtime (see
+[How to create a migration in an overlay module](#how-to-create-a-migration-in-an-overlay-module)).
 
 **An unregistered migration does not run.** The registry is a static-import list, not
 a glob (glob discovery needs runtime dynamic `import()` of `.ts`, which Node's ESM
@@ -193,9 +196,9 @@ it. The host discovers a package's migrations at runtime instead, through the pa
 `./migrations` export.
 
 **There is no scaffolder for this, and one is not required.** A correct package migration is
-written by hand and the whole shape fits on this page. (`endora new migration` is planned as a
-subcommand of the `@endora-commerce/cli` binary; when it ships it will emit exactly what
-follows, and this section will point at it.)
+written by hand and the whole shape fits on this page. (`endora new migration` writes the
+migrations of an instance's own overlay modules, and refuses a package's id: an installed
+package's migrations are its author's, shipped in its `./migrations` export.)
 
 The worked example lives in this repository:
 **`backend/acceptance/fixture-package/`** — a synthetic third-party module package, built and
@@ -391,11 +394,9 @@ answered, treat a naming mistake as an outage in someone else's shop.
 
 ### What a package may and may not ship
 
-A package may ship entities and migrations. A **per-deployment overlay module** under
-`backend/src/apps/` may not (the generator refuses both) — its remedy is always available and
-costs nothing but a directory: own the table from a core module and read it through that
-module's port. A third-party author has no core module, which is why the answer differs. See
-`docs/docs/architecture/overlay-pattern.md`.
+A package may ship entities and migrations, and so may a **per-deployment overlay module** —
+see [How to create a migration in an overlay module](#how-to-create-a-migration-in-an-overlay-module).
+Neither may change another module's schema: that is what the foreign-schema guard below refuses.
 
 ### Declaring columns on a core table
 
@@ -484,6 +485,44 @@ them, prints each statement that would be refused, and exits 65 when there is on
 the Endora Commerce repository the same command is
 `pnpm --filter backend run module:schema-extensions audit-packages`.
 
+
+## How to create a migration in an overlay module {#how-to-create-a-migration-in-an-overlay-module}
+
+A per-deployment overlay module may own tables, in an instance's `apps/<deployment>/modules/<id>/`
+and in this repository's `backend/src/apps/<deployment>/modules/<id>/`. Its migrations are its
+`migrations/` directory, and that is the whole of registering them:
+
+- **Discovery** — the platform reads the directory **file by file** when it configures the ORM,
+  from the deployment the process runs as. There is no `index.ts` and no committed registry:
+  `migrations-registry.generated.ts` stays core-only under every `DEPLOYMENT`, and
+  `composer:generate` validates an overlay's migrations — filename and class agreement, the
+  module-scoped name, uniqueness beside core — and emits none of them. With `DEPLOYMENT` unset,
+  no overlay migration is read.
+- **Naming** — exactly the rule above: `<YYYYMMDDTHHmmss>_<module>_<slug>.ts`, one exported class
+  whose name derives from the filename, its tail beginning with the module's own segment. A file
+  that does not agree stops the process that reads it, naming the file.
+- **Order** — the module's manifest `dependencies`, as for every module: a migration referencing
+  a core table runs after the one creating it when the module depends on its owner.
+- **The guard** — every overlay migration runs inside [the foreign-schema
+  guard](#the-foreign-schema-guard), with the module's own entities as its owned set and **no**
+  exemption: the first-party ledger does not reach it.
+- **Uninstall** — `module:uninstall --hard` reverts the module's chain; switching it off or a soft
+  uninstall keeps its tables.
+
+To write one:
+
+```bash
+# In an instance, from its root — into the deployment `.env` selects:
+pnpm exec endora new migration acme_loyalty --name add_tiers
+
+# In a checkout of the Endora Commerce repository:
+pnpm --filter backend run migration:new -- --module acme_loyalty --name add_tiers
+```
+
+Both name the file with the same implementation as every other scaffolded migration, clamped
+above `BASELINE_THROUGH`. In this repository `DEPLOYMENT`, when set, is the only deployment looked
+in, and an id two deployments hold is refused without it. `endora new module --entities` writes an
+overlay module's first migration the same way.
 
 ## Ordering rules
 

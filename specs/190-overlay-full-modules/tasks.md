@@ -203,11 +203,11 @@ built with `DEPLOYMENT=example`.
 
 ## Phase 11 — Docs and constitution XV (#1857) — after Phases 4, 6, #1840, 189's XV/XIII sentences (OR-9) and the #1841 warning release
 
-- [ ] T130 Constitution XV MINOR amendment with Sync Impact Report, version chained from `master` (C-5). Precondition: 189's XV and XIII sentences are on `master`. Keep them verbatim, place 190's text around them per `contracts/constitution-xv-amendment.md`, and leave XIII untouched (OR-9) [FR-100]
-- [ ] T131 `overlay-modules.md` *Overlay module layout* section [FR-101]
-- [ ] T132 [P] Published pages EN + PL per `contracts/docs-pass.md` table [FR-102]
-- [ ] T133 [P] Ladder: rung 2c command middleware, policy participants, rung 4a decoration of the four `GUARD_SEAM_REGISTRATIONS` deprecated (0.113.0) / refused (0.114.0) with other root names still decoratable, data ladder *Who* D1/D2, bus-wrap → middleware migration example [FR-103]
-- [ ] T134 `check:docs-translations`, `check:doc-snippets`, `check:language`, `check:naming`, `test/unit/docs/`, docs build green; close #1858
+- [x] T130 Constitution XV MINOR amendment with Sync Impact Report, version chained from `master` (C-5). Precondition: 189's XV and XIII sentences are on `master`. Keep them verbatim, place 190's text around them per `contracts/constitution-xv-amendment.md`, and leave XIII untouched (OR-9) [FR-100] — 4.4.0 → 4.5.0 (#1857). Items 1 – 5 applied; the full-module sentences sit before the bullet's last sentence, so 189's guard-seam clause, surface list and middleware sentence are byte-identical; XIII untouched. Merge gated on owner sign-off (Governance).
+- [x] T131 `overlay-modules.md` *Overlay module layout* section [FR-101] — layout §1 – §5 as a closing section; the stale "`--entities` does not scaffold yet" sentence replaced; `example_erp_keys` (#1856) named as the reference overlay module.
+- [x] T132 [P] Published pages EN + PL per `contracts/docs-pass.md` table [FR-102] — `overlay-pattern`, `schema-extensions`, `migrations` (new overlay section), `kernel` (overlay contribution table), `create-your-first-module` (*Going further*), each + pl, re-pinned. `example_overlay/backend.ts` header points at `example_erp_keys`. `upgrading-an-instance.md` left to the 0.113.0 release pull request, as the table times it.
+- [x] T133 [P] Ladder: rung 2c command middleware, policy participants, rung 4a decoration of the four `GUARD_SEAM_REGISTRATIONS` deprecated (0.113.0) / refused (0.114.0) with other root names still decoratable, data ladder *Who* D1/D2, bus-wrap → middleware migration example [FR-103] — policy participants are a not-built note on rung 3 (188's `SEAM_CLASSIFICATION` rung; 188 FR-021 owns their full text); the migration example is in `overlay-pattern.md` § *Moving a bus wrap to command middleware*, linked from 2c. `command-bus.md` (+ pl) gains a middleware section; the CLI-bus exemption (#1979, option B) is stated there, in 2c, in `overlay-pattern.md` and in 189's `contracts/command-middleware-api.md` §4.
+- [x] T134 `check:docs-translations`, `check:doc-snippets`, `check:language`, `check:naming`, `test/unit/docs/`, docs build green; close #1858 — all green, read sizes inside their bands; #1858 is closed by the pull request, not here.
 
 ## Dependencies & execution
 

@@ -108,6 +108,8 @@ w `packages/platform/src/migrations/`. Oba poniższe polecenia wymagają struktu
 piszesz moduł dostarczany jako instalowany pakiet npm, żadne z nich nie jest dla ciebie dostępne:
 przejdź do sekcji
 [Jak utworzyć migrację w pakiecie rozszerzenia](#jak-utworzyć-migrację-w-pakiecie-rozszerzenia).
+Moduł nakładkowy wdrożenia ma własną sekcję:
+[Jak utworzyć migrację w module nakładkowym](#how-to-create-a-migration-in-an-overlay-module).
 
 ```bash
 pnpm --filter backend run migration:new -- --module orders --name placement_intents
@@ -149,9 +151,10 @@ pnpm --filter backend run composer:generate
 Generator przechodzi po katalogu platformy `packages/platform/src/migrations/` i po własnym katalogu `migrations/` każdego modułu,
 odnajdywanym tak samo jak przez generator szkieletu, wyprowadza każdą nazwę klasy z nazwy pliku i
 odrzuca — zamiast pomijać — plik, którego nie potrafi przypisać: nierozpoznany plik `.ts` w katalogu
-migracji, klasę, której plik nie eksportuje, dwa pliki dające tę samą nazwę albo migrację w
-`src/apps/<deployment>/` (moduły nakładkowe nie mogą zawierać migracji, więc zarejestrowanie takiej
-migracji byłoby nową możliwością, a nie skutkiem ubocznym generowania listy).
+migracji, klasę, której plik nie eksportuje, albo dwa pliki dające tę samą nazwę. Migrację w
+`src/apps/<deployment>/` **sprawdza, ale nigdy nie rejestruje**: migracje modułu nakładkowego są
+czytane w czasie działania (zobacz
+[Jak utworzyć migrację w module nakładkowym](#how-to-create-a-migration-in-an-overlay-module)).
 
 **Niezarejestrowana migracja się nie wykona.** Rejestr to lista statycznych importów, a nie wzorzec
 wieloznaczny (wyszukiwanie po wzorcu wymaga dynamicznego `import()` plików `.ts` w czasie
@@ -189,9 +192,9 @@ twierdzić, że to wie. Host odnajduje więc migracje pakietu w czasie działani
 `./migrations` pakietu.
 
 **Nie ma do tego generatora szkieletu i nie jest potrzebny.** Poprawną migrację pakietu pisze się
-ręcznie, a cała jej postać mieści się na tej stronie. (`endora new migration` jest planowane jako
-podpolecenie programu `@endora-commerce/cli`; gdy powstanie, będzie generować dokładnie to, co
-opisano poniżej, a ta sekcja będzie do niego odsyłać).
+ręcznie, a cała jej postać mieści się na tej stronie. (`endora new migration` tworzy migracje
+własnych modułów nakładkowych instancji i odrzuca identyfikator pakietu: migracje zainstalowanego
+pakietu należą do jego autora i są dostarczane w eksporcie `./migrations`).
 
 Działający przykład jest w tym repozytorium: **`backend/acceptance/fixture-package/`** —
 syntetyczny pakiet modułu zewnętrznego, budowany i instalowany z archiwum przez testy akceptacyjne
@@ -387,11 +390,10 @@ nazewnictwie jak awarię w cudzym sklepie.
 
 ### Co pakiet może zawierać, a czego nie
 
-Pakiet może zawierać encje i migracje. **Moduł nakładkowy wdrożenia** w `backend/src/apps/` nie
-może (generator odrzuca jedno i drugie) — jego rozwiązanie jest zawsze dostępne i kosztuje tylko
-jeden katalog: utwórz tabelę w module rdzenia i odczytuj ją przez port tego modułu. Autor zewnętrzny
-nie ma modułu rdzenia i dlatego odpowiedź jest inna. Zobacz
-`docs/docs/architecture/overlay-pattern.md`.
+Pakiet może zawierać encje i migracje, tak samo jak **moduł nakładkowy wdrożenia** — zobacz
+[Jak utworzyć migrację w module nakładkowym](#how-to-create-a-migration-in-an-overlay-module).
+Żaden z nich nie może zmieniać schematu innego modułu: tego właśnie odmawia opisany niżej strażnik
+obcego schematu.
 
 ### Deklarowanie kolumn w tabeli rdzenia
 
@@ -484,6 +486,44 @@ wykonuje tę samą klasyfikację na migracjach wszystkich zainstalowanych pakiet
 taka istnieje. W klonie repozytorium Endora Commerce to samo polecenie ma postać
 `pnpm --filter backend run module:schema-extensions audit-packages`.
 
+
+## Jak utworzyć migrację w module nakładkowym {#how-to-create-a-migration-in-an-overlay-module}
+
+Moduł nakładkowy wdrożenia może mieć własne tabele, zarówno w `apps/<deployment>/modules/<id>/`
+instancji, jak i w `backend/src/apps/<deployment>/modules/<id>/` tego repozytorium. Jego migracje to
+jego katalog `migrations/` i na tym kończy się ich rejestrowanie:
+
+- **Wykrywanie** — platforma czyta ten katalog **plik po pliku**, gdy konfiguruje ORM, dla
+  wdrożenia, jako które działa proces. Nie ma `index.ts` ani zatwierdzanego rejestru:
+  `migrations-registry.generated.ts` przy każdej wartości `DEPLOYMENT` obejmuje tylko rdzeń, a
+  `composer:generate` sprawdza migracje nakładki — zgodność nazwy pliku z klasą, nazwę zawężoną do
+  modułu, unikalność obok rdzenia — i żadnej z nich nie emituje. Bez ustawionego `DEPLOYMENT` nie
+  jest czytana żadna migracja nakładki.
+- **Nazewnictwo** — dokładnie reguła opisana wyżej: `<YYYYMMDDTHHmmss>_<module>_<slug>.ts`, jedna
+  eksportowana klasa, której nazwa wynika z nazwy pliku, a jej końcówka zaczyna się od segmentu
+  modułu. Plik, który tej reguły nie spełnia, zatrzymuje czytający go proces, ze wskazaniem pliku.
+- **Kolejność** — `dependencies` w manifeście modułu, jak dla każdego modułu: migracja odwołująca
+  się do tabeli rdzenia wykonuje się po tej, która ją tworzy, gdy moduł zależy od jej właściciela.
+- **Strażnik** — każda migracja nakładki działa w [strażniku obcego
+  schematu](#strażnik-obcego-schematu), z własnymi encjami modułu jako zbiorem tabel, które do
+  niego należą, i **bez** wyjątku: nie obejmuje jej rejestr R2 zapisów własnych modułów platformy.
+- **Odinstalowanie** — `module:uninstall --hard` wycofuje łańcuch migracji modułu; wyłączenie
+  modułu albo miękkie odinstalowanie zachowuje jego tabele.
+
+Aby ją utworzyć:
+
+```bash
+# W instancji, z jej katalogu głównego — we wdrożeniu wybranym w `.env`:
+pnpm exec endora new migration acme_loyalty --name add_tiers
+
+# W klonie repozytorium Endora Commerce:
+pnpm --filter backend run migration:new -- --module acme_loyalty --name add_tiers
+```
+
+Oba nadają nazwę plikowi tą samą implementacją co każdej innej migracji tworzonej z szablonu,
+powyżej `BASELINE_THROUGH`. W tym repozytorium ustawione `DEPLOYMENT` jest jedynym przeszukiwanym
+wdrożeniem, a identyfikator, który występuje w dwóch wdrożeniach, bez niego jest odrzucany.
+`endora new module --entities` tworzy pierwszą migrację modułu nakładkowego w ten sam sposób.
 
 ## Reguły kolejności
 

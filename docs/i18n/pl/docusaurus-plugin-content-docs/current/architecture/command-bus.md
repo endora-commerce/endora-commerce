@@ -168,6 +168,12 @@ asynchronicznej hooka, który hook właśnie działa.
 obecności — jest pomijany dla danego polecenia; decyzja zapada przy każdym wywołaniu, bez
 restartu. Zapis zachowuje się tak, jakby modułu nie zainstalowano.
 
+**Polecenia operatora nie uruchamiają hooków.** Command Bus, który polecenie operatora buduje dla
+siebie poza aplikacją — dziś polecenia cyklu życia rozszerzeń schematu — nie ma rejestru hooków,
+więc jego polecenia nie uruchamiają żadnego hooka `beforeCommit` i nie kolejkują żadnego
+dostarczenia `afterCommit`. Nadal są audytowane. Ta sama szyna nie uruchamia też
+[middleware poleceń](#command-middleware).
+
 **Kompozycja odrzuca to, czego nie da się uporządkować albo co nie jest oferowane.** Przy starcie,
 po rejestracji wszystkich modułów i przed jakimkolwiek hookiem startowym, platforma odrzuca: hook na
 akcji, której nie deklaruje żaden moduł; fazę, której właściciel nie oferuje; jedną akcję
@@ -304,6 +310,39 @@ w `errorCodes` ma już swoje zdanie `errors.<KOD>`; kodowi `PermanentOutboxFailu
 rodzina `errors.*` należy do koperty błędu i przyjmuje wyłącznie kody SCREAMING_SNAKE. Platforma
 tłumaczy swoje trzy: `hook-unregistered`, `permanent-failure` i `handler-failed`. Kod, którego nikt nie
 tłumaczy, jest pokazywany bez zmian.
+
+## Middleware poleceń: `admit` i `observe` {#command-middleware}
+
+Hook bierze udział w jednym zapisie zadeklarowanym przez właściciela. **Middleware poleceń** działa
+dla każdego polecenia, którego akcja pasuje do filtra zadeklarowanego przez jego moduł — `'*'`,
+pełnej akcji albo prefiksu zakończonego kropką — niezależnie od tego, kto jest jego właścicielem, w
+tym dla poleceń podrzędnych. Ma dwie fazy i żadnej trzeciej:
+
+```text
+admit(root) → transaction: run → hooks → audit entry → event → outbox rows → commit → observe
+```
+
+- **`admit`** działa, zanim polecenie cokolwiek zrobi, przed otwarciem transakcji, i ponownie dla
+  każdego pasującego polecenia podrzędnego. Dostaje wyłącznie metadane i może jedynie przepuścić
+  polecenie albo rzucić `CommandRefusedError` z kodem zadeklarowanym przez swój moduł. Odrzucone
+  polecenie niczego nie zapisuje i nie tworzy wpisu w dzienniku audytu; `admit`, które rzuca coś
+  innego albo nie odpowiada w swoim limicie czasu, odmawia z kodem `503 COMMAND_ADMISSION_FAILED`
+  albo `503 COMMAND_ADMISSION_TIMEOUT`. Zainstalowany pakiet rozszerzenia nie może go wnieść.
+- **`observe`** działa po zatwierdzeniu albo wycofaniu przebiegu, niezależnie od wywołującego, z
+  wynikiem w postaci identyfikatorów, kodów i wartości logicznych. Nie może zmienić zapisu, a
+  wyjątek rzucony w nim trafia do logu i jest pomijany.
+
+Middleware deklaruje się w polu `commandMiddleware` manifestu i rejestruje przez
+`ctx.commandMiddleware`; kompozycja odrzuca jedno bez drugiego. Jest pomijane, gdy jego moduł jest
+wyłączony, a kod działający w nim nie może uruchomić polecenia (`500
+COMMAND_MIDDLEWARE_REENTRY`). Który punkt rozszerzenia wybrać i kto może z niego korzystać, opisuje
+stopień 2c [drabiny dostosowań](./customisation-ladder.md#2c--command-middleware).
+
+**Polecenia operatora nie uruchamiają middleware.** Command Bus, który polecenie operatora buduje
+dla siebie poza aplikacją — dziś polecenia cyklu życia rozszerzeń schematu — nie ma rejestru
+middleware, więc jego polecenia nie uruchamiają ani `admit`, ani `observe`, ani też hooków. Nadal są
+audytowane. `admit` to biznesowa bramka reguł dla ścieżek aplikacji: nie polegaj na nim, aby
+zatrzymać polecenie serwisowe uruchomione przez kogoś z dostępem do powłoki i bazy danych.
 
 ## Cofanie zmian
 
