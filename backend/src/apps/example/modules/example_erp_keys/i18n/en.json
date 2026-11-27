@@ -11,7 +11,7 @@
   "admin.lookup.label": "ERP key",
   "admin.lookup.submit": "Find",
   "admin.noResults.title": "No organization holds this key",
-  "admin.results": "{count} ERP keys",
+  "admin.results": "ERP keys: {count}",
   "admin.retry": "Try again",
   "admin.tableCaption": "Organizations and their ERP keys",
   "admin.title": "ERP keys",
