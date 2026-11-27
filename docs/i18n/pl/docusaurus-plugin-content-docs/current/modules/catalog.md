@@ -466,6 +466,90 @@ w całości; ścisłe schematy to `CATALOG_WEBHOOK_EVENT_SCHEMAS` w `@endora-com
   między językami staną się problemem, nadpisz mechanizm tworzenia slugów w
   `catalog-admin.service.ts`.
 
+## Zapisy po stronie serwera
+
+Inny moduł, moduł nakładki albo proces integracyjny (konektor PIM lub ERP) zapisuje produkt przez
+**`catalogProductCommandPort`**, port zapisu agregatu produktu, a definicje atrybutów przez
+**`catalogAttributeCommandPort`** — zadeklarowane jako `CatalogProductCommandPort` i
+`CatalogAttributeCommandPort` w `@endora-commerce/contracts`. Nigdy nie zapisuje sam tabel tego
+modułu. Pobieraj każdy z nich przy każdym użyciu przez
+`lazyPort<CatalogProductCommandPort>(ctx, 'catalogProductCommandPort')`, z `catalog` w
+`dependencies` manifestu modułu wywołującego. Odczyty pozostają w `catalogProductReadPort` i
+`catalogAttributeReadPort`.
+
+| Metoda | Akcja audytu | Co w panelu robi to samo |
+| --- | --- | --- |
+| `create(req, options?)` | `product.create` | `POST /api/v1/admin/catalog/products` |
+| `update(id, req, options?)` | `product.update` | `PATCH /api/v1/admin/catalog/products/:id` |
+| `archive(id, options?)` / `restore(id, options?)` | `product.archive` / `product.restore` | `POST …/products/:id/archive`, `…/restore` |
+| `delete(id, options?)` | `product.delete` | `DELETE …/products/:id` |
+| `createVariant(productId, req, options?)` | `product_variant.create` | `POST …/products/:productId/variants` |
+| `updateVariant(productId, variantId, req, options?)` | `product_variant.update` | `PATCH …/variants/:variantId` |
+| `deleteVariant(productId, variantId, options?)` | `product_variant.delete` | `DELETE …/variants/:variantId` |
+| `setCustomFieldValues(id, merge, options?)` | `product.update` | `PATCH …/products/:id` z `attributeValues` |
+| `applyScopedValues(id, { cells }, options?)` | `product.scoped_values.import` | — (import produktów zapisuje tak samo) |
+
+| Metoda `catalogAttributeCommandPort` | Akcja audytu | Endpoint panelu |
+| --- | --- | --- |
+| `create(req, options?)` | `catalog.attribute.create` | `POST /api/v1/admin/catalog/attributes` |
+| `update(idOrKey, req, options?)` | `catalog.attribute.update` | `PATCH …/attributes/:idOrKey` |
+| `delete(idOrKey, options?)` | `catalog.attribute.delete` | `DELETE …/attributes/:idOrKey` |
+| `addOption(idOrKey, input, options?)` | `catalog.attribute_option.create` | `POST …/attributes/:idOrKey/options` |
+| `updateOption(optionId, input, options?)` | `catalog.attribute_option.update` | `PATCH …/options/:optionId` |
+| `deleteOption(optionId, options?)` | `catalog.attribute_option.delete` | `DELETE …/options/:optionId` |
+
+**Jedna ścieżka zapisu.** Każda metoda wywołuje tę samą metodę usługi, którą wywołuje endpoint
+panelu, więc oba zapisy nie mogą się różnić: ten sam wpis audytu, te same zdarzenia `product.*` po
+zatwierdzeniu — dzięki nim aktualne pozostają indeks wyszukiwania, strony sklepu i wychodzące
+webhooki — nowy produkt przypisany do domyślnego kanału sprzedaży, odświeżone definicje atrybutów
+i pełne przeindeksowanie wyszukiwania w kolejce, gdy zmienia się `isSearchable`. Dane wejściowe to
+ciała żądań endpointów (`update` bez `version`), a odmowy to błędy endpointów z ich kodami. Jedyna
+różnica: **sprawdzenie kompletności** nie działa — zmiana statusu przez `update` nigdy nie jest
+odrzucana z powodu brakującej treści i nie zwraca ostrzeżeń, tak jak przy importach i konektorach.
+
+**Pola niestandardowe produktu to wartości jego atrybutów.** `setCustomFieldValues` przekazuje
+Twojej funkcji `merge` bieżące `attributeValues` produktu i zapisuje to, co ona zwróci, w jednym
+wpisie `product.update`; klucz, którego w wyniku nie ma, zostaje usunięty. W odróżnieniu od innych
+encji katalog sam sprawdza wynik, regułami edycji w panelu: każdy zmieniony klucz należy do
+zestawu atrybutów produktu (`400 VALIDATION_FAILED`), wymagane atrybuty zestawu zachowują wartość,
+a ani cena (`400 PRICE_SET_IN_PRICE_BOOKS`), ani atrybut treści Page Buildera
+(`400 ATTRIBUTE_VALUE_REJECTED`) nie są przyjmowane.
+
+**Wartości w zakresach.** `applyScopedValues` zapisuje komórki — pole w zakresie globalnym, kanału
+albo kanału i języka — dokładnie tak, jak zawsze robił to port konektorów: zmieniają się tylko
+wskazane komórki, każda odrzucona komórka jest zgłaszana, a pozostałe są stosowane, klucze URL
+nigdy nie są przejmowane (zob. [Klucze URL i przekierowania](./catalog/url-keys-and-redirects.md)).
+Jeden wpis audytu na wywołanie, wersja edytora produktu się zmienia, jedno `product.updated.v1`.
+
+**Kto zapisał.** Aktor jest aktorem z bieżącego kontekstu, nigdy parametrem: administrator w
+żądaniu panelu albo w `withSystemScopeActingFor`; aktor **system** w `withSystemScope` w procesie w
+tle. Porty nie sprawdzają uprawnień — o dostępie decyduje wywołujący — więc nigdy nie pobieraj ich
+dla trasy dostępnej dla klienta.
+
+**Opcje** (ostatni parametr każdej metody):
+
+- `source` — kod z małych liter nazywający integrację (`pim_akeneo`, `erp.sync`, co najwyżej
+  64 znaki), zapisywany jako `source` we wpisie audytu obok aktora. Każda inna wartość jest
+  odrzucana z `422 VALIDATION_FAILED`, zanim cokolwiek zostanie odczytane lub zapisane.
+- `expectedVersion` — odczytana wersja edytora produktu (`version` z
+  `GET …/products/:id/scoped-values`); `update` i `setCustomFieldValues` odrzucają produkt, który
+  zmienił się w międzyczasie, z `409 VERSION_CONFLICT`. Pozostałe metody ją pomijają.
+- `extensions` — żaden zapis katalogu nie jest jeszcze zadeklarowany jako dostępny dla hooków,
+  więc każdy klucz jest odrzucany z `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie
+  zapisane.
+
+**Czego nie ma**: slotów zestawów, elementów produktów grupowanych, powiązań, galerii,
+załączników, jednostek opakowania, kluczy URL i przekierowań (każde ma własny ekran w panelu),
+duplikowania produktu, edycji masowej i importu masowego (`catalogBulkImportPort`) ani zapisu
+jednego zakresu w edytorze zakresów. Kategorie są osobnym agregatem. Modułu `catalog` nie da się
+wyłączyć, więc porty są zawsze dostępne.
+
+**Przestarzałe od 0.113.0**, usuwane w jednym z kolejnych wydań: `catalogProductWritePort` (każdy
+zapis przechodzi do metody tej samej operacji powyżej; `listAttributes` i `listAttributesByFlag`
+do `catalogAttributeReadPort`) oraz `catalogProductScopeWritePort.applyScopes` (do
+`applyScopedValues`, z tymi samymi komórkami i `source`). Do tego czasu oba delegują do nowych
+portów, więc ich wpisy i odmowy się nie zmieniają.
+
 ## Zasady zamawiania: minimalna ilość zamówienia i zwroty
 
 Dwie zasady na produkcie decydują o tym, jak można go zamówić i czy można go odesłać. Obie edytuje
