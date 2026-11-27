@@ -36,6 +36,8 @@ import type {
   CatalogProductLinkPort,
   CatalogProductReadPort,
   CatalogProductWritePort,
+  CatalogProductCommandPort,
+  CatalogAttributeCommandPort,
   CatalogPromoAttributePort,
   CatalogQuickSearchPort,
   CatalogProductAvailabilityPort,
@@ -136,6 +138,10 @@ import { CatalogQueryService, type CatalogCursorSeal } from './services/catalog-
 import { CatalogQuickSearchService } from './services/catalog-quick-search.service.js';
 import { AttributeValueKeyService } from './services/attribute-value-key.service.js';
 import type { CatalogAttributeValueKeyApi } from '../ports/index.js';
+import {
+  createCatalogAttributeCommandPort,
+  createCatalogProductCommandPort,
+} from './services/catalog-command-ports.js';
 import {
   createCatalogCategoryWritePort,
   createCatalogProductScopeWritePort,
@@ -841,6 +847,7 @@ export function registerModule(ctx: ModuleContext): void {
             resolveProductImagePlaceholderUrl: (salesChannelCode) =>
               cradle().catalogImagePlaceholderUrl(salesChannelCode),
             reindexSearchIndexes: () => cradle().catalogSearchReindex(),
+            shareSearchReindexEnqueuer: (enqueue) => cradle().catalogAdminService.setSearchReindexEnqueuer(enqueue),
             resolveSeoProductMeta: (input) => cradle().catalogSeoProductMeta(input),
             listSeoProductScopes: (productId) => cradle().catalogSeoProductScopes(productId),
             readSeoProductScoped: (productId, scope) => cradle().catalogSeoProductScoped(productId, scope),
@@ -931,11 +938,52 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * `specs/186-aggregate-ports/` US6 (issue #1825) — the Product aggregate's write port and the
+   * attribute-definition port. Each method calls the service method its admin route calls, on
+   * the container's `catalogAdminService` (no completeness gate, A-6), resolved per call; the
+   * scoped write is the connector's Command `product.scoped_values.import` on the save's
+   * planner and writers.
+   */
+  ctx.di.providePort<CatalogProductCommandPort>(
+    'catalogProductCommandPort',
+    ctx
+      .asFunction(({ emFactory, commandBus }: CatalogCradle) => {
+        const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
+        const urlKeys = new UrlKeyService(emFactory, membership, commandBus);
+        const attributes = lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort');
+        return createCatalogProductCommandPort({
+          admin: () => ctx.cradle<CatalogCradle>().catalogAdminService,
+          commandBus: () => commandBus,
+          importDeps: () => ({
+            membership,
+            listAttributes: () => attributes.listAll(),
+            urlKeys: () => urlKeys,
+          }),
+        });
+      })
+      .singleton(),
+  );
+
+  ctx.di.providePort<CatalogAttributeCommandPort>(
+    'catalogAttributeCommandPort',
+    ctx
+      .asFunction(() =>
+        createCatalogAttributeCommandPort({ admin: () => ctx.cradle<CatalogCradle>().catalogAdminService }),
+      )
+      .singleton(),
+  );
+
+  // Deprecated since 0.113.0 (#1825): every write delegates to the two ports above.
   ctx.di.providePort<CatalogProductWritePort>(
     'catalogProductWritePort',
     ctx
       .asFunction(() =>
-        createCatalogProductWritePort(() => ctx.cradle<CatalogCradle>().catalogAdminService),
+        createCatalogProductWritePort({
+          products: () => lazyPort<CatalogProductCommandPort>(ctx, 'catalogProductCommandPort'),
+          attributes: () => lazyPort<CatalogAttributeCommandPort>(ctx, 'catalogAttributeCommandPort'),
+          attributeReads: () => ctx.cradle<CatalogCradle>().catalogAdminService,
+        }),
       )
       .singleton(),
   );
@@ -1065,28 +1113,21 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
-   * Feature 174 (T083; `contracts/pim-locale-mapping.md` §4) — the scoped write of connectors, v2:
-   * one Command `product.scoped_values.import` per call on the save's planner and writers, per-cell
-   * refusals, the integration allowlist (R13a); a URL key another product holds is reported, never
-   * taken over (FR-093). `source` must be a module of the registry (R21).
+   * Feature 174 (T083; `contracts/pim-locale-mapping.md` §4) — the scoped write of connectors, v2.
+   * Deprecated since 0.113.0 (#1825): `source` must be a module of the registry (R21), then the
+   * call is `catalogProductCommandPort.applyScopedValues` — one Command
+   * `product.scoped_values.import`, per-cell refusals, the integration allowlist (R13a), a URL key
+   * another product holds reported, never taken over (FR-093).
    */
   ctx.di.providePort<CatalogProductScopeWritePort>(
     'catalogProductScopeWritePort',
     ctx
-      .asFunction(({ emFactory, commandBus }: CatalogCradle) => {
-        const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
-        const urlKeys = new UrlKeyService(emFactory, membership, commandBus);
-        const attributes = lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort');
-        return createCatalogProductScopeWritePort({
-          commandBus: () => commandBus,
-          importDeps: () => ({
-            membership,
-            listAttributes: () => attributes.listAll(),
-            urlKeys: () => urlKeys,
-          }),
+      .asFunction(() =>
+        createCatalogProductScopeWritePort({
+          products: () => lazyPort<CatalogProductCommandPort>(ctx, 'catalogProductCommandPort'),
           isRegisteredModule: (moduleId) => effectiveState.presence(moduleId) !== undefined,
-        });
-      })
+        }),
+      )
       .singleton(),
   );
 

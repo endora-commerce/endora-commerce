@@ -1331,9 +1331,14 @@ export type ProjectCloseInput =
  * the route checks: {@link ProjectRecord.version} on `update`,
  * `setCustomFieldValues`, `moveToStage`, `close` and `reopen`;
  * {@link ProjectRecord.configurationVersion} on `setOrganizations` and
- * `setMembers`. A stale one is refused `409 PROJECT_CHANGED`, the route's code;
- * absent, the Command writes over the version it reads, under the Project's
- * row lock. `link`, `unlink`, `addComment` and `delete` ignore it. `source` is
+ * `setMembers`. A stale one is refused `409 PROJECT_CHANGED`, the route's code.
+ * Absent, it is the token the method's own read saw, held to the Project's row
+ * lock: a change another caller committed in between is refused `409
+ * PROJECT_CHANGED` too, rather than overwritten — or, on the two sets, merged
+ * with a diff computed from the stale read (issue #1986). `setCustomFieldValues`
+ * is the exception: its `merge` runs on the values read under the lock, so
+ * absent it checks nothing. `link`, `unlink`, `addComment` and `delete` ignore
+ * it. `source` is
  * recorded on each audit entry beside the actor; a code outside
  * `aggregateCommandSourceSchema` is refused `422 VALIDATION_FAILED` before
  * anything is read or written. `extensions` reaches the command hooks of the
@@ -1343,8 +1348,11 @@ export type ProjectCloseInput =
  * an action is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is
  * written, so every key is refused on `setMembers`, `link`, `unlink`,
  * `addComment` and `delete`, whose actions are not hookable
- * (`PROJECT_HOOKABLE_ACTIONS`). A `setOrganizations` call that changes nothing
- * runs no Command, so an unclaimed `extensions` key is not refused there.
+ * (`PROJECT_HOOKABLE_ACTIONS`). Two calls run no Command, so an unclaimed
+ * `extensions` key is not refused on them: a `setOrganizations` that changes
+ * nothing, and an `update` whose patch is empty (no title, description, value
+ * or start date) — the claim is checked per Command, against a hook registry
+ * the owner cannot read.
  *
  * **Answers.** A {@link ProjectRecord} read after the write under the
  * Organization rule alone, so a write that took the Project out of the
@@ -1365,7 +1373,11 @@ export type ProjectCloseInput =
 export interface ProjectCommandPort {
   /** `POST /projects` — `projects.project.create`. Needs an administrator behind the call. */
   create(input: CreateProjectBody, options?: AggregateCommandOptions): Promise<ProjectRecord>;
-  /** `PATCH /projects/:id` (title, description, value, start date) — `projects.project.update`. */
+  /**
+   * `PATCH /projects/:id` (title, description, value, start date) —
+   * `projects.project.update`. An empty patch runs no Command: it writes
+   * nothing, answers the record, and refuses no `extensions` key.
+   */
   update(id: string, patch: ProjectUpdatePatch, options?: AggregateCommandOptions): Promise<ProjectRecord>;
   /**
    * `projects.project.custom_fields_update`, the Command the admin `PATCH` runs

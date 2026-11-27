@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   ERROR_CODES,
   type CustomFieldValuePort,
@@ -48,6 +48,7 @@ describe('projectCommandPort — the admin routes’ Commands (#1828)', () => {
   let port: ProjectCommandPort;
   let organizationA = '';
   let organizationB = '';
+  let organizationC = '';
   let definitionId = '';
   const created: string[] = [];
   const refused = new Set<string>();
@@ -105,11 +106,58 @@ describe('projectCommandPort — the admin routes’ Commands (#1828)', () => {
         ])) as Array<{ kind: string }>
     ).map((row) => row.kind);
 
+  /** The Organizations a Project holds, as stored. */
+  const storedOrganizations = async (projectId: string): Promise<string[]> =>
+    (
+      (await h
+        .em()
+        .getConnection()
+        .execute(`select "organization_id" from "project_organizations" where "project_id" = ? order by "organization_id"`, [
+          projectId,
+        ])) as Array<{ organization_id: string }>
+    ).map((row) => row.organization_id);
+
+  /** The Members a Project holds, as stored: each administrator with their Roles. */
+  const storedMembers = async (projectId: string): Promise<Array<{ adminUserId: string; roleIds: string[] }>> =>
+    (
+      (await h
+        .em()
+        .getConnection()
+        .execute(
+          `select pm."admin_user_id", array_agg(pmr."role_id"::text order by pmr."role_id") as "role_ids"
+             from "project_members" pm join "project_member_roles" pmr on pmr."member_id" = pm."id"
+            where pm."project_id" = ? group by pm."admin_user_id" order by pm."admin_user_id"`,
+          [projectId],
+        )) as Array<{ admin_user_id: string; role_ids: string[] }>
+    ).map((row) => ({ adminUserId: row.admin_user_id, roleIds: row.role_ids }));
+
+  /** The Project rows carrying a title — a create writes under an id nobody holds yet. */
+  const projectRowsTitled = async (title: string): Promise<number> => {
+    // `count(*)` always answers exactly one row; read it, never default it (check:fixture-substitution).
+    const [row] = (await h
+      .em()
+      .getConnection()
+      .execute(`select count(*)::int as "n" from "projects" where "title" = ?`, [title])) as Array<{ n: number }>;
+    if (row === undefined) throw new Error('count(*) answered no row');
+    return Number(row.n);
+  };
+
+  /**
+   * The module's access service, whose methods a set calls between its read
+   * and its Command's lock — where another caller's commit is made to land.
+   */
+  const projectsAccess = () =>
+    h.container.resolve<{
+      loadVisible(id: string): Promise<unknown>;
+      orgInScope(organizationId: string): Promise<boolean>;
+    }>('projectsAccess');
+
   beforeAll(async () => {
     h = await setupBackendServer();
     port = h.container.resolve<ProjectCommandPort>('projectCommandPort');
     organizationA = await seedCrmOrganization(h.em(), 'Port parity A');
     organizationB = await seedCrmOrganization(h.em(), 'Port parity B');
+    organizationC = await seedCrmOrganization(h.em(), 'Port parity C');
     const response = await h.app.inject({
       method: 'POST',
       url: `${CUSTOM_FIELDS_API}/definitions`,
@@ -133,6 +181,10 @@ describe('projectCommandPort — the admin routes’ Commands (#1828)', () => {
       before: async (ctx) =>
         refused.has(ctx.projectId) ? { allow: false, reason: GUARD_REASON } : { allow: true },
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   afterAll(async () => {
@@ -207,9 +259,11 @@ describe('projectCommandPort — the admin routes’ Commands (#1828)', () => {
     expect(viaPort.audit.map((e) => e.action)).toEqual(['projects.project.custom_fields_update']);
     expect(viaPort.audit[0]!.stateAfter).toMatchObject({ changedCustomFields: [FIELD] });
 
-    // The same value again changes nothing, and records nothing.
+    // The same value again changes nothing, records nothing and moves no version.
+    const { version } = await asAdmin(() => port.update(b.id, {}));
     const record = await asAdmin(() => port.setCustomFieldValues(b.id, async (current) => ({ ...current })));
     expect(record.customFieldValues).toEqual({ [FIELD]: 'port' });
+    expect(record.version).toBe(version);
     expect((await entries(b.id)).filter((e) => e.action === 'projects.project.custom_fields_update')).toHaveLength(1);
   });
 
@@ -358,6 +412,12 @@ describe('projectCommandPort — the admin routes’ Commands (#1828)', () => {
     ).toMatchObject({ statusCode: 422, code: 'COMMAND_EXTENSION_UNCLAIMED' });
     expect(await entries(project.id)).toHaveLength(count);
     expect((await getProject(h, project.id)).title).toBe('With a source');
+
+    // The named exception (#1986): an empty patch runs no Command, so the bus
+    // never sees the key — nothing is refused, and nothing is written.
+    const read = await asAdmin(() => port.update(project.id, {}, { extensions: { acme_erp: { code: 'x' } } }));
+    expect(read).toMatchObject({ id: project.id, title: 'With a source' });
+    expect(await entries(project.id)).toHaveLength(count);
   });
 
   it('honours expectedVersion as the token each route checks, and answers both on the record', async () => {
@@ -396,13 +456,147 @@ describe('projectCommandPort — the admin routes’ Commands (#1828)', () => {
     });
   });
 
+  it('refuses a stale expectedVersion 409 PROJECT_CHANGED on setCustomFieldValues, setMembers, moveToStage, close and reopen, with nothing written', async () => {
+    const [project] = await pair();
+    const values = h.container.resolve<CustomFieldValuePort>('customFieldValueService');
+    const roles = await dictionaryIds(h, 'project_roles');
+    const lossReasonId = Object.values(await dictionaryIds(h, 'project_loss_reasons'))[0]!;
+    const count = (await entries(project.id)).length;
+    const stale = { statusCode: 409, code: ERROR_CODES.PROJECT_CHANGED };
+
+    expect(
+      await refusal(
+        asAdmin(() =>
+          port.setCustomFieldValues(
+            project.id,
+            (current) => values.validateAndMerge('project', current, { [FIELD]: 'stale' }),
+            { expectedVersion: project.version + 5 },
+          ),
+        ),
+      ),
+    ).toMatchObject(stale);
+    expect(
+      await refusal(
+        asAdmin(() =>
+          port.setMembers(
+            project.id,
+            { members: [{ adminUserId: TEST_ADMIN_ID, roleIds: [roles['project_manager']!] }] },
+            { expectedVersion: project.configurationVersion + 5 },
+          ),
+        ),
+      ),
+    ).toMatchObject(stale);
+    expect(
+      await refusal(
+        asAdmin(() =>
+          port.moveToStage(project.id, { toStageId: stageNamed(project, 'Build') }, { expectedVersion: project.version + 5 }),
+        ),
+      ),
+    ).toMatchObject(stale);
+    expect(
+      await refusal(
+        asAdmin(() => port.close(project.id, { outcome: 'lost', lossReasonId }, { expectedVersion: project.version + 5 })),
+      ),
+    ).toMatchObject(stale);
+    expect(await entries(project.id)).toHaveLength(count);
+    expect(await stageEntries(project.id)).toEqual(['enter']);
+    const untouched = await asAdmin(() => port.update(project.id, {}));
+    expect(untouched).toMatchObject({
+      version: project.version,
+      configurationVersion: project.configurationVersion,
+      customFieldValues: {},
+    });
+
+    // `reopen` needs a closed Project, so close it first with the current token.
+    const closed = await asAdmin(() =>
+      port.close(project.id, { outcome: 'lost', lossReasonId }, { expectedVersion: project.version }),
+    );
+    const closedCount = (await entries(project.id)).length;
+    expect(
+      await refusal(asAdmin(() => port.reopen(project.id, { expectedVersion: closed.version + 5 }))),
+    ).toMatchObject(stale);
+    expect(await entries(project.id)).toHaveLength(closedCount);
+    expect((await asAdmin(() => port.update(project.id, {}))).version).toBe(closed.version);
+  });
+
+  it('setOrganizations without expectedVersion refuses a set committed between its read and its lock, and leaves that set (#1986)', async () => {
+    // Caller A reads {A} and asks for {A, B}; caller B sets {C} and commits first.
+    const [project] = await pair();
+    const access = projectsAccess();
+    const orgInScope = access.orgInScope.bind(access);
+    let interleaved = false;
+    // `orgInScope` is asked for each Organization A adds, after A read the
+    // current set and before A's Command locks the Project.
+    vi.spyOn(access, 'orgInScope').mockImplementation(async (organizationId) => {
+      if (!interleaved) {
+        interleaved = true;
+        await route('PUT', `/${project.id}/organizations`, { organizationIds: [organizationC] });
+      }
+      return orgInScope(organizationId);
+    });
+
+    expect(
+      await refusal(asAdmin(() => port.setOrganizations(project.id, { organizationIds: [organizationA, organizationB] }))),
+    ).toMatchObject({ statusCode: 409, code: ERROR_CODES.PROJECT_CHANGED });
+    expect(interleaved).toBe(true);
+    expect(await storedOrganizations(project.id)).toEqual([organizationC]);
+    expect((await getProject(h, project.id)).configurationVersion).toBe(project.configurationVersion + 1);
+  });
+
+  it('setMembers without expectedVersion refuses a set committed between its read and its lock, and leaves that set (#1986)', async () => {
+    const [project] = await pair();
+    const roles = await dictionaryIds(h, 'project_roles');
+    const [first, second] = Object.values(roles);
+    expect(second, 'two project roles are seeded').toBeDefined();
+    const theirs = [{ adminUserId: TEST_ADMIN_ID, roleIds: [second!] }];
+    const access = projectsAccess();
+    const loadVisible = access.loadVisible.bind(access);
+    let interleaved = false;
+    vi.spyOn(access, 'loadVisible').mockImplementation(async (id) => {
+      const row = await loadVisible(id);
+      if (!interleaved && id === project.id) {
+        interleaved = true;
+        await route('PUT', `/${project.id}/members`, { members: theirs });
+      }
+      return row;
+    });
+
+    expect(
+      await refusal(asAdmin(() => port.setMembers(project.id, { members: [{ adminUserId: TEST_ADMIN_ID, roleIds: [first!] }] }))),
+    ).toMatchObject({ statusCode: 409, code: ERROR_CODES.PROJECT_CHANGED });
+    expect(interleaved).toBe(true);
+    expect(await storedMembers(project.id)).toEqual(theirs);
+  });
+
+  it('the admin PUT …/organizations without configurationVersion keeps its published answer: not refused (#1986 route decision)', async () => {
+    const [project] = await pair();
+    const access = projectsAccess();
+    const orgInScope = access.orgInScope.bind(access);
+    let interleaved = false;
+    vi.spyOn(access, 'orgInScope').mockImplementation(async (organizationId) => {
+      if (!interleaved) {
+        interleaved = true;
+        await asAdmin(() => port.setOrganizations(project.id, { organizationIds: [organizationC] }));
+      }
+      return orgInScope(organizationId);
+    });
+
+    await route('PUT', `/${project.id}/organizations`, { organizationIds: [organizationA, organizationB] });
+    expect(interleaved).toBe(true);
+    // The route's diff, read before the other set committed: last writer wins on the diff.
+    expect(await storedOrganizations(project.id)).toEqual([organizationB, organizationC].sort());
+  });
+
   it('refuses create and addComment with no administrator behind the call, before anything is written', async () => {
     const [project] = await pair();
     const count = (await entries(project.id)).length;
     const asSystem = <T>(fn: () => Promise<T>) => withSystemScope('test: project command port, no administrator', fn);
+    const title = `Nobody’s ${project.id}`;
     expect(
-      await refusal(asSystem(() => port.create({ title: 'Nobody’s', organizationIds: [], stages: [{ name: 'S', color: '#3b82f6' }] }))),
+      await refusal(asSystem(() => port.create({ title, organizationIds: [], stages: [{ name: 'S', color: '#3b82f6' }] }))),
     ).toMatchObject({ statusCode: 403, code: ERROR_CODES.FORBIDDEN });
+    // A create writes under a new id, so its own audit entries cannot show it: count the rows.
+    expect(await projectRowsTitled(title)).toBe(0);
     expect(await refusal(asSystem(() => port.addComment(project.id, { kind: 'note', body: 'Nobody’s' })))).toMatchObject({
       statusCode: 403,
       code: ERROR_CODES.FORBIDDEN,

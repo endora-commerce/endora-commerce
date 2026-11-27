@@ -572,6 +572,10 @@ export function integrationWritableField(field: string): boolean {
  * Container name: `catalogProductScopeWritePort`. Owner: `catalog` (R17, feature 174 v2,
  * `contracts/pim-locale-mapping.md` §4).
  *
+ * **Deprecated since 0.113.0, removed in a later release** (`specs/186-aggregate-ports/`,
+ * issue #1825): the write is `CatalogProductCommandPort.applyScopedValues`, the same Command
+ * with the same cells; this port checks its registered `source` and delegates to it meanwhile.
+ *
  * Scoped writes for connectors: one Command `product.scoped_values.import` per call (one audit
  * entry, `source` in it, `product.updated.v1` after commit, `products.scope_version` bumped),
  * per-cell tolerant (each refused cell is reported with a {@link ProductScopedWriteRefusalCode},
@@ -591,6 +595,7 @@ export function integrationWritableField(field: string): boolean {
  *   {@link PRODUCT_SCOPED_WRITE_CELLS_MAX} cells or the same (field, scope) twice.
  */
 export interface CatalogProductScopeWritePort {
+  /** @deprecated since 0.113.0; use {@link CatalogProductCommandPort.applyScopedValues} instead. */
   applyScopes(
     productId: string,
     input: ProductScopedWriteInput,
