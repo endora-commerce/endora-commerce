@@ -17,6 +17,10 @@ export interface CommentRoutesDeps {
  * Notes and internal messages
  * (`specs/143-crm-sales-opportunities/contracts/admin-api.md` §6).
  *
+ * A note is a custom-field host (`opportunity_note`, issue #2005): its create
+ * and its edit carry `customFieldValues`, validated with the administrator's
+ * rules (`customFieldWrites` in the manifest declares both).
+ *
  * `crm:write` lets somebody write; it does not let them change what somebody
  * else wrote. That rule is the service's: a note is edited and deleted by its
  * author only (403), and a message by nobody (409 `CRM_MESSAGE_IMMUTABLE`).
@@ -65,7 +69,7 @@ export async function registerCrmCommentRoutes(app: FastifyInstance, deps: Comme
     async (request) => {
       const body = UpdateOpportunityCommentRequestSchema.parse(request.body);
       return {
-        data: await comments.update(request.params.id, request.params.commentId, body.body),
+        data: await comments.update(request.params.id, request.params.commentId, body.body, body.customFieldValues),
       };
     },
   );

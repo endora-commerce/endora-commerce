@@ -1,0 +1,22 @@
+{
+  "actions.openExampleErpKeys.description": "Znajdź organizację po kluczu, pod którym zna ją Twój ERP",
+  "actions.openExampleErpKeys.label": "Klucze ERP",
+  "admin.columns.erpKey": "Klucz ERP",
+  "admin.columns.organization": "Organizacja",
+  "admin.description": "Klucz, pod którym każda organizacja figuruje w Twoim ERP. Klucz nadaje import z ERP, który tworzy organizację.",
+  "admin.empty.description": "Organizacja otrzymuje klucz, gdy tworzy ją import z ERP, który go przekazuje.",
+  "admin.empty.title": "Brak kluczy ERP",
+  "admin.error": "Nie udało się wczytać kluczy ERP.",
+  "admin.lookup.hint": "Litery, cyfry i myślniki; wielkość liter nie ma znaczenia.",
+  "admin.lookup.label": "Klucz ERP",
+  "admin.lookup.submit": "Znajdź",
+  "admin.noResults.title": "Żadna organizacja nie ma tego klucza",
+  "admin.results": "Klucze ERP: {count}",
+  "admin.retry": "Spróbuj ponownie",
+  "admin.tableCaption": "Organizacje i ich klucze ERP",
+  "admin.title": "Klucze ERP",
+  "adminRoles.permission.example_erp_keys:read": "Odczyt kluczy ERP organizacji",
+  "errors.EXAMPLE_ERP_KEYS_KEY_INVALID": "Klucz ERP to od 1 do 40 liter, cyfr i myślników, zaczynający się literą lub cyfrą.",
+  "errors.EXAMPLE_ERP_KEYS_KEY_TAKEN": "Inna organizacja ma już ten klucz ERP.",
+  "nav.exampleErpKeys.label": "Klucze ERP"
+}

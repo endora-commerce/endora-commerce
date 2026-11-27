@@ -121,7 +121,7 @@ const demo: ModuleDemoManifest<ModuleContext> = {
 
 /**
  * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
- * admin writes of this module's custom-field host, for `check:custom-field-writes`.
+ * admin writes of this module's custom-field hosts, for `check:custom-field-writes`.
  * Read as a literal by the check: keep every entry a literal object.
  */
 export const customFieldWrites = [
@@ -138,6 +138,21 @@ export const customFieldWrites = [
     method: 'PATCH',
     path: '/api/v1/admin/crm/opportunities/:id',
     body: 'UpdateOpportunityRequestSchema',
+  },
+  // Issue #2005 — a note on an Opportunity: written with the note, and edited with its text.
+  {
+    entityType: 'opportunity_note',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/crm/opportunities/:id/comments',
+    body: 'CreateOpportunityCommentRequestSchema',
+  },
+  {
+    entityType: 'opportunity_note',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/crm/opportunities/:id/comments/:commentId',
+    body: 'UpdateOpportunityCommentRequestSchema',
   },
 ] satisfies CustomFieldWriteDeclaration[];
 

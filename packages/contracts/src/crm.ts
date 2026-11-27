@@ -3,6 +3,7 @@ import { calendarDateSchema, isoDateTimeSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import { customFieldFilterSchema, customFieldValuesSchema } from './custom-fields.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
+import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
 import type { SupportedLanguage } from './platform-language.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
 import { twoDecimalAmountString } from './money-input.js';
@@ -704,9 +705,17 @@ export const OpportunityCommentListQuerySchema = z.object({
 });
 export type OpportunityCommentListQuery = z.infer<typeof OpportunityCommentListQuerySchema>;
 
+/**
+ * `POST /opportunities/:id/comments`. `customFieldValues` (issue #2005) are the
+ * note's values, keyed by `opportunity_note` definition key and validated with
+ * the administrator's rules; a `required` definition is enforced on every note
+ * create, also when none are sent. A message is not a custom-field host: a
+ * message with a non-empty bag is refused `422 VALIDATION_FAILED`.
+ */
 export const CreateOpportunityCommentRequestSchema = z.object({
   kind: opportunityCommentKindSchema,
   body: commentBodySchema,
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type CreateOpportunityCommentRequest = z.infer<typeof CreateOpportunityCommentRequestSchema>;
 
@@ -726,8 +735,14 @@ export const OpportunityUnreadMessagesSchema = z.object({
 });
 export type OpportunityUnreadMessages = z.infer<typeof OpportunityUnreadMessagesSchema>;
 
+/**
+ * `PATCH /opportunities/:id/comments/:commentId` — a note's text and, merged
+ * key by key into what it holds, its custom-field values (issue #2005). Absent
+ * `customFieldValues` leaves them as they are.
+ */
 export const UpdateOpportunityCommentRequestSchema = z.object({
   body: commentBodySchema,
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type UpdateOpportunityCommentRequest = z.infer<typeof UpdateOpportunityCommentRequestSchema>;
 
@@ -739,6 +754,8 @@ export const OpportunityCommentSchema = z.object({
   references: z.array(OpportunityReferenceSchema),
   editedAt: isoTimestampSchema.nullable(),
   createdAt: isoTimestampSchema,
+  /** A note's `opportunity_note` values (issue #2005); always `{}` on a message. */
+  customFieldValues: customFieldValuesSchema,
 });
 export type OpportunityComment = z.infer<typeof OpportunityCommentSchema>;
 
@@ -1627,23 +1644,38 @@ export interface OpportunityRecord {
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`.
  */
 export interface OpportunityReadPort {
-  findById(id: string): Promise<OpportunityRecord | null>;
-  findByDocument(kind: OpportunityDocumentKind, documentId: string): Promise<OpportunityRecord | null>;
-  listOpenForOrganization(organizationId: string): Promise<OpportunityRecord[]>;
+  /**
+   * `options.include` (`specs/187-side-table-extensions/` FR-058) names the
+   * side-table extensions to attach as `extensions.<moduleId>`, loaded for the
+   * Opportunities the caller's scope returned and no other; absent or empty,
+   * the answer is exactly what it was without it. The same holds for
+   * {@link findByDocument}, {@link listOpenForOrganization}, {@link findByIds}
+   * and {@link search}.
+   */
+  findById(id: string, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OpportunityRecord> | null>;
+  findByDocument(
+    kind: OpportunityDocumentKind,
+    documentId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OpportunityRecord> | null>;
+  listOpenForOrganization(
+    organizationId: string,
+    options?: EntityExtensionReadOptions,
+  ): Promise<WithEntityExtensions<OpportunityRecord>[]>;
   /**
    * The Opportunities of `ids` in the caller's tenant scope, in no particular
    * order — a missing or malformed id is simply absent. One query for a page of
    * references (`specs/165-task-management/` R-5). Checks no permission: the
    * caller checks `crm:read`, as for every other method.
    */
-  findByIds(ids: readonly string[]): Promise<OpportunityRecord[]>;
+  findByIds(ids: readonly string[], options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OpportunityRecord>[]>;
   /**
    * Opportunities in the caller's tenant scope whose number or title contains
    * `q` (case-insensitively; every one for an empty `q`), newest first, at most
    * `limit` (≤ 20) — the Opportunities group of the `@@` list and the Tasks
    * link picker (R-5, R-16).
    */
-  search(query: OpportunitySearchQuery): Promise<OpportunityRecord[]>;
+  search(query: OpportunitySearchQuery, options?: EntityExtensionReadOptions): Promise<WithEntityExtensions<OpportunityRecord>[]>;
   /**
    * A status's name in `language`, by this module's own rule: the operator's
    * name in that language, else the status's default name, else the code (a
@@ -1695,6 +1727,8 @@ export interface OpportunityNoteRecord {
   createdAt: Date;
   /** When its author last edited it; `null` for a note never edited. */
   editedAt: Date | null;
+  /** Its `opportunity_note` custom-field values (issue #2005), every key as stored; `{}` for none. */
+  customFieldValues: Record<string, unknown>;
 }
 
 /** What `OpportunityReadPort.listNotes` is asked. */
@@ -1876,7 +1910,11 @@ export interface OpportunityCommandPort {
    * `crm.opportunity.note_add` or `.message_add`, by `kind` — `POST /opportunities/:id/comments`.
    * Needs an ambient administrator, the author: `403 FORBIDDEN` under a bare
    * `withSystemScope`; a worker calls it under `withSystemScopeActingFor`
-   * (R-21.3 — narrows FR-005 for this method only).
+   * (R-21.3 — narrows FR-005 for this method only). A note's
+   * `customFieldValues` (issue #2005) are validated as the route validates
+   * them — the administrator's rules, `required` included —, refused `422
+   * CUSTOM_FIELD_VALUE_INVALID`, and written with the note; on a message a
+   * non-empty bag is `422 VALIDATION_FAILED`.
    */
   addComment(
     id: string,

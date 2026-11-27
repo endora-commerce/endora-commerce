@@ -197,6 +197,16 @@ origin `package` receives `root.requestMeta` reduced to `{ requestId }`.
 With no middleware registry, or a sealed one with no entries, none of the above allocates or awaits
 anything. FR-035 and SC-002 hold this.
 
+**CLI-built buses are exempt** (owner ruling of 2026-11-26 on #1979, option B). A `CommandBus` an
+operator entry point constructs for itself, outside `composeApp`, is built with no middleware
+registry and no hook registry, so its Commands run **no command middleware and no command hooks**:
+no `admit`, no `observe`, no `beforeCommit`, no `afterCommit`. They are still audited. Today these
+are the schema-extension lifecycle entry points (`packages/platform/src/lifecycle/commands/schema-extensions-entry.ts`
+and `backend/src/lifecycle/scripts/schema-extensions.ts`). The reason: `admit` is a business policy
+gate for application paths, and an operator with shell and database access is not its audience.
+A deployment must not rely on an `admit` rule to stop a maintenance command. Composing the
+registries into a CLI bus stays possible later as an additive change.
+
 ## 5. Composition (`CommandMiddlewareRegistry`, `@endora-commerce/platform/composition`)
 
 ```ts

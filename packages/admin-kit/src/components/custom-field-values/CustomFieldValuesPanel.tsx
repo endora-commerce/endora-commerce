@@ -75,6 +75,17 @@ export interface CustomFieldValuesPanelProps {
   chrome?: EditorSectionChrome;
   /** The heading level — `h2` by default; `h3` inside a card or section that has its own title. */
   titleAs?: EditorSectionHeading;
+  /**
+   * The entity type's definitions, when the host has read them already (issue #2005: a note
+   * thread reads them once for its composer, its edit form and its value lines). Given, the panel
+   * asks for none; omitted, it reads them itself, as before.
+   */
+  definitions?: readonly CustomFieldDefinitionDto[];
+  /**
+   * The prefix of each input's `id` — `cf` by default (`cf-<key>`). A host that shows two panels at
+   * once (a composer and an edit form) gives each its own, so no two inputs share an id.
+   */
+  fieldIdPrefix?: string;
 }
 
 type Bag = Record<string, unknown>;
@@ -179,13 +190,17 @@ export function CustomFieldValuesPanel({
   readOnly = false,
   chrome,
   titleAs,
+  definitions,
+  fieldIdPrefix = 'cf',
 }: CustomFieldValuesPanelProps): ReactNode {
   const t = useTranslation('core');
   // Issue #1808 — with no `language` the labels follow the admin's own language: a host that
   // passed none showed a Polish operator the default label, which may be the field's code.
   const { language: adminLanguage } = useTranslationContext();
   const language = languageProp ?? adminLanguage;
-  const [defs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
+  const [fetchedDefs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
+  const defs = useMemo(() => (definitions ? [...definitions] : fetchedDefs), [definitions, fetchedDefs]);
+  const given = definitions !== undefined;
   const [draft, setDraft] = useState<Record<string, unknown>>(values);
   // What the standalone panel compares its draft against (issue #1007): the bag it loaded, then
   // what each successful save wrote. Under a page Save the session holds the baseline instead.
@@ -253,6 +268,8 @@ export function CustomFieldValuesPanel({
   };
 
   useEffect(() => {
+    // The host read them (issue #2005): nothing to ask for.
+    if (given) return undefined;
     let live = true;
     void (async () => {
       try {
@@ -277,7 +294,7 @@ export function CustomFieldValuesPanel({
     return () => {
       live = false;
     };
-  }, [entityType]);
+  }, [entityType, given]);
 
   const set = (key: string, value: unknown): void => {
     const next = { ...current, [key]: value };
@@ -351,7 +368,7 @@ export function CustomFieldValuesPanel({
           return (
             <div key={d.id} className="space-y-1">
               <Label>{resolveCustomFieldLabel(d.label, d.labelDefault, language)}</Label>
-              <p id={`cf-${d.key}`} aria-readonly="true" className="text-sm">
+              <p id={`${fieldIdPrefix}-${d.key}`} aria-readonly="true" className="text-sm">
                 {formatReadValue(d, current[d.key], language, t)}
               </p>
             </div>
@@ -360,11 +377,11 @@ export function CustomFieldValuesPanel({
         const fieldError = refusals[d.key];
         return (
           <div key={d.id} className="space-y-1">
-            <Label htmlFor={`cf-${d.key}`}>
+            <Label htmlFor={`${fieldIdPrefix}-${d.key}`}>
               {resolveCustomFieldLabel(d.label, d.labelDefault, language)}
               {d.required && <span className="text-destructive"> *</span>}
             </Label>
-            {renderInput(d, current[d.key], (v) => set(d.key, v), language)}
+            {renderInput(d, current[d.key], (v) => set(d.key, v), language, fieldIdPrefix)}
             {fieldError ? (
               <p role="alert" className="text-xs text-destructive">
                 {fieldError}
@@ -407,8 +424,8 @@ function refusalsOf(details: unknown): Record<string, string> {
   return out;
 }
 
-/** A `read` field's stored value as text — a dash when there is none. */
-function formatReadValue(
+/** A `read` field's stored value as text — a dash when there is none. Also a note's value line (issue #2005). */
+export function formatReadValue(
   def: CustomFieldDefinitionDto,
   value: unknown,
   language: string,
@@ -436,12 +453,13 @@ function renderInput(
   value: unknown,
   onChange: (v: unknown) => void,
   language: string,
+  prefix: string,
 ): ReactNode {
   switch (def.valueType) {
     case 'boolean':
       return (
         <input
-          id={`cf-${def.key}`}
+          id={`${prefix}-${def.key}`}
           type="checkbox"
           checked={value === true}
           onChange={(e) => onChange(e.target.checked)}
@@ -450,7 +468,7 @@ function renderInput(
     case 'number':
       return (
         <input
-          id={`cf-${def.key}`}
+          id={`${prefix}-${def.key}`}
           type="number"
           className={inputClass}
           value={value === undefined || value === null ? '' : String(value)}
@@ -460,7 +478,7 @@ function renderInput(
     case 'date':
       return (
         <input
-          id={`cf-${def.key}`}
+          id={`${prefix}-${def.key}`}
           type="date"
           className={inputClass}
           value={typeof value === 'string' ? value : ''}
@@ -470,7 +488,7 @@ function renderInput(
     case 'select':
       return (
         <Select
-          id={`cf-${def.key}`}
+          id={`${prefix}-${def.key}`}
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange(e.target.value || null)}
         >
@@ -508,7 +526,7 @@ function renderInput(
     default:
       return (
         <input
-          id={`cf-${def.key}`}
+          id={`${prefix}-${def.key}`}
           className={inputClass}
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange(e.target.value)}

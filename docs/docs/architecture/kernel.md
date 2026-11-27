@@ -222,7 +222,10 @@ lock on the front door of a house whose side door was open. There is no overlay
 exemption, deliberately. A deployment changes what a root-supplied name resolves
 to with `ctx.di.decorate` from its own overlay module, which keeps core
 delegating through the wrap; taking the name outright severs that for every
-consumer at once, and replacement must be the *more* explicit act.
+consumer at once, and replacement must be the *more* explicit act. Four
+root-supplied names are not decoratable either: the guard seams `commandBus`,
+`auditLogService`, `eventBus` and `emFactory`, deprecated in 0.113.0 and refused
+from 0.114.0 — see [the customisation ladder](./customisation-ladder.md#4a--decoration).
 
 ### `lazyPort<T>(ctx, 'name')` — reading someone else's port
 
@@ -280,6 +283,26 @@ Two more rules that are easy to miss:
   belongs in your `manifest.dependencies`. That declaration is what makes the
   edge real to the lifecycle, to the migration order and to an operator
   switching `X` off. The port check fails the build without it.
+
+### What a per-deployment overlay module contributes {#what-an-overlay-module-contributes}
+
+An overlay module under `apps/<deployment>/modules/<id>/` is composed through the same
+`registerModule(ctx)` and the same three seams. What differs is where some of its
+contributions are read from, because it is not a package and has no `exports` map:
+
+| Contribution | A module package | An overlay module |
+| --- | --- | --- |
+| Services, ports, routes, workers, subscribers, hooks, command middleware | `registerModule` in `./backend` | `registerModule` in `backend.ts` — the same calls |
+| Entities | `entities` from `./backend` | `entities` from `backend.ts` |
+| Migrations | the `./migrations` array | its `migrations/` directory, read file by file |
+| Declared extension columns | `schemaExtensions` from `./backend` | `schemaExtensions` from `backend.ts` |
+| Port types for other modules | the type-only `./ports` subpath | `ports.ts`, imported with `import type` by a sibling overlay module of the same deployment that depends on it |
+| Admin screens and palette actions | the `./admin` layer | `admin/index.tsx`, in its own deployment's admin build only |
+
+An overlay module may **publish** a port for its siblings and **consume** any published port,
+but it cannot claim a name another module owns — `ctx.di.providePort` and `ctx.di.register`
+give it no exemption. Its migrations take the foreign-schema guard with no exemption, and its
+trust tier is the origin `deployment`, stamped by the loader from where it found the module.
 
 ## Two shapes for a module↔module edge
 

@@ -21,6 +21,8 @@ rodzaju.
 | Szanse sprzedażowe | gdy moduł `crm` jest włączony | tak — lista szans sprzedażowych |
 | Projekty | gdy moduł `projects` jest włączony | tak — lista projektów |
 | Zadania | gdy moduł `tasks` jest włączony | tak — lista zadań |
+| Notatki szans sprzedażowych | gdy moduł `crm` jest włączony | nie |
+| Notatki projektów | gdy moduł `projects` jest włączony | nie |
 | Organizacje | zawsze | tak — lista organizacji |
 | Klienci | zawsze | tak — lista klientów |
 | Kategorie | zawsze | nie |
@@ -29,7 +31,8 @@ rodzaju.
 **Typ, który podąża za modułem, znika razem z nim.** Gdy moduł `quote_requests` jest wyłączony,
 pola zapytań ofertowych nie są wyświetlane, nie można ich tworzyć ani edytować i nie zwraca ich API
 definicji — dokładnie tak, jak pola szans sprzedażowych przy wyłączonym `crm`, pola projektów przy
-wyłączonym `projects` i pola zadań przy wyłączonym `tasks`. Nic nie jest usuwane: pola, ich opcje i wszystkie zapisane wartości wracają bez zmian po ponownym włączeniu
+wyłączonym `projects` i pola zadań przy wyłączonym `tasks`; pola notatek szans sprzedażowych i notatek
+projektów również podążają za `crm` i `projects`. Nic nie jest usuwane: pola, ich opcje i wszystkie zapisane wartości wracają bez zmian po ponownym włączeniu
 modułu.
 
 ## Tworzenie pola

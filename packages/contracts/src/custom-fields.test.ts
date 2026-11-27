@@ -372,7 +372,9 @@ describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
     expect(Object.keys(cf.CUSTOM_FIELD_HOST_BINDINGS).sort()).toEqual(
       [...cf.supportedEntityTypeSchema.options].sort(),
     );
-    expect(Object.keys(cf.CUSTOM_FIELD_HOST_BINDINGS)).toHaveLength(9);
+    // Issue #2005 — the notes of an Opportunity and of a Project are the tenth
+    // and eleventh hosts.
+    expect(Object.keys(cf.CUSTOM_FIELD_HOST_BINDINGS)).toHaveLength(11);
   });
 
   it('carries the table, the value column and the owning module of each host', () => {
@@ -413,6 +415,8 @@ describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
       opportunity: 'CrmOpportunity',
       project: 'Project',
       task: 'Task',
+      opportunity_note: 'CrmOpportunityComment',
+      project_note: 'ProjectComment',
     });
   });
 
@@ -430,6 +434,29 @@ describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
       crm_opportunities: 'crm',
       projects: 'projects',
       tasks: 'tasks',
+      crm_opportunity_comments: 'crm',
+      project_comments: 'projects',
+    });
+  });
+
+  /**
+   * Issue #2005 — a note's values are written with the note, through the
+   * comment write of its parent's aggregate port (`addComment`).
+   */
+  it('binds the notes of an Opportunity and of a Project to their comment tables', () => {
+    expect(cf.CUSTOM_FIELD_HOST_BINDINGS.opportunity_note).toEqual({
+      table: 'crm_opportunity_comments',
+      valueColumn: 'custom_field_values',
+      ownerModuleId: 'crm',
+      entityClassName: 'CrmOpportunityComment',
+      aggregatePort: 'opportunityCommandPort',
+    });
+    expect(cf.CUSTOM_FIELD_HOST_BINDINGS.project_note).toEqual({
+      table: 'project_comments',
+      valueColumn: 'custom_field_values',
+      ownerModuleId: 'projects',
+      entityClassName: 'ProjectComment',
+      aggregatePort: 'projectCommandPort',
     });
   });
 
@@ -458,11 +485,23 @@ describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
       opportunity: 'opportunityCommandPort',
       project: 'projectCommandPort',
       task: 'taskCommandPort',
+      // Issue #2005 — a note is a child of its parent's aggregate and is
+      // written through that aggregate's port (`addComment`).
+      opportunity_note: 'opportunityCommandPort',
+      project_note: 'projectCommandPort',
     });
   });
 
   it('gives no two hosts of different aggregates one port', () => {
-    const ports = Object.values(cf.CUSTOM_FIELD_HOST_BINDINGS).map((b) => b.aggregatePort);
+    // A note host shares its parent's port: the same aggregate, not another one.
+    const CHILD_OF: Record<string, string> = { opportunity_note: 'opportunity', project_note: 'project' };
+    const aggregates = Object.keys(cf.CUSTOM_FIELD_HOST_BINDINGS).filter((type) => !(type in CHILD_OF));
+    const ports = aggregates.map((type) => cf.CUSTOM_FIELD_HOST_BINDINGS[type as cf.SupportedEntityType].aggregatePort);
     expect(new Set(ports).size).toBe(ports.length);
+    for (const [child, parent] of Object.entries(CHILD_OF)) {
+      expect(cf.CUSTOM_FIELD_HOST_BINDINGS[child as cf.SupportedEntityType].aggregatePort).toBe(
+        cf.CUSTOM_FIELD_HOST_BINDINGS[parent as cf.SupportedEntityType].aggregatePort,
+      );
+    }
   });
 });

@@ -6,9 +6,11 @@ sidebar_label: Zadeklarowane kolumny rozszerzeń
 
 # Zadeklarowane kolumny rozszerzeń
 
-Zainstalowany pakiet modułu może dodać kilka własnych kolumn **do tabeli rdzenia** — na przykład
-kod ERP organizacji — bez edytowania rdzenia, bez ręcznie pisanego `alter table` i bez ryzyka, że
-zginą przy następnej aktualizacji platformy. Pakiet je deklaruje, a resztą zajmuje się platforma.
+Zainstalowany pakiet modułu albo własny moduł nakładkowy wdrożenia może dodać kilka własnych
+kolumn **do tabeli rdzenia** — na przykład kod ERP organizacji — bez edytowania rdzenia, bez ręcznie
+pisanego `alter table` i bez ryzyka, że zginą przy następnej aktualizacji platformy. Moduł je
+deklaruje, a resztą zajmuje się platforma. Cała strona mówi o „pakiecie”; moduł nakładkowy
+deklaruje kolumny dokładnie tak samo, ze swojego `backend.ts`, pod własnym identyfikatorem modułu.
 
 To stopień **D2** drabiny danych opisanej na stronie
 [Drabina dostosowań](./customisation-ladder.md). Najpierw spróbuj niższych stopni: operator może
@@ -34,9 +36,11 @@ platforma wykrywa pakiet, a komunikat wymienia tabele otwarte.
 
 ## Reguły
 
-- **Deklaruje tylko zainstalowany pakiet.** Pakiet modułu z własnego repozytorium platformy jest
-  właścicielem swoich tabel albo używa tabeli pobocznej, a moduł nakładkowy wdrożenia nie zawiera
-  schematu; generator odrzuca oba przypadki.
+- **Deklaruje zainstalowany pakiet albo moduł nakładkowy.** Deklarację eksportuje się jako
+  `schemaExtensions` z `./backend` zainstalowanego pakietu albo z `backend.ts` modułu nakładkowego
+  wdrożenia i z żadnego innego miejsca w `apps/<deployment>/`. Pakiet modułu z własnego
+  repozytorium platformy jest właścicielem swoich tabel albo używa tabeli pobocznej, a generator
+  odrzuca deklarację z takiego pakietu.
 - **Musisz zależeć od gospodarza.** Moduł-właściciel gospodarza musi należeć do domknięcia
   `dependencies` twojego manifestu, inaczej deklaracja jest odrzucana (`host-not-a-dependency`).
 - **Kolumny są twoje i tylko twoje.** Ich fizyczne nazwy to `x_<moduleId>_<snake_case(klucz)>`;

@@ -3,11 +3,11 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 
 /**
- * What `catalogProductCommandPort` and `catalogAttributeCommandPort`
- * (`specs/186-aggregate-ports/` US6, D-293.6) add to the Command an admin route
- * runs: the caller's `source` code, recorded as `source` in the entry's
- * `stateAfter` beside the actor, and the extension input for the action's
- * command hooks.
+ * What `catalogProductCommandPort`, `catalogAttributeCommandPort` (US6) and
+ * `catalogCategoryCommandPort` (US8) (`specs/186-aggregate-ports/`, D-293.6)
+ * add to the Command an admin route runs: the caller's `source` code, recorded
+ * as `source` in the entry's `stateAfter` beside the actor, and the extension
+ * input for the action's command hooks. One copy serves the module (R-20.6).
  *
  * A copy of `organizations`' twenty lines (research R-17.6, R-18.6, refs #1961): a
  * module's `commands/` is its own, and the move to

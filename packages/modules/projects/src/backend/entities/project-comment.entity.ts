@@ -12,7 +12,7 @@ import { randomUUID } from 'crypto';
 @RuleScoped()
 @Entity({ tableName: 'project_comments' })
 export class ProjectComment {
-  [OptionalProps]?: 'id' | 'editedAt' | 'deletedAt' | 'createdAt';
+  [OptionalProps]?: 'id' | 'editedAt' | 'deletedAt' | 'createdAt' | 'customFieldValues';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -25,6 +25,14 @@ export class ProjectComment {
 
   @Property({ type: 'text' })
   body!: string;
+
+  /**
+   * A note's operator-defined field values, keyed by `project_note` definition
+   * key (issue #2005). Validated by `custom_fields` and written by the note's
+   * own Commands; `{}` on a message, which is no host.
+   */
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
 
   @Property({ type: 'uuid' })
   authorAdminUserId!: string;

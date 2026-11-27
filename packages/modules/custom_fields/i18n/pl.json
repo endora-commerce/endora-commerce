@@ -10,6 +10,8 @@
   "customFields.entity.opportunity": "Szansa sprzedażowa",
   "customFields.entity.project": "Projekt",
   "customFields.entity.task": "Zadanie",
+  "customFields.entity.opportunityNote": "Notatka szansy sprzedażowej",
+  "customFields.entity.projectNote": "Notatka projektu",
   "customFields.managedBy.catalogAttributes": "Zarządzane w Katalog → Atrybuty",
   "customFields.managedBy.notice": "Definicje dla tego typu encji są zarządzane przez inny moduł i są tutaj tylko do odczytu.",
   "customFields.audience.label": "Kto widzi wartość",

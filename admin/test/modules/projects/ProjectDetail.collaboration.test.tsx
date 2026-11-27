@@ -80,6 +80,7 @@ function comment(overrides: Partial<ProjectComment> = {}): ProjectComment {
     references: [],
     editedAt: null,
     createdAt: '2026-10-25T10:00:00.000Z',
+    customFieldValues: {},
     ...overrides,
   };
 }
@@ -226,6 +227,64 @@ describe('ProjectDetail — the collaboration tabs', () => {
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/comments`, { kind: 'note', body: 'Lights arrive Friday.' }),
     );
     expect(await within(panel).findByText('Lights arrive Friday.')).toBeTruthy();
+  });
+
+  // Issue #2005 — a note is a custom-field host: the tab offers the operator's
+  // `project_note` fields in the composer and shows each note's values.
+  it('offers the project_note fields on a note, shows a note’s values, and sends what was chosen', async () => {
+    const definitionsPath = '/api/v1/admin/custom-fields/definitions?entityType=project_note';
+    const base = getSpy.getMockImplementation() as (path: string) => Promise<unknown>;
+    getSpy.mockImplementation((path: string) =>
+      path === definitionsPath
+        ? Promise.resolve({
+            data: [
+              {
+                id: ID(70),
+                entityType: 'project_note',
+                key: 'note_type',
+                label: { en: 'Type' },
+                labelDefault: 'Type',
+                valueType: 'select',
+                required: false,
+                sortOrder: 0,
+                config: {},
+                options: [
+                  { id: ID(71), value: 'call', label: { en: 'Call' }, labelDefault: 'Call', isDefault: false, sortOrder: 0 },
+                ],
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+          })
+        : base(path),
+    );
+    notes = [comment({ id: ID(60), body: 'Typed note.', customFieldValues: { note_type: 'call' } })];
+    const added = comment({ id: ID(61), body: 'A call.', customFieldValues: { note_type: 'call' } });
+    postSpy.mockImplementation(() => Promise.resolve({ data: added }));
+    await renderPage({ search: '?tab=notes', permissions: [...EVERY_PROJECTS_PERMISSION, 'custom_fields:read'] });
+    const panel = await screen.findByRole('tabpanel');
+    const typed = (await within(panel).findByText('Typed note.')).closest('li') as HTMLElement;
+    await waitFor(() => expect(typed).toHaveTextContent('Call'));
+    expect(getSpy).toHaveBeenCalledWith(definitionsPath);
+
+    const form = (await within(panel).findByLabelText(en('comments.notes.composer.label'))).closest('form') as HTMLElement;
+    await userEvent.type(within(form).getByLabelText(en('comments.notes.composer.label')), 'A call.');
+    await userEvent.selectOptions(await within(form).findByLabelText('Type'), 'call');
+    await userEvent.click(within(form).getByRole('button', { name: en('comments.notes.composer.submit') }));
+    await waitFor(() =>
+      expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/comments`, {
+        kind: 'note',
+        body: 'A call.',
+        customFieldValues: { note_type: 'call' },
+      }),
+    );
+  });
+
+  it('offers no note field, and asks for no definition, without custom_fields:read (#2005)', async () => {
+    await renderPage({ search: '?tab=notes' });
+    const panel = await screen.findByRole('tabpanel');
+    await within(panel).findByLabelText(en('comments.notes.composer.label'));
+    expect(getSpy.mock.calls.some(([path]) => String(path).startsWith('/api/v1/admin/custom-fields/'))).toBe(false);
   });
 
   it('says in one line that notes are internal, with no helper under the composer (#1487)', async () => {

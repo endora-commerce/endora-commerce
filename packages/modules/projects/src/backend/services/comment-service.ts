@@ -4,6 +4,7 @@ import {
   PROJECT_READ_PORT_NOTES_MAX,
   type AdminUserReadPort,
   type CreateProjectCommentBody,
+  type CustomFieldValuePort,
   type ProjectComment as ProjectCommentView,
   type ProjectCommentKind,
   type ProjectNotePage,
@@ -11,13 +12,15 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { isDeepStrictEqual } from 'util';
 import { NOTE_CURSOR_INSTANT_SQL, encodeNoteCursor, noteListBounds } from '../domain/note-page.js';
 import { ProjectComment } from '../entities/project-comment.entity.js';
 import { ProjectReference } from '../entities/project-reference.entity.js';
 import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { newlyMentioned, type ProjectMentionService, type SavedProjectMentions } from './mention-service.js';
 import { actingAdminUserId, isUuid, type ProjectAccess } from './project-access.js';
-import { lockProject } from './project-service.js';
+import { changedCustomFieldKeys, lockProject } from './project-service.js';
+import { mergeProjectCustomFields, refuseMessageCustomFields } from './project-custom-fields.js';
 import { projectNotificationText, tellAfterCommit, type ProjectNotifier } from './project-notifier.js';
 import { storedReferencesOf, type ProjectReferenceService, type ProjectReferenceSource } from './reference-service.js';
 
@@ -33,7 +36,16 @@ export interface ProjectCommentServiceDeps {
   notifier: ProjectNotifier;
   references: Pick<ProjectReferenceService, 'rowsFor' | 'resolveMany'>;
   mentions: Pick<ProjectMentionService, 'tell'>;
+  /**
+   * `custom_fields`' validator for a note's values (`project_note`, issue
+   * #2005) — lazy, resolved per call. It validates and merges; the note's own
+   * Command writes.
+   */
+  customFields: CustomFieldValuePort;
 }
+
+/** How many times an edit re-validates a note's values that changed under it. */
+const MAX_NOTE_CUSTOM_FIELD_REVALIDATIONS = 3;
 
 /** One row of the notes listing's statement. */
 interface NoteRow {
@@ -44,6 +56,7 @@ interface NoteRow {
   body: string;
   created_at: Date | string;
   edited_at: Date | string | null;
+  custom_field_values: Record<string, unknown> | null;
   /** `created_at` at full precision, as a cursor carries it. */
   cursor_at: string;
 }
@@ -162,7 +175,7 @@ export class ProjectCommentService {
       `select c."id", c."project_id",
               array(select po."organization_id"::text from "project_organizations" po
                      where po."project_id" = p."id" order by po."organization_id") as "organization_ids",
-              c."author_admin_user_id", c."body", c."created_at", c."edited_at",
+              c."author_admin_user_id", c."body", c."created_at", c."edited_at", c."custom_field_values",
               ${NOTE_CURSOR_INSTANT_SQL} as "cursor_at"
          from "project_comments" c
          join "projects" p on p."id" = c."project_id"
@@ -183,6 +196,7 @@ export class ProjectCommentService {
         body: row.body,
         createdAt: new Date(row.created_at),
         editedAt: row.edited_at === null ? null : new Date(row.edited_at),
+        customFieldValues: { ...(row.custom_field_values ?? {}) },
       })),
       nextCursor:
         rows.length > bounds.limit && last !== undefined
@@ -231,10 +245,23 @@ export class ProjectCommentService {
    * R-22.1). Its author is the administrator behind the call; with none —
    * a worker under `withSystemScope` — it is refused 403 before anything is
    * read (R-22.2).
+   *
+   * A note's custom-field values (`project_note`, issue #2005) are validated
+   * before the Command with the administrator's rules — a `required`
+   * definition is asked for on every note, also when none are sent — and
+   * written by the Command that creates the note; its audit entry names their
+   * keys, never the values. A message is no host: a non-empty bag is refused
+   * 422 before anything is read.
    */
   async write(projectId: string, input: CreateProjectCommentBody, caller: CallerOptions = {}): Promise<ProjectComment> {
     const author = this.#author();
+    if (input.kind === 'message') refuseMessageCustomFields(input.customFieldValues);
     const project = await this.deps.access.loadVisible(projectId);
+    const customFieldValues =
+      input.kind === 'note'
+        ? await mergeProjectCustomFields(this.deps.customFields, {}, input.customFieldValues ?? {}, 'project_note')
+        : {};
+    const changedCustomFields = changedCustomFieldKeys({}, customFieldValues);
     const written = await this.deps.commandBus.run(withCallerOptions<ProjectComment>({
       action: input.kind === 'note' ? 'projects.project.note_add' : 'projects.project.message_add',
       objectType: 'project',
@@ -247,6 +274,7 @@ export class ProjectCommentService {
           kind: input.kind,
           authorAdminUserId: author,
           body: input.body,
+          customFieldValues,
         });
         await this.#saveReferences(tx, { projectId: project.id, kind: 'comment', sourceId: comment.id }, comment.body);
         return {
@@ -258,6 +286,8 @@ export class ProjectCommentService {
             kind: comment.kind,
             authorAdminUserId: author,
             length: comment.body.length,
+            // The keys a note was given values for — never the values (audit-state.md).
+            ...(changedCustomFields.length > 0 ? { changedCustomFields } : {}),
           },
         };
       },
@@ -289,33 +319,93 @@ export class ProjectCommentService {
     return written;
   }
 
-  /** Edit a note. Its author only; a message is refused whoever asks. */
-  async update(projectId: string, commentId: string, body: string): Promise<ProjectCommentView> {
+  /**
+   * Edit a note — its text and, merged key by key into what it holds, its
+   * custom-field values (issue #2005; absent leaves them as they are). Its
+   * author only; a message is refused whoever asks.
+   *
+   * The values are validated before the Command, against the bag read here;
+   * the Command writes the result only if the note still holds that bag under
+   * the Project's lock, and otherwise this is done again.
+   */
+  async update(
+    projectId: string,
+    commentId: string,
+    body: string,
+    customFieldPatch?: Record<string, unknown>,
+  ): Promise<ProjectCommentView> {
     const project = await this.deps.access.loadVisible(projectId);
     const saved: { mentions: SavedProjectMentions | null } = { mentions: null };
-    const note = await this.deps.commandBus.run({
-      action: 'projects.project.note_update',
-      objectType: 'project',
-      objectId: project.id,
-      run: async ({ em }) => {
-        const tx = em as EntityManager;
-        await lockProject(tx, this.deps.access, project.id);
-        const row = await this.#loadOwnNote(tx, project.id, commentId, 'edited');
-        if (row.body === body) return { result: row, skipAudit: true };
-        const before = { commentId: row.id, length: row.body.length };
-        saved.mentions = {
-          projectId: project.id,
-          number: project.number,
-          adminUserIds: newlyMentioned(row.body, body),
-        };
-        row.body = body;
-        row.editedAt = new Date();
-        await this.#saveReferences(tx, { projectId: project.id, kind: 'comment', sourceId: row.id }, body);
-        return { result: row, before, after: { commentId: row.id, length: row.body.length } };
-      },
-    });
-    if (saved.mentions) await this.#tellMentioned(saved.mentions);
-    return this.#renderOne(note);
+    let validatedAgainst: Record<string, unknown> = {};
+    let customFieldValues: Record<string, unknown> | null = null;
+    if (customFieldPatch !== undefined) {
+      // The note as its author may change it — the refusals in their order — before any value is looked at.
+      const row = await this.#loadOwnNote(this.deps.emFactory(), project.id, commentId, 'edited');
+      validatedAgainst = { ...(row.customFieldValues ?? {}) };
+      customFieldValues = await mergeProjectCustomFields(
+        this.deps.customFields,
+        validatedAgainst,
+        customFieldPatch,
+        'project_note',
+      );
+    }
+    for (let attempt = 0; ; attempt += 1) {
+      const stale: { current: Record<string, unknown> | null } = { current: null };
+      const note = await this.deps.commandBus.run({
+        action: 'projects.project.note_update',
+        objectType: 'project',
+        objectId: project.id,
+        run: async ({ em }) => {
+          const tx = em as EntityManager;
+          await lockProject(tx, this.deps.access, project.id);
+          const row = await this.#loadOwnNote(tx, project.id, commentId, 'edited');
+          const valuesBefore = { ...(row.customFieldValues ?? {}) };
+          if (customFieldValues !== null && !isDeepStrictEqual(valuesBefore, validatedAgainst)) {
+            stale.current = valuesBefore;
+            return { result: row, skipAudit: true };
+          }
+          const valuesAfter = customFieldValues ?? valuesBefore;
+          const changedCustomFields = changedCustomFieldKeys(valuesBefore, valuesAfter);
+          if (row.body === body && changedCustomFields.length === 0) return { result: row, skipAudit: true };
+          const before = { commentId: row.id, length: row.body.length };
+          if (row.body !== body) {
+            saved.mentions = {
+              projectId: project.id,
+              number: project.number,
+              adminUserIds: newlyMentioned(row.body, body),
+            };
+            row.body = body;
+            await this.#saveReferences(tx, { projectId: project.id, kind: 'comment', sourceId: row.id }, body);
+          }
+          if (changedCustomFields.length > 0) row.customFieldValues = valuesAfter;
+          row.editedAt = new Date();
+          return {
+            result: row,
+            before,
+            after: {
+              commentId: row.id,
+              length: row.body.length,
+              // The keys whose value changed — never the values (audit-state.md).
+              ...(changedCustomFields.length > 0 ? { changedCustomFields } : {}),
+            },
+          };
+        },
+      });
+      if (stale.current === null) {
+        if (saved.mentions) await this.#tellMentioned(saved.mentions);
+        return this.#renderOne(note);
+      }
+      if (attempt + 1 >= MAX_NOTE_CUSTOM_FIELD_REVALIDATIONS) {
+        throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The note was updated concurrently.');
+      }
+      validatedAgainst = stale.current;
+      customFieldValues = await mergeProjectCustomFields(
+        this.deps.customFields,
+        validatedAgainst,
+        customFieldPatch,
+        'project_note',
+      );
+    }
   }
 
   /** Delete a note: the row is kept and marked, no longer listed, and mentions nothing any more. */
@@ -450,6 +540,7 @@ export class ProjectCommentService {
       references: references[index] ?? [],
       editedAt: row.editedAt ? row.editedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
+      customFieldValues: { ...(row.customFieldValues ?? {}) },
     }));
   }
 }

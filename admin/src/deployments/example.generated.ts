@@ -15,8 +15,10 @@
 
 import type { AdminRegistryEntry } from '../modules.generated.js';
 
-import { contributions as contributions0 } from '../../../backend/src/apps/example/modules/overlay_notes_fixture/admin/index.js';
+import { contributions as contributions0 } from '../../../backend/src/apps/example/modules/example_erp_keys/admin/index.js';
+import { contributions as contributions1 } from '../../../backend/src/apps/example/modules/overlay_notes_fixture/admin/index.js';
 
 export const DEPLOYMENT_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
-  { moduleId: 'overlay_notes_fixture', contributions: contributions0 },
+  { moduleId: 'example_erp_keys', contributions: contributions0 },
+  { moduleId: 'overlay_notes_fixture', contributions: contributions1 },
 ];

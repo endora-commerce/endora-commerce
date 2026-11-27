@@ -171,13 +171,15 @@ describe('projects init migration', () => {
     expect(amount).toEqual([{ numeric_precision: 18, numeric_scale: 2 }]);
   });
 
-  it('keeps the custom-field value bag on `projects` alone', async () => {
-    const elsewhere = await rows<{ table_name: string }>(
-      `select table_name from information_schema.columns
+  it('keeps the custom-field value bag on `projects` and, since issue #2005, on a note alone', async () => {
+    const elsewhere = await rows<{ table_name: string; data_type: string; is_nullable: string; column_default: string | null }>(
+      `select table_name, data_type, is_nullable, column_default from information_schema.columns
         where table_schema = current_schema() and table_name like 'project\\_%'
           and column_name = 'custom_field_values'`,
     );
-    expect(elsewhere).toEqual([]);
+    expect(elsewhere).toEqual([
+      { table_name: 'project_comments', data_type: 'jsonb', is_nullable: 'NO', column_default: `'{}'::jsonb` },
+    ]);
   });
 
   it('creates the number sequence', async () => {
