@@ -2,7 +2,10 @@ import {
   ERROR_CODES,
   isUuidShape,
   normalizeEmailAddress,
+  type CustomerAccountOutbox,
   type CustomerAccountProfilePatch,
+  type CustomerAccountRecord,
+  type CustomerAccountUpdateHookData,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -30,15 +33,33 @@ function accountNotFound(): HttpError {
  * `409 EMAIL_ALREADY_REGISTERED` when another live account holds the address.
  * The entry names the fields that changed, never the values (D-288), and is
  * written even for a patch that changed nothing, as it always was.
+ *
+ * Hookable, both phases (`specs/193-admin-form-extensions/` FR-110): a hook is
+ * handed the after-state through `toRecord`, which the caller builds with
+ * what it already knows of the account's second factor — `hookData` cannot
+ * await another module.
  */
 export function makeUpdateCustomerAccountProfileCommand(input: {
   readonly customerAccountId: string;
   readonly patch: CustomerAccountProfilePatch;
+  readonly toRecord: (account: CustomerAccount) => CustomerAccountRecord;
 }): Command<CustomerAccount> {
+  // Set by `run`, which the bus calls before `hookData` and `outboxData`.
+  let changedFields: readonly string[] = [];
   return {
     action: 'customer_account.update_profile',
     objectType: 'customer_account',
     objectId: input.customerAccountId,
+    hookData: (account): CustomerAccountUpdateHookData => ({
+      customerAccount: input.toRecord(account),
+      changedFields,
+      changedCustomFields: [],
+    }),
+    outboxData: (account): CustomerAccountOutbox => ({
+      customerAccountId: account.id,
+      organizationId: account.organizationId ?? null,
+      changedFields,
+    }),
     run: async ({ em }) => {
       const account = isUuidShape(input.customerAccountId)
         ? await em.findOne(CustomerAccount, { id: input.customerAccountId, deletedAt: null })
@@ -66,7 +87,8 @@ export function makeUpdateCustomerAccountProfileCommand(input: {
       if (patch.firstName !== undefined) account.firstName = patch.firstName;
       if (patch.lastName !== undefined) account.lastName = patch.lastName;
       await em.flush();
-      return { result: account, before: null, after: { changedFields: changedKeys(before, snapshot()) } };
+      changedFields = changedKeys(before, snapshot());
+      return { result: account, before: null, after: { changedFields } };
     },
   };
 }

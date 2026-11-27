@@ -251,6 +251,8 @@ export * from './organization-hooks.js';
 export * from './aggregate-ports.js';
 // Issue #1845 — `projects`' hookable actions.
 export * from './project-hooks.js';
+// `specs/193-admin-form-extensions/` FR-110 — `customer_accounts`' account writes.
+export * from './customer-account-hooks.js';
 // Issue #1844 — `promotions`' promotion and coupon writes.
 export * from './promotion-hooks.js';
 // Issue #1906 — `quote_requests`' buyer create-and-submit.
