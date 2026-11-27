@@ -107,6 +107,11 @@ value). Today the hosts that publish one are:
 - `orders` — `orderCommandPort.setCustomFieldValues(orderId, merge, options?)`, the aggregate port
   (`specs/186-aggregate-ports/` US4), which runs `order.custom_fields.update` — the Command the admin
   `PATCH /api/v1/admin/orders/:id/custom-fields` runs, the bag read under the order's row lock.
+- the notes, `opportunity_note` and `project_note` (issue #2005) — no `setCustomFieldValues`: a
+  note's values are written with the note, by `opportunityCommandPort.addComment` and
+  `projectCommandPort.addComment`, which validate them as the admin `POST …/comments` does (the
+  administrator's rules, `required` included) and refuse a non-empty bag on a message. Editing a
+  note is its author's own act and is offered by neither port.
 
 All have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
 callback over the current bag that the owner runs between its own load and its own write, as one

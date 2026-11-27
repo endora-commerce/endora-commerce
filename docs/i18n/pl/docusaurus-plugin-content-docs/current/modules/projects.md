@@ -609,6 +609,40 @@ e-maili (*Stage deadline alert*). Gdy moduł Projekty jest wyłączony, żaden
 alert nie jest wysyłany ani zużywany: alert przypadający na ten dzień wyjdzie,
 gdy moduł zostanie włączony ponownie tego samego dnia.
 
+### Pola niestandardowe notatki
+
+Operator dodaje do notatek własne pola — na przykład **Typ** z wyborem
+*telefon*, *spotkanie* i *e-mail* — na ekranie **Pola niestandardowe**
+(`/custom-fields`), gdzie *Notatka projektu* jest jednym z typów rekordów.
+Każde pole ma typ (tekst, liczba, tak/nie, data, jeden wybór albo kilka) i może
+być wymagane. Nie trzeba niczego programować.
+
+- Pola są pod treścią, gdy piszesz notatkę, i w formularzu notatki, gdy
+  edytujesz własną. Każda notatka pokazuje swoje wartości w jednym wierszu pod
+  treścią. Pola są oferowane, a ich wartości pokazywane, administratorowi,
+  który może też przeglądać pola niestandardowe (`custom_fields:read`).
+- Wartość niezgodna z polem — puste pole wymagane, liczba, która nie jest
+  liczbą, wybór spoza listy — jest odrzucana, a pole zostaje wskazane; notatka
+  nie jest zapisywana. Pole wymagane jest wymagane przy każdej nowej notatce,
+  także napisanej przez API albo przez integrację.
+- Edycja notatki zmienia tylko te pola, które zmieniłeś; pozostałe zachowują
+  swoje wartości.
+- **Wiadomość** nie ma pól: wiadomość wysłana z wartościami jest odrzucana.
+- Historia zmian projektu podaje nazwy pól, które notatka otrzymała albo
+  zmieniła, nigdy ich wartości — dziennik audytu platformy nie jest prowadzony
+  osobno dla każdej organizacji.
+- Gdy moduł Projekty jest wyłączony, *Notatka projektu* nie jest oferowana na
+  ekranie pól niestandardowych; jej pola i wszystkie wartości są zachowane i
+  wracają razem z modułem.
+
+Dla programistów: typ encji to `project_note`. Wartości to `customFieldValues`
+w `POST` i `PATCH /api/v1/admin/projects/:id/comments…` oraz w każdym
+komentarzu zwracanym przez API administracyjne; `projectCommandPort.addComment`
+przyjmuje je tak samo jak trasa, a `projectReadPort.listNotes` zwraca je przy
+każdej notatce. Ponieważ notatka jest hostem pól niestandardowych,
+zainstalowany moduł może też rozszerzyć `projects.ProjectComment` tabelą
+poboczną.
+
 ## Pola niestandardowe
 
 Operator dodaje do projektów własne pola — region budowy, numer umowy,
@@ -741,9 +775,9 @@ odczytaj projekt ponownie.
 | `POST /api/v1/admin/projects/:id/links` | `projects:write` | `{ kind: 'order' \| 'quote_request' \| 'opportunity', recordId }` → `201` `{ data: ProjectLink }`. `503` `MODULE_DISABLED`, gdy moduł danego rodzaju jest wyłączony; `403` bez kodu odczytu właściciela; `404` `PROJECT_RECORD_NOT_FOUND` dla dokumentu, który nie istnieje lub jest poza zasięgiem wywołującego; `422` `PROJECT_LINK_ORGANIZATION_MISMATCH` dla dokumentu organizacji, której projekt nie ma; `409` `PROJECT_RECORD_ALREADY_LINKED`, którego `details.project` (`{ id, number, title }`) wskazuje projekt zawierający dokument tylko wywołującemu, który może ten projekt zobaczyć. |
 | `DELETE /api/v1/admin/projects/:id/links/:linkId` | `projects:write` | `204`; `404` dla powiązania innego projektu albo nieistniejącego. |
 | `GET /api/v1/admin/projects/records/:kind/:recordId/project` | `projects:read` | `{ data: ProjectSummary }` — projekt, do którego należy `order`, `quote_request`, `opportunity` lub `task` (przez swój kontekst); `404` `PROJECT_NOT_FOUND` jednakowo dla dokumentu spoza projektów i dla dokumentu z projektu, którego wywołujący nie może zobaczyć. Wymaga też kodu odczytu danego rodzaju (`403`) i włączonego modułu (`503`). |
-| `GET /api/v1/admin/projects/:id/comments?kind=note\|message` | `projects:read` | `{ data: ProjectComment[] }`, od najstarszych, bez usuniętych notatek; każdy z `references` — tym, co jego tokeny oznaczają dla czytającego. |
-| `POST /api/v1/admin/projects/:id/comments` | `projects:write` | `{ kind, body }` → `201` `{ data: ProjectComment }`. Wiadomość powiadamia każdego członka, który może widzieć projekt, oprócz autora; nowo wspomniana osoba, która może go widzieć, dostaje jedno powiadomienie. |
-| `PATCH /api/v1/admin/projects/:id/comments/:commentId`, `DELETE …` | `projects:write` | Notatka — tylko przez autora; dla kogokolwiek innego `403` `PROJECT_NOTE_NOT_AUTHOR`; wiadomość — nigdy, `409` `PROJECT_MESSAGE_IMMUTABLE`. `DELETE` zachowuje wiersz, oznaczony. |
+| `GET /api/v1/admin/projects/:id/comments?kind=note\|message` | `projects:read` | `{ data: ProjectComment[] }`, od najstarszych, bez usuniętych notatek; każdy z `references` — tym, co jego tokeny oznaczają dla czytającego — i z `customFieldValues` (`{}` dla wiadomości). |
+| `POST /api/v1/admin/projects/:id/comments` | `projects:write` | `{ kind, body, customFieldValues? }` → `201` `{ data: ProjectComment }`; wartości tylko dla notatki. Wiadomość powiadamia każdego członka, który może widzieć projekt, oprócz autora; nowo wspomniana osoba, która może go widzieć, dostaje jedno powiadomienie. |
+| `PATCH /api/v1/admin/projects/:id/comments/:commentId`, `DELETE …` | `projects:write` | `PATCH` przyjmuje `{ body, customFieldValues? }`, wartości scalane klucz po kluczu. Notatka — tylko przez autora; dla kogokolwiek innego `403` `PROJECT_NOTE_NOT_AUTHOR`; wiadomość — nigdy, `409` `PROJECT_MESSAGE_IMMUTABLE`. `DELETE` zachowuje wiersz, oznaczony. |
 | `POST /api/v1/admin/projects/:id/messages/read` | `projects:read` | `{ throughMessageId }` → `{ data: { unreadMessageCount } }`; znacznik przeczytania wywołującego, który przesuwa się tylko do przodu. Nie trafia do dziennika zmian. |
 | `GET /api/v1/admin/projects/:id/attachments` | `projects:read` | `{ data: ProjectAttachment[] }`, każdy z odnośnikiem do pobrania ważnym przez kilka minut. |
 | `POST /api/v1/admin/projects/:id/attachments/upload` | `projects:write` | `multipart/form-data` z jedną częścią `file` → `201`; zapisany jako prywatny, potem dołączony — plik, którego nie udało się dołączyć, jest wycofywany. `415` dla treści aktywnej lub typu odrzucanego przez bibliotekę, `413` `PROJECT_ATTACHMENT_TOO_LARGE` powyżej 25 MB oraz własny limit rozmiaru biblioteki. |
@@ -1128,7 +1162,7 @@ audytu, hooki poleceń i wszystko, co następuje po zapisie, jest takie samo:
 | `reopen(id, options?)` | `projects.project.reopen` | `POST /api/v1/admin/projects/:id/reopen` |
 | `link(id, { kind, recordId }, options?)` | `projects.project.link_add` | `POST /api/v1/admin/projects/:id/links` |
 | `unlink(id, linkId, options?)` | `projects.project.link_remove` | `DELETE /api/v1/admin/projects/:id/links/:linkId` |
-| `addComment(id, { kind, body }, options?)` | `projects.project.note_add`, `.message_add` | `POST /api/v1/admin/projects/:id/comments` |
+| `addComment(id, { kind, body, customFieldValues? }, options?)` | `projects.project.note_add`, `.message_add` | `POST /api/v1/admin/projects/:id/comments` |
 | `delete(id, options?)` | `projects.project.delete` | `DELETE /api/v1/admin/projects/:id` |
 
 Większość metod zwraca projekt jako `ProjectRecord`, odczytany po zapisie.
