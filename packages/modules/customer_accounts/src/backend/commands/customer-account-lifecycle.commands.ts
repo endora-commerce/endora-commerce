@@ -257,6 +257,7 @@ export function makeSetCustomerCustomFieldValuesCommand(input: {
       customerAccountId: account.id,
       organizationId: account.organizationId ?? null,
       changedFields: [],
+      changedCustomFields,
     }),
     run: async ({ em }) => {
       const account = isUuidShape(input.customerAccountId)

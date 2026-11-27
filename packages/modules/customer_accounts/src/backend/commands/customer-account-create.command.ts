@@ -77,6 +77,7 @@ function makeCreateCustomerAccountCommand(
       customerAccountId: record.id,
       organizationId: record.organizationId,
       changedFields: createdFields,
+      changedCustomFields: [],
     }),
     run: async ({ em }) => {
       const email = normalizeEmailAddress(input.email);

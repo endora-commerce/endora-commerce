@@ -211,6 +211,7 @@ describe('customer_account.create is hookable', () => {
         customerAccountId: created.id,
         organizationId: ORG,
         changedFields: ['email', 'firstName', 'lastName', 'organizationId', 'organizationRoleId'],
+        changedCustomFields: [],
       },
     ]);
   });
@@ -246,7 +247,7 @@ describe('customer_account.update_profile is hookable', () => {
     expect(data.changedFields).toEqual(['email', 'emailVerifiedAt']);
     expect(data.changedCustomFields).toEqual([]);
     expect(h.outbox().map((row) => row['data'])).toEqual([
-      { customerAccountId: account.id, organizationId: ORG, changedFields: ['email', 'emailVerifiedAt'] },
+      { customerAccountId: account.id, organizationId: ORG, changedFields: ['email', 'emailVerifiedAt'], changedCustomFields: [] },
     ]);
   });
 });
@@ -286,7 +287,7 @@ describe('customer.custom_fields.update is hookable', () => {
     expect(data.changedFields).toEqual([]);
     expect(data.changedCustomFields).toEqual(['tier']);
     expect(h.outbox().map((row) => row['data'])).toEqual([
-      { customerAccountId: account.id, organizationId: ORG, changedFields: [] },
+      { customerAccountId: account.id, organizationId: ORG, changedFields: [], changedCustomFields: ['tier'] },
     ]);
   });
 });

@@ -39,12 +39,15 @@ export interface CustomerAccountUpdateHookData {
  * `afterCommit` data: ids and field names only (`specs/conventions/audit-state.md`
  * list 1). `organizationId` also pins the handler's scope to the account's
  * Organization. `changedFields` names the fields a creation wrote, or the
- * profile fields an edit changed.
+ * profile fields an edit changed; `changedCustomFields` the keys of the custom
+ * fields whose value a custom-field edit changed, `[]` for the other two
+ * actions — as `organizations`' update outbox does.
  */
 export type CustomerAccountOutbox = {
   readonly customerAccountId: string;
   readonly organizationId: string | null;
   readonly changedFields: readonly string[];
+  readonly changedCustomFields: readonly string[];
 };
 
 /**
