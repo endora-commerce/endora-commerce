@@ -8,6 +8,7 @@ import {
   type TaskContextDescriptor,
   type TaskContextRegistryPort,
   type TaskDetail,
+  type TaskReadPort,
   type TaskWritePort,
 } from '@endora-commerce/contracts';
 import { AuditLogEntry, ModuleDisabledError } from '@endora-commerce/platform/kernel';
@@ -320,6 +321,96 @@ describe('taskCommandPort — the admin routes’ Commands (#1829)', () => {
       code: ERROR_CODES.FORBIDDEN,
     });
     expect(await entries(assigned.id)).toHaveLength(count);
+  });
+
+  it('refuses a missing or undefined input, an extra key or a mixed assignee change, writing nothing', async () => {
+    const response = await h.app.inject({
+      method: 'POST',
+      url: `${API}/tags`,
+      cookies: ADMIN,
+      payload: { name: `Port kept tag ${randomUUID().slice(0, 8)}` },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    const keptTagId = (response.json() as { data: { id: string } }).data.id;
+    try {
+      const parent = await createTask({ title: 'Port kept parent' });
+      const task = await createTask({
+        title: 'Port kept',
+        priorityCode: 'high',
+        tagIds: [keptTagId],
+        assigneeIds: [colleague.adminUserId],
+        parentTaskId: parent.id,
+      });
+      const secret = await createTask({ title: 'Port kept secret', private: true });
+      const invalid = { statusCode: 422, code: ERROR_CODES.VALIDATION_FAILED };
+      type Input<M extends keyof TaskCommandPort> = Parameters<TaskCommandPort[M]>[1];
+      const cases: Array<[string, string, () => Promise<unknown>]> = [];
+      const both = <M extends 'setParent' | 'setPriority' | 'setTags' | 'setPrivate'>(method: M, key: string, id: string) => {
+        const call = port[method] as (id: string, input: Input<M>) => Promise<unknown>;
+        cases.push([method, `{}`, () => call.call(port, id, {} as Input<M>)]);
+        cases.push([method, `{ ${key}: undefined }`, () => call.call(port, id, { [key]: undefined } as Input<M>)]);
+      };
+      both('setParent', 'parentTaskId', task.id);
+      both('setPriority', 'priorityCode', task.id);
+      both('setTags', 'tagIds', task.id);
+      both('setPrivate', 'private', secret.id);
+      cases.push(['setPrivate', 'a non-boolean', () => port.setPrivate(secret.id, { private: 'false' as unknown as boolean })]);
+      cases.push(['setAssignees', '{}', () => port.setAssignees(task.id, {} as Input<'setAssignees'>)]);
+      cases.push(['setAssignees', '{ set: undefined }', () => port.setAssignees(task.id, { set: undefined } as unknown as Input<'setAssignees'>)]);
+      cases.push(['setAssignees', '{ add } without remove', () => port.setAssignees(task.id, { add: [] } as unknown as Input<'setAssignees'>)]);
+      cases.push([
+        'setAssignees',
+        'set mixed with add and remove',
+        () => port.setAssignees(task.id, { set: [], add: [TEST_ADMIN_ID], remove: [] } as unknown as Input<'setAssignees'>),
+      ]);
+      cases.push(['setTags', 'an extra key', () => port.setTags(task.id, { tagIds: [], title: 'x' } as unknown as Input<'setTags'>)]);
+      cases.push([
+        'setParent',
+        'an extra key',
+        () => port.setParent(task.id, { parentTaskId: null, priorityCode: null } as unknown as Input<'setParent'>),
+      ]);
+      cases.push([
+        'setPriority',
+        'an extra key',
+        () => port.setPriority(task.id, { priorityCode: null, tagIds: [] } as unknown as Input<'setPriority'>),
+      ]);
+      cases.push([
+        'setPrivate',
+        'an extra key',
+        () => port.setPrivate(secret.id, { private: false, title: 'x' } as unknown as Input<'setPrivate'>),
+      ]);
+      cases.push([
+        'setAssignees',
+        'an extra key',
+        () => port.setAssignees(task.id, { set: [], tagIds: [] } as unknown as Input<'setAssignees'>),
+      ]);
+
+      const before = [(await entries(task.id)).length, (await entries(secret.id)).length];
+      for (const [method, what, call] of cases) {
+        expect(await refusal(asAdmin(call)), `${method} with ${what}`).toMatchObject(invalid);
+      }
+      expect([(await entries(task.id)).length, (await entries(secret.id)).length]).toEqual(before);
+      const [kept] = await asAdmin(() => h.container.resolve<TaskReadPort>('taskReadPort').findByIds([task.id]));
+      expect(kept).toMatchObject({ assigneeIds: [colleague.adminUserId] });
+      const detail = TaskDetailResponseSchema.parse(
+        (await h.app.inject({ method: 'GET', url: `${API}/${task.id}`, cookies: ADMIN })).json(),
+      ).data;
+      expect(detail.priority?.code).toBe('high');
+      expect(detail.tags.map((tag) => tag.id)).toEqual([keptTagId]);
+      expect(detail.parent?.id).toBe(parent.id);
+      const [stillSecret] = await asAdmin(() => h.container.resolve<TaskReadPort>('taskReadPort').findByIds([secret.id]));
+      expect(stillSecret!.private).toBe(true);
+
+      // An explicit null is still a clear.
+      expect((await asAdmin(() => port.setPriority(task.id, { priorityCode: null }))).id).toBe(task.id);
+      expect((await asAdmin(() => port.setParent(task.id, { parentTaskId: null }))).id).toBe(task.id);
+      expect((await entries(task.id)).map((e) => e.action).slice(-2)).toEqual([
+        'tasks.task.priority_change',
+        'tasks.task.parent_change',
+      ]);
+    } finally {
+      await h.app.inject({ method: 'DELETE', url: `${API}/tags/${keptTagId}`, cookies: ADMIN });
+    }
   });
 
   it('setStatus — tasks.task.status_change through the workflow, from the status the port read', async () => {
