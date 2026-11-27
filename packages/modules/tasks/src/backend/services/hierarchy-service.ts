@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, TASK_HIERARCHY_DEPTH_MAX } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { parentChangeRefusal } from '../domain/hierarchy.js';
 import { Task } from '../entities/task.entity.js';
 import type { TaskAccess, TaskRow } from './task-access.js';
@@ -150,9 +151,9 @@ export class TaskHierarchyService {
    * — a sub-task of `parentId`, or top-level with `null`. `false` when nothing
    * changed.
    */
-  async setParent(row: TaskRow, parentId: string | null): Promise<boolean> {
+  async setParent(row: TaskRow, parentId: string | null, caller: CallerOptions = {}): Promise<boolean> {
     if ((row.parent_task_id ?? null) === parentId) return false;
     if (parentId !== null && parentId !== row.id) await this.assertMayAdopt(parentId);
-    return this.deps.commandBus.run(changeTaskParentCommand(row.id, parentId));
+    return this.deps.commandBus.run(withCallerOptions(changeTaskParentCommand(row.id, parentId), caller));
   }
 }

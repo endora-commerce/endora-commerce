@@ -107,6 +107,9 @@ value). Today the hosts that publish one are:
 - `orders` — `orderCommandPort.setCustomFieldValues(orderId, merge, options?)`, the aggregate port
   (`specs/186-aggregate-ports/` US4), which runs `order.custom_fields.update` — the Command the admin
   `PATCH /api/v1/admin/orders/:id/custom-fields` runs, the bag read under the order's row lock.
+- `tasks` — `taskCommandPort.setCustomFieldValues(taskId, merge, options?)`, the aggregate port
+  (`specs/186-aggregate-ports/` US10). It runs `tasks.task.custom_fields_change`, the Command the
+  admin `PATCH` runs for the values, so one hook registration sees every change.
 - the notes, `opportunity_note` and `project_note` (issue #2005) — no `setCustomFieldValues`: a
   note's values are written with the note, by `opportunityCommandPort.addComment` and
   `projectCommandPort.addComment`, which validate them as the admin `POST …/comments` does (the

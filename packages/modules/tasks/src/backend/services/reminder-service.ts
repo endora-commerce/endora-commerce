@@ -15,11 +15,12 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'crypto';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import { lockedTask } from './task-commands.js';
 import type { TaskAudience } from './mention-service.js';
 import { dueMomentOf } from './reminder-schedule.js';
 import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
-import { actingAdminUserId, isUuid, type TaskAccess, type TaskRow } from './task-access.js';
+import { actingAdminUserId, isUuid, requireActingAdmin, type TaskAccess, type TaskRow } from './task-access.js';
 import type { TaskEmail } from './task-email.js';
 import { TASK_AUDIT_OBJECT_TYPE } from './task-history-service.js';
 import { taskLinkPath, taskNotificationText } from './task-notifier.js';
@@ -185,11 +186,13 @@ export class TaskReminderService {
   }
 
   /** `POST /tasks/:id/reminders`. */
-  async add(taskId: string, body: CreateTaskReminderBody): Promise<TaskReminder> {
+  async add(taskId: string, body: CreateTaskReminderBody, caller: CallerOptions = {}): Promise<TaskReminder> {
+    // `created_by_admin_user_id` is not null: with nobody behind the call (a
+    // worker under the bare system scope) it is 403 before anything is read
+    // (`specs/186-aggregate-ports/` R-23.2).
+    const me = requireActingAdmin('A reminder is set by an administrator.');
     const task = await this.deps.access.loadVisible(taskId);
     this.deps.access.assertMayChange(task);
-    const me = actingAdminUserId();
-    if (me === null) throw new Error('tasks: a reminder is set by an administrator; the ambient actor is none.');
 
     const assignees = await this.#assigneesOf(task.id);
     const allowed = new Set([me, ...assignees]);
@@ -213,7 +216,7 @@ export class TaskReminderService {
     const mode = body.offsetMinutes !== undefined ? 'relative' : 'absolute';
     const offsetMinutes = body.offsetMinutes ?? null;
 
-    await this.deps.commandBus.run({
+    await this.deps.commandBus.run(withCallerOptions({
       action: 'tasks.reminder.add',
       objectType: TASK_AUDIT_OBJECT_TYPE,
       objectId: task.id,
@@ -247,7 +250,7 @@ export class TaskReminderService {
           },
         };
       },
-    });
+    }, caller));
     const [created] = await this.#byIds(task.id, [id]);
     return created!;
   }

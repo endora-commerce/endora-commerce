@@ -3,7 +3,8 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
 import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import type { TaskAccess } from './task-access.js';
+import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import { requireActingAdmin, type TaskAccess } from './task-access.js';
 import { TASK_AUDIT_OBJECT_TYPE } from './task-history-service.js';
 
 /**
@@ -41,17 +42,23 @@ function pair(one: string, other: string): [string, string] {
 export class TaskRelationService {
   constructor(private readonly deps: TaskRelationServiceDeps) {}
 
-  /** `PUT /tasks/:id/relations/:otherId`. `true` when the link is new. */
-  async relate(taskId: string, otherId: string): Promise<boolean> {
+  /**
+   * `PUT /tasks/:id/relations/:otherId`, and `taskCommandPort.relate`. `true`
+   * when the link is new. `created_by_admin_user_id` is not null: a link is
+   * made by somebody, so with nobody behind the call it is 403 before anything
+   * is read (`specs/186-aggregate-ports/` R-23.2).
+   */
+  async relate(taskId: string, otherId: string, caller: CallerOptions = {}): Promise<boolean> {
+    requireActingAdmin('Two Tasks are related by an administrator.');
     const [task, other] = await this.#both(taskId, otherId);
     const [a, b] = pair(task, other);
-    return this.deps.commandBus.run({
+    return this.deps.commandBus.run(withCallerOptions({
       action: 'tasks.task.relate',
       objectType: TASK_AUDIT_OBJECT_TYPE,
       objectId: task,
       run: async ({ em, actor }) => {
         if (actor.actorAdminUserId === null) {
-          // `created_by_admin_user_id` is not null: a link is made by somebody.
+          // Unreachable past the check above, and kept: the column is not null.
           throw new Error('tasks: two Tasks are related by an administrator; the ambient actor is none.');
         }
         const tx = em as EntityManager;
@@ -65,14 +72,14 @@ export class TaskRelationService {
         this.#recordOther(tx, 'tasks.task.relate', other, task, true);
         return { result: true, before: { relatedTaskId: null }, after: { relatedTaskId: other } };
       },
-    });
+    }, caller));
   }
 
-  /** `DELETE /tasks/:id/relations/:otherId`. `true` when a link was removed. */
-  async unrelate(taskId: string, otherId: string): Promise<boolean> {
+  /** `DELETE /tasks/:id/relations/:otherId`, and `taskCommandPort.unrelate`. `true` when a link was removed. */
+  async unrelate(taskId: string, otherId: string, caller: CallerOptions = {}): Promise<boolean> {
     const [task, other] = await this.#both(taskId, otherId);
     const [a, b] = pair(task, other);
-    return this.deps.commandBus.run({
+    return this.deps.commandBus.run(withCallerOptions({
       action: 'tasks.task.unrelate',
       objectType: TASK_AUDIT_OBJECT_TYPE,
       objectId: task,
@@ -86,7 +93,7 @@ export class TaskRelationService {
         this.#recordOther(tx, 'tasks.task.unrelate', other, task, false);
         return { result: true, before: { relatedTaskId: other }, after: { relatedTaskId: null } };
       },
-    });
+    }, caller));
   }
 
   /** Both Tasks, visible and changeable by the caller — their ids. */

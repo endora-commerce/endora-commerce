@@ -214,7 +214,7 @@ export const manifest = defineModuleManifest({
     },
     {
       moduleId: 'tasks',
-      name: 'taskWritePort',
+      name: 'taskCommandPort',
       kind: 'degrades-without',
       whenAbsent: 'Projects work without Tasks: no Tasks tab, no Stage Tasks, no completion gates.',
       reason:

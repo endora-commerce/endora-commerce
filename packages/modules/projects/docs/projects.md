@@ -905,7 +905,7 @@ of its tasks need that permission as well as `tasks:write`; moving a task
 between the project's stages does not.
 
 The module reads and writes tasks only through `taskReadPort` and
-`taskWritePort`, after deciding that Tasks is present (`degrades-without`
+`taskCommandPort`, after deciding that Tasks is present (`degrades-without`
 edges). Stage tasks are created after the move's own transaction has
 committed, one audited `tasks.task.create` command each, each carrying the
 stage's own stage-task definition id as its `sourceKey`: `createMany` creates a

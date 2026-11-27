@@ -524,12 +524,16 @@ async function main(): Promise<void> {
   process.stdout.write(
     `[migration:new] wrote ${display}\n` +
       `\n` +
-      `Register it, and commit every file the step below writes:\n` +
-      `\n` +
+      (target.deployment === undefined
+        ? `Register it, and commit every file the step below writes:\n\n`
+        : '') +
       `${followUp(target, scaffold, layout.repoRoot)}\n` +
       `\n` +
-      `An unregistered migration does not run — test/unit/db/migrations-registry.test.ts\n` +
-      `fails the build for it. See docs/docs/architecture/migrations.md.\n`,
+      (target.deployment === undefined
+        ? `An unregistered migration does not run — test/unit/db/migrations-registry.test.ts\n` +
+          `fails the build for it. `
+        : '') +
+      `See docs/docs/architecture/migrations.md.\n`,
   );
 }
 
