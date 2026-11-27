@@ -701,8 +701,11 @@ zapisanej tylko w części. `update` przyjmuje wyłącznie pola, które zapisuje
 może tylko twórca, a zadanie prywatne nie należy do rekordu i nie ma osób
 przypisanych poza twórcą. Aby uczynić zadanie prywatnym, najpierw wyjmij je z
 rekordu przez `update`, a potem usuń pozostałe osoby przypisane przez
-`setAssignees`, w tej kolejności. Wywołanie, które niczego nie zmienia,
-niczego nie zapisuje ani nie rejestruje. `setStatus`
+`setAssignees`, w tej kolejności. Pole każdej z tych metod jest wymagane:
+pominięcie go, przekazanie `undefined` albo dodanie klucza, którego metoda nie
+przyjmuje, to `422` `VALIDATION_FAILED` i nic nie zostaje zapisane; `null`
+oznacza wyczyszczenie zadania nadrzędnego albo priorytetu. Wywołanie, które
+niczego nie zmienia, niczego nie zapisuje ani nie rejestruje. `setStatus`
 przyjmuje jako `from` status, w którym odczytałeś zadanie, albo — gdy go
 pominiesz — status, który metoda odczytuje sama. Przejście, na które przebieg
 nie pozwala, to `409` `TASK_TRANSITION_FORBIDDEN`, zadanie, które nie jest już

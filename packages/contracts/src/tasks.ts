@@ -1367,6 +1367,10 @@ export interface TaskStatusMove {
  * **Inputs and refusals are the admin route's**, as the platform's `HttpError`
  * with its `code`: an input outside the route's schema is `422
  * VALIDATION_FAILED`; the rest are the `TASK_*` codes the route answers. A
+ * setter's member (`parentTaskId`, `priorityCode`, `tagIds`, `set` or `add` and
+ * `remove`, `private`) is required: absent or `undefined`, or beside a key the
+ * method does not take, it is `422 VALIDATION_FAILED` before anything is read —
+ * `null` is the explicit clear of a parent or a priority. A
  * status code is not checked for its form: one the workflow does not hold is
  * `422 TASK_STATUS_UNKNOWN`. A refusal is always such a thrown `HttpError` —
  * no method answers an outcome value, `setStatus` included.

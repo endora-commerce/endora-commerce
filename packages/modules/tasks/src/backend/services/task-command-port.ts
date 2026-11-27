@@ -120,6 +120,25 @@ function patchOf(input: unknown, keys: readonly (keyof UpdateTaskBody)[]): Updat
   return parseOrRefuse(UpdateTaskBodySchema, input);
 }
 
+/**
+ * A setter's input: an object naming exactly `keys`, each with a value —
+ * `null` included, the explicit clear — or `422 VALIDATION_FAILED` before
+ * anything is read. The route's schema is `.partial()`, so an absent or
+ * `undefined` key would otherwise parse as "change it to nothing" and write a
+ * clear: a private Task made public, every tag or assignee removed.
+ */
+function requiredInput(input: unknown, keys: readonly string[]): Record<string, unknown> {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw invalid(keys.map((key) => ({ path: key, issue: 'Required' })));
+  }
+  const record = input as Record<string, unknown>;
+  const missing = keys.filter((key) => record[key] === undefined);
+  if (missing.length > 0) throw invalid(missing.map((key) => ({ path: key, issue: 'Required' })));
+  const extra = Object.keys(record).filter((key) => !keys.includes(key));
+  if (extra.length > 0) throw invalid(extra.map((key) => ({ path: key, issue: 'Not changed by this method.' })));
+  return record;
+}
+
 /** A status code as the move takes it — any string, never checked for its form here (R-23.4). */
 function code(value: unknown): string {
   return typeof value === 'string' ? value : String(value);
@@ -153,8 +172,9 @@ export class TaskCommandService implements TaskCommandPort {
     options: AggregateCommandOptions = {},
   ): Promise<TaskRecord> {
     const caller = callerOf(options);
-    const { parentTaskId } = patchOf({ parentTaskId: input?.parentTaskId }, ['parentTaskId']);
-    return this.#record(await this.deps.tasks.setParentOf(id, parentTaskId ?? null, caller));
+    const { parentTaskId } = requiredInput(input, ['parentTaskId']);
+    const body = patchOf({ parentTaskId }, ['parentTaskId']);
+    return this.#record(await this.deps.tasks.setParentOf(id, body.parentTaskId as string | null, caller));
   }
 
   async setPriority(
@@ -163,8 +183,9 @@ export class TaskCommandService implements TaskCommandPort {
     options: AggregateCommandOptions = {},
   ): Promise<TaskRecord> {
     const caller = callerOf(options);
-    const { priorityCode } = patchOf({ priorityCode: input?.priorityCode }, ['priorityCode']);
-    return this.#record(await this.deps.tasks.setPriorityOf(id, priorityCode ?? null, caller));
+    const { priorityCode } = requiredInput(input, ['priorityCode']);
+    const body = patchOf({ priorityCode }, ['priorityCode']);
+    return this.#record(await this.deps.tasks.setPriorityOf(id, body.priorityCode as string | null, caller));
   }
 
   async setTags(
@@ -173,27 +194,25 @@ export class TaskCommandService implements TaskCommandPort {
     options: AggregateCommandOptions = {},
   ): Promise<TaskRecord> {
     const caller = callerOf(options);
-    const { tagIds } = patchOf({ tagIds: input?.tagIds }, ['tagIds']);
-    return this.#record(await this.deps.tasks.setTagsOf(id, tagIds ?? [], caller));
+    const { tagIds } = requiredInput(input, ['tagIds']);
+    const body = patchOf({ tagIds }, ['tagIds']);
+    return this.#record(await this.deps.tasks.setTagsOf(id, body.tagIds as string[], caller));
   }
 
   async setAssignees(id: string, change: TaskAssigneesChange, options: AggregateCommandOptions = {}): Promise<TaskRecord> {
     const caller = callerOf(options);
-    if (change && typeof change === 'object' && 'set' in change) {
-      const { assigneeIds } = patchOf({ assigneeIds: change.set }, ['assigneeIds']);
-      return this.#record(await this.deps.tasks.setAssigneesOf(id, { set: assigneeIds ?? [] }, caller));
+    if (change !== null && typeof change === 'object' && 'set' in change) {
+      // `{ set }` alone: an `add` or `remove` beside it is an extra key, refused.
+      const { set } = requiredInput(change, ['set']);
+      const body = patchOf({ assigneeIds: set }, ['assigneeIds']);
+      return this.#record(await this.deps.tasks.setAssigneesOf(id, { set: body.assigneeIds as string[] }, caller));
     }
-    if (!change || typeof change !== 'object' || !('add' in change) || !('remove' in change)) {
-      throw invalid([{ path: 'change', issue: 'Either { set } or { add, remove }.' }]);
-    }
-    const body = patchOf({ addAssigneeIds: change.add, removeAssigneeIds: change.remove }, [
-      'addAssigneeIds',
-      'removeAssigneeIds',
-    ]);
+    const { add, remove } = requiredInput(change, ['add', 'remove']);
+    const body = patchOf({ addAssigneeIds: add, removeAssigneeIds: remove }, ['addAssigneeIds', 'removeAssigneeIds']);
     return this.#record(
       await this.deps.tasks.setAssigneesOf(
         id,
-        { add: body.addAssigneeIds ?? [], remove: body.removeAssigneeIds ?? [] },
+        { add: body.addAssigneeIds as string[], remove: body.removeAssigneeIds as string[] },
         caller,
       ),
     );
@@ -201,8 +220,10 @@ export class TaskCommandService implements TaskCommandPort {
 
   async setPrivate(id: string, input: { readonly private: boolean }, options: AggregateCommandOptions = {}): Promise<TaskRecord> {
     const caller = callerOf(options);
-    const body = patchOf({ private: input?.private }, ['private']);
-    return this.#record(await this.deps.tasks.setPrivacyOf(id, body.private === true, caller));
+    const { private: isPrivate } = requiredInput(input, ['private']);
+    // Never coerced: anything but `true` or `false` would otherwise make a private Task public.
+    if (typeof isPrivate !== 'boolean') throw invalid([{ path: 'private', issue: 'Expected a boolean.' }]);
+    return this.#record(await this.deps.tasks.setPrivacyOf(id, isPrivate, caller));
   }
 
   async setStatus(id: string, move: TaskStatusMove, options: AggregateCommandOptions = {}): Promise<TaskRecord> {

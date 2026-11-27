@@ -647,7 +647,10 @@ any other key is `422` `VALIDATION_FAILED`. `setPrivate` is checked against the
 task as it stands: only its creator may change it, and a private task has no
 record and no assignee but its creator. To make a task private, take it out of
 its record with `update` and clear its other assignees with `setAssignees`
-first, in that order. A call that changes nothing writes and records nothing.
+first, in that order. Each setter's member is required: leaving it out, passing
+`undefined`, or adding a key the method does not take is `422`
+`VALIDATION_FAILED` with nothing written; `null` is how you clear a parent or a
+priority. A call that changes nothing writes and records nothing.
 `setStatus` takes the status you read the task in as
 `from`, or the one the method reads itself when you leave it out. A move the
 workflow does not permit is `409` `TASK_TRANSITION_FORBIDDEN`, a task no longer
