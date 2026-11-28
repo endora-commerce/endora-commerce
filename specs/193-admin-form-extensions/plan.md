@@ -4,7 +4,7 @@
 **Input**: `spec.md` (FR-001 – FR-127, D-300), `research.md` (R-1 – R-23), `contracts/`,
 `data-model.md`.
 **Status**: Ruled (D-300). The plan is complete, and `tasks.md` follows from it. The constitution
-amendment 4.6.0 is pending the owner's sign-off.
+amendment 4.6.0 was approved by the owner on 2026-11-27 and merged in #2007.
 
 ## Summary
 
@@ -170,7 +170,7 @@ None. There is no new runtime dependency and no unjustified violation.
 
 ## Constitution Check verdict
 
-**PASS.** This depends on the XV amendment to 4.6.0, which is pending the owner's sign-off. IX,
+**PASS.** This depends on the XV amendment to 4.6.0, approved by the owner on 2026-11-27 and merged in #2007. IX,
 XIII and XVII were reviewed and need no change.
 
 ## Handoff summary for `endora-commerce-dev`
