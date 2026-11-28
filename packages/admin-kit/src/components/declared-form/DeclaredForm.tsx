@@ -155,7 +155,16 @@ export type DeclaredFieldRenderer = RendererCommon &
 /** One renderer per key the form shows — a missing one is a type error. */
 export type DeclaredFieldRenderers<F> = { readonly [K in FieldKeyOf<F>]: DeclaredFieldRenderer };
 
-export interface UseDeclaredFormOptions<F extends AdminFormDeclaration> {
+/**
+ * The options of {@link useDeclaredForm}. On an edit form `initialValues` is
+ * required: "changed" is measured against it (D-300.11), and a default taken
+ * from the first render would read every field of a record that loads after it
+ * as changed.
+ */
+export type UseDeclaredFormOptions<F extends AdminFormDeclaration> = UseDeclaredFormBaseOptions<F> &
+  (F['mode'] extends 'create' ? { readonly initialValues?: Readonly<Record<string, unknown>> } : { readonly initialValues: Readonly<Record<string, unknown>> });
+
+export interface UseDeclaredFormBaseOptions<F extends AdminFormDeclaration> {
   readonly form: F;
   /** The form's field set: its keys' value types, core required-ness and options. */
   readonly fieldSet: Pick<FieldSetDeclaration, 'id' | 'fields'>;
@@ -163,11 +172,9 @@ export interface UseDeclaredFormOptions<F extends AdminFormDeclaration> {
   readonly recordId?: string | null;
   /** The host's current core values. */
   readonly values: Readonly<Record<string, unknown>>;
-  /** The loaded values, on an edit form (default: `values` at the first render). "Changed" is measured against them. */
-  readonly initialValues?: Readonly<Record<string, unknown>>;
   readonly onChange: (key: FieldKeyOf<F>, value: unknown) => void;
   /** The host read's `extensions` (`?extensions=`): `{ <moduleId>: { <key>: value } }`. */
-  readonly extensions?: Readonly<Record<string, Readonly<Record<string, unknown>>>> | null;
+  readonly extensions?: Readonly<Record<string, Readonly<Record<string, unknown>> | null>> | null;
   /** The whole form is read-only for this operator. */
   readonly readOnly?: boolean;
   readonly render: DeclaredFieldRenderers<F>;
@@ -225,11 +232,19 @@ const loadingBehaviours = new WeakMap<AdminComponentFactory, Promise<FieldBehavi
 function loadBehaviour(load: AdminComponentFactory): Promise<FieldBehaviourModule> {
   const pending = loadingBehaviours.get(load);
   if (pending !== undefined) return pending;
-  const promise = load().then((module) => {
-    const behaviour = (module.default ?? {}) as FieldBehaviourModule;
-    loadedBehaviours.set(load, behaviour);
-    return behaviour;
-  });
+  const promise = load().then(
+    (module) => {
+      const behaviour = (module.default ?? {}) as FieldBehaviourModule;
+      loadedBehaviours.set(load, behaviour);
+      return behaviour;
+    },
+    (err: unknown) => {
+      // A chunk that failed to load (a deploy in between, a dropped request) is
+      // asked for again on the next mount, not remembered as failed for the page's life.
+      loadingBehaviours.delete(load);
+      throw err;
+    },
+  );
   loadingBehaviours.set(load, promise);
   return promise;
 }
@@ -241,8 +256,9 @@ function loadBehaviour(load: AdminComponentFactory): Promise<FieldBehaviourModul
 const own = (values: Readonly<Record<string, unknown>> | null | undefined, key: string): unknown =>
   values != null && Object.prototype.hasOwnProperty.call(values, key) ? values[key] : undefined;
 
+/** A module's slice may be `null` (contracts' `ExtensionAttributesSchema` is object-or-null, D-300.24). */
 function flattenExtensions(
-  extensions: Readonly<Record<string, Readonly<Record<string, unknown>>>> | null | undefined,
+  extensions: Readonly<Record<string, Readonly<Record<string, unknown>> | null>> | null | undefined,
 ): Record<string, unknown> {
   const flat: Record<string, unknown> = {};
   for (const [moduleId, slice] of Object.entries(extensions ?? {})) {
@@ -256,8 +272,13 @@ const wireOf = (slot: OwnedFieldContribution): string => `${slot.module}.${slot.
 
 /**
  * The field a behaviour targets on this field set, or `null`. A dotted target
- * is a member of a family the set declares (`attributeValues.color`), or a slot
- * — and a slot only of the behaviour's own module (`field-rules.md` §4).
+ * is a slot, and a slot only of the behaviour's own module (`field-rules.md`
+ * §4). A member of a family the set declares (`attributeValues.color`) is not
+ * placed here: the host renders the whole family as one item, so the kit
+ * holds no member value to mask or derive. Family members are the product
+ * editor's attributes work package's (WP-P7, FR-123), which validates them
+ * against live data; until then such a behaviour is ignored, and its chunk is
+ * never loaded.
  */
 function behaviourTarget(behaviour: OwnedFieldBehaviour, fieldSet: Pick<FieldSetDeclaration, 'id' | 'fields'>): string | null {
   const prefix = `${fieldSet.id}.`;
@@ -266,7 +287,7 @@ function behaviourTarget(behaviour: OwnedFieldBehaviour, fieldSet: Pick<FieldSet
   const dot = key.indexOf('.');
   if (dot === -1) return key;
   const head = key.slice(0, dot);
-  if (fieldSet.fields.some((field) => field.key === `${head}.*`)) return key;
+  if (fieldSet.fields.some((field) => field.key === `${head}.*`)) return null;
   return head === behaviour.module ? key : null;
 }
 
@@ -626,7 +647,10 @@ interface DeclaredCoreFieldProps {
 
 function DeclaredCoreField(props: DeclaredCoreFieldProps): ReactNode {
   const bareId = useId();
+  const labelTextId = `${bareId}-label-text`;
   const { renderer } = props;
+  // Text for a control that wants a string; the controls that need a name of
+  // their own take `labelledBy`, which also holds for a label that is not text.
   const accessibleName = props.labelOverride ?? ('label' in renderer && typeof renderer.label === 'string' ? renderer.label : props.fieldKey);
 
   const overrideControl = (control: FormFieldControlProps): ReactNode => {
@@ -639,6 +663,7 @@ function DeclaredCoreField(props: DeclaredCoreFieldProps): ReactNode {
         control={control}
         readOnly={props.readOnly}
         label={accessibleName}
+        labelledBy={'label' in renderer ? labelTextId : undefined}
         placeholder={props.placeholder}
         options={props.options}
       />
@@ -671,7 +696,7 @@ function DeclaredCoreField(props: DeclaredCoreFieldProps): ReactNode {
   const group = renderer.group === true || (props.control !== null && isPlatformControlId(props.control.id) && PLATFORM_GROUP_CONTROLS.has(props.control.id));
   return (
     <FormField
-      label={props.labelOverride ?? renderer.label}
+      label={<span id={labelTextId}>{props.labelOverride ?? renderer.label}</span>}
       help={props.helpOverride ?? renderer.help}
       {...(renderer.hint === undefined ? {} : { hint: renderer.hint })}
       error={props.error}

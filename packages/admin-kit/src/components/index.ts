@@ -293,6 +293,7 @@ export type {
   DeclaredFormController,
   DeclaredFormProviderProps,
   DeclaredFormSectionProps,
+  UseDeclaredFormBaseOptions,
   UseDeclaredFormOptions,
 } from './declared-form/DeclaredForm.js';
 export {

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import {
   defineAdminForm,
   defineFieldSet,
@@ -753,5 +753,167 @@ describe('without an effective form', () => {
     mount(<Host mode="create" initial={CREATE_VALUES} />, { forms: { forms: [] } });
     expect(await screen.findByLabelText(/^Tax ID/u)).toBeInTheDocument();
     expect(screen.getByLabelText('Website')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review round (#2032): warnings, defaults, edit baselines, families, aria
+// ---------------------------------------------------------------------------
+
+describe('the form’s own writes and the operator’s', () => {
+  it('warns once per key when it drops an operator change to a read-only field (D-300.18)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    onTestFinished(() => warn.mockRestore());
+    mount(<Host mode="create" initial={CREATE_VALUES} />);
+    const parent = await screen.findByLabelText('Parent organization');
+    fireEvent.change(parent, { target: { value: 'p-2' } });
+    fireEvent.change(parent, { target: { value: 'p-3' } });
+    const dropped = warn.mock.calls.filter(([message]) => String(message).includes("read-only 'parentId'"));
+    expect(dropped).toHaveLength(1);
+  });
+
+  it('fills an empty field from a default override on a create form, read-only included, and does not submit a plain read-only one', async () => {
+    const forms = effectiveForms({
+      phone: { default: '+48 600 000 000', label: { source: 'operator', text: { en: 'Mobile', pl: 'Komórka' } } },
+      parentId: { readOnly: true, default: 'p-default' },
+    });
+    mount(<Host mode="create" initial={{ ...CREATE_VALUES, phone: '', parentId: '' }} />, { forms });
+    await waitFor(() => expect(screen.getByLabelText(/^Mobile/u)).toHaveValue('+48 600 000 000'));
+    expect(screen.getByLabelText('Parent organization')).toHaveValue('p-default');
+    const core = declaredController().submission().core;
+    expect(core).toMatchObject({ phone: '+48 600 000 000' });
+    expect(core).not.toHaveProperty('parentId');
+  });
+
+  it('applies no default on an edit form', async () => {
+    const forms = effectiveForms({ phone: { default: '+48 600 000 000' } });
+    mount(<Host mode="edit" initial={{ ...CREATE_VALUES, phone: '' }} />, { forms });
+    await screen.findByLabelText(/^NIP/u);
+    expect(screen.getByLabelText(/^Phone/u)).toHaveValue('');
+  });
+});
+
+describe('an edit form’s baseline', () => {
+  it('requires initialValues on an edit form, so a record loaded after the first render is not read as changed', () => {
+    // Type-level only: never called.
+    function ShouldNotCompile(): ReactNode {
+      // @ts-expect-error — an edit form must say what was loaded.
+      useDeclaredForm({ form: FORMS.edit, fieldSet: FIELD_SET, values: {}, onChange: () => undefined, render: renderers() });
+      useDeclaredForm({ form: FORMS.create, fieldSet: FIELD_SET, values: {}, onChange: () => undefined, render: renderers() });
+      return null;
+    }
+    expect(ShouldNotCompile).toBeTypeOf('function');
+  });
+});
+
+describe('field-family behaviours', () => {
+  it('ignores a behaviour aimed at a family member, and loads one aimed at a declared key', async () => {
+    const set = defineFieldSet({
+      id: 'probe',
+      ownerModuleId: 'probe',
+      fields: [
+        { key: 'name', type: 'string', required: false, accepts: ['behaviour'] },
+        { key: 'attributeValues.*', type: 'composite', required: false, accepts: ['behaviour'] },
+      ],
+    });
+    const form = defineAdminForm({ id: 'probe.create', fieldSet: 'probe', mode: 'create', sections: [{ key: 'main', keys: ['name', 'attributeValues.*'] }] });
+    const family = vi.fn(() => Promise.resolve({ default: { mask: (raw: string) => raw } }));
+    const named = vi.fn(() => Promise.resolve({ default: { mask: (raw: string) => raw.toUpperCase() } }));
+    function Probe(): ReactNode {
+      const [values, setValues] = useState<Values>({ name: '' });
+      const declared = useDeclaredForm({
+        form,
+        fieldSet: set,
+        values,
+        onChange: (key, value) => setValues((current) => ({ ...current, [key]: value })),
+        render: {
+          name: { label: 'Name', input: (p) => <Input {...p.control} value={String(p.value ?? '')} onChange={(event): void => p.onChange(event.target.value)} /> },
+          'attributeValues.*': { field: () => <p>attributes</p> },
+        },
+      });
+      return (
+        <DeclaredFormProvider declared={declared}>
+          <DeclaredFormSection section="main" />
+        </DeclaredFormProvider>
+      );
+    }
+    render(
+      <TranslationProvider language="en" initialBundle={bundleFor('en')}>
+        <AuthProvider initial={adminSession({ permissions: [] })}>
+          <ModulePresenceProvider initial={modulePresence({ present: ['probe', 'acme_attr'] })}>
+            <AdminContributionsProvider
+              entries={[{ moduleId: 'acme_attr', contributions: { fieldBehaviours: [{ target: 'probe.attributeValues.color', behaviour: family }, { target: 'probe.name', behaviour: named }] } }]}
+            >
+              <EffectiveFormsProvider initial={{ forms: [] }}>
+                <Probe />
+              </EffectiveFormsProvider>
+            </AdminContributionsProvider>
+          </ModulePresenceProvider>
+        </AuthProvider>
+      </TranslationProvider>,
+    );
+    await waitFor(() => expect(named).toHaveBeenCalled());
+    expect(family).not.toHaveBeenCalled();
+  });
+});
+
+describe('platform controls keep FormField’s wiring', () => {
+  it('names an errored multiselect by its label and describes it with the error', async () => {
+    const set = defineFieldSet({
+      id: 'probe',
+      ownerModuleId: 'probe',
+      fields: [{ key: 'tags', type: 'enum[]', options: ['b2b', 'vip'], required: false, accepts: ['control', 'validation'] }],
+    });
+    const form = defineAdminForm({ id: 'probe.create', fieldSet: 'probe', mode: 'create', sections: [{ key: 'main', keys: ['tags'] }] });
+    const forms: EffectiveFormsResponse = {
+      forms: [
+        {
+          id: form.id,
+          fieldSet: 'probe',
+          fields: [{ key: 'tags', section: 'main', order: 0, readOnly: false, hidden: false, control: 'platform.multiselect', validation: { required: true }, overriddenBy: [], operatorKinds: [] }],
+        },
+      ],
+    };
+    let probe: DeclaredFormController | null = null;
+    function Probe(): ReactNode {
+      const [values, setValues] = useState<Values>({ tags: [] });
+      const declared = useDeclaredForm({
+        form,
+        fieldSet: set,
+        values,
+        onChange: (key, value) => setValues((current) => ({ ...current, [key]: value })),
+        render: { tags: { label: <em>Customer tags</em>, input: () => null } },
+      });
+      probe = declared;
+      return (
+        <DeclaredFormProvider declared={declared}>
+          <DeclaredFormSection section="main" />
+        </DeclaredFormProvider>
+      );
+    }
+    render(
+      <TranslationProvider language="en" initialBundle={bundleFor('en')}>
+        <AuthProvider initial={adminSession({ permissions: [] })}>
+          <ModulePresenceProvider initial={modulePresence({ present: ['probe'] })}>
+            <AdminContributionsProvider entries={[]}>
+              <EffectiveFormsProvider initial={forms}>
+                <Probe />
+              </EffectiveFormsProvider>
+            </AdminContributionsProvider>
+          </ModulePresenceProvider>
+        </AuthProvider>
+      </TranslationProvider>,
+    );
+    // A non-string label still names the trigger: by reference, never by the field key.
+    const trigger = await screen.findByRole('button', { name: /^Customer tags/u });
+    act(() => {
+      probe?.validate();
+    });
+    const group = screen.getByRole('group', { name: /^Customer tags/u });
+    // The field is a group: its label names it, its error describes it — a picker's trigger is a
+    // button, which may carry neither `aria-required` nor the field's description on its own.
+    expect(group).toHaveAccessibleDescription('This field is required.');
+    expect(within(group).getByRole('button', { name: /^Customer tags/u })).toBe(trigger);
+    expect(trigger).toHaveAttribute('aria-labelledby');
   });
 });

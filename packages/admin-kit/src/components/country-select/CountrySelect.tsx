@@ -17,6 +17,10 @@ export interface CountrySelectProps {
   clearable?: boolean;
   placeholder?: string;
   emptyMessage?: string;
+  /** Ids describing the field (its hint, its error), forwarded to the input's `aria-describedby`. */
+  ariaDescribedBy?: string;
+  /** Marks the input `aria-invalid`. */
+  invalid?: boolean;
 }
 
 /**
@@ -63,6 +67,8 @@ export function CountrySelect(props: CountrySelectProps): ReactNode {
     <Combobox<string>
       {...(props.id ? { id: props.id } : {})}
       {...(props.ariaLabel ? { ariaLabel: props.ariaLabel } : {})}
+      {...(props.ariaDescribedBy ? { ariaDescribedBy: props.ariaDescribedBy } : {})}
+      {...(props.invalid ? { invalid: true } : {})}
       {...(props.className ? { className: props.className } : {})}
       options={options}
       value={props.value && props.value !== '' ? props.value : null}

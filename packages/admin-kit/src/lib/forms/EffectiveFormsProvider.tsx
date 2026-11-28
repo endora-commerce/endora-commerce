@@ -75,11 +75,25 @@ export function EffectiveFormsProvider({ initial, children }: EffectiveFormsProv
   const seeded = useRef(initial !== undefined);
   const latest = useRef(0);
 
+  // Callers of `refresh()` waiting for the fetch it starts: resolved when the
+  // latest fetch lands or fails, so `await refresh()` reads the new forms.
+  const waiting = useRef<(() => void)[]>([]);
+  const settle = (): void => {
+    const resolve = waiting.current;
+    waiting.current = [];
+    for (const done of resolve) done();
+  };
+
   const request = useCallback((): void => setWanted(true), []);
-  const refresh = useCallback(async (): Promise<void> => {
-    setWanted(true);
-    setTick((n) => n + 1);
-  }, []);
+  const refresh = useCallback(
+    (): Promise<void> =>
+      new Promise<void>((resolve) => {
+        waiting.current.push(resolve);
+        setWanted(true);
+        setTick((n) => n + 1);
+      }),
+    [],
+  );
 
   // A presence refresh after the first fetch is a refresh of the forms too.
   const presenceSeen = useRef(modules);
@@ -102,11 +116,13 @@ export function EffectiveFormsProvider({ initial, children }: EffectiveFormsProv
         if (call !== latest.current) return;
         setResponse(next);
         setStatus('ready');
+        settle();
       } catch (err) {
         if (call !== latest.current) return;
         // A refresh that failed keeps the forms it had; a first fetch that
         // failed leaves the declarations (see the header).
         setStatus((current) => (current === 'ready' ? current : 'error'));
+        settle();
         if (import.meta.env.DEV) console.warn('[effective-forms] fetch failed', err);
       }
     })();
