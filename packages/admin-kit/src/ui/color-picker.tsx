@@ -35,6 +35,8 @@ export function ColorPicker(props: {
   onChange: (hex: string) => void;
   /** Accessible label for the trigger. */
   label: string;
+  /** The id of a visible label naming the trigger; given, it replaces `label` as the trigger's name. */
+  labelledBy?: string;
   /** Accessible label for the custom colour input. */
   customLabel: string;
   /** Preset swatches; falls back to {@link DEFAULT_COLOR_PRESETS}. Pass `[]` to hide. */
@@ -80,7 +82,8 @@ export function ColorPicker(props: {
     <div ref={ref} className="relative inline-block">
       <button
         type="button"
-        aria-label={props.label}
+        aria-label={props.labelledBy ? undefined : props.label}
+        aria-labelledby={props.labelledBy}
         aria-expanded={open}
         disabled={props.disabled}
         onClick={(): void => setOpen((o) => !o)}
