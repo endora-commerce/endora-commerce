@@ -57,18 +57,28 @@ renders the input only (IX).
 ## §3 Host-side rendering (admin-kit)
 
 ```tsx
-<DeclaredFormProvider form={ORGANIZATION_FORMS.edit} values={values} onChange={…}
-                      extensions={record.extensions} errors={fieldErrors} readOnly={!canManage}>
-  <DeclaredFormSection section="identity" render={{
-    name:     (p) => <Input {...p.control} value={p.value ?? ''} onChange={…} />,
-    taxId:    (p) => …,
-    parentId: (p) => <OrganizationPicker … />,
-  }} />
+const declared = useDeclaredForm({
+  form: ORGANIZATION_FORMS.edit, fieldSet: ORGANIZATION_FIELD_SET, recordId: id,
+  values, initialValues: loaded, onChange: (key, value) => …,
+  extensions: record.extensions, readOnly: !canManage,
+  render: {
+    name:     { label: t('fields.name'), input: (p) => <Input {...p.control} value={p.value ?? ''} readOnly={p.readOnly} onChange={…} /> },
+    taxId:    { label: t('fields.taxId'), input: (p) => … },
+    parentId: { field: (p) => <OrganizationPicker … /> },
+  },
+});
+<DeclaredFormProvider form={ORGANIZATION_FORMS.edit} declared={declared}>
+  <DeclaredFormNotices />
+  <DeclaredFormSection section="identity" frame={(content) => <EditorSection …>{content}</EditorSection>} />
 </DeclaredFormProvider>
 ```
 
-- `render` is keyed by `SectionKeyOf`/`FieldKeyOf` of the form — a missing renderer for a key the
-  section shows is a type error.
+- `render` is given once, to `useDeclaredForm`, keyed by `FieldKeyOf` of the form. A missing
+  renderer for a key the form shows is a type error.
+- **`form` on the provider is required (D-300.29).** It names the form `declared` was built for, and
+  the provider throws when the ids differ. `check:admin-forms` and `endora generate` read this
+  attribute, in source or in its compiled `jsx(DeclaredFormProvider, { form })` twin, to know which
+  forms a host renders (`unrendered-form`, `undeclared-form`).
 - The provider reads the effective overrides (`field-overrides.md` §2) and the slot contributions,
   filtered by presence and `requiredPermission`, and computes the layout (§5).
 - `useDeclaredFormSubmission()` returns `{ core, extensions }` for the host's existing request: the

@@ -821,6 +821,11 @@ Children inherit it from the lineage the bus already threads, so `customer_accou
 - *Keep WP-B's fail-closed behaviour.* It refuses a buyer's registration because of an
   operator-side rule, which is the exact case D-300.3 excludes.
 
+**Amended (D-300.31, R-26.6).** The flag is set per call by the caller that knows it is a buyer,
+not by the Command type: the storefront registration is a `createStandalone` call, so
+`createStandalone`'s options carry `buyerSelfService?: true`, as
+`CustomerAccountMemberWritePort.create`'s input does.
+
 ### R-24.3: Non-retroactivity covers every rule kind (D-300.11)
 
 **Decision.** WP-B's reading is confirmed. On an update the check holds a field only when the write
@@ -1236,3 +1241,359 @@ matches the ports, so a module author learns one rule.
 
 **Rejected.** *Omit the key.* That merges "no value" with "module off", which XVII keeps distinct
 everywhere else on this wire.
+
+## R-26: Phase 4 rulings (D-300.26 to D-300.32, architect rulings, 2026-11-28)
+
+WP-E1 (`organizations`, the first adopter, branch `feat/193-e1`) raised five points. The review
+of the first rulings (PR #2038) showed that the first D-300.28 contradicted constitution 4.6.0 XV,
+so R-26.3 re-rules it, and R-26.6 and R-26.7 add the provisioning and anonymisation rulings that
+review asked for. The code cited is
+`packages/modules/organizations/src/backend/forms/organization-field-set.ts`,
+`packages/contracts/src/organization-form.ts` and the merge and personal-organisation code on that
+branch.
+
+### R-26.1: What the organization field set invites (D-300.26)
+
+**Measured.** WP-E1 invites server-enforced kinds on `vatStatus`, `orderConfirmationEmails` and
+`fulfilmentStrategy` only, and its reading of I-5 is correct: a kind is invited only on a field that
+every writer of it projects.
+- `name`, `taxId` and `registeredAddress` are also written by `organization.convert_to_company`.
+  Its hook data, `OrganizationConvertToCompanyHookData` in
+  `packages/contracts/src/organization-hooks.ts`, is ids and codes only, so no projection can return
+  them.
+- `parentId` is also written by the hierarchy moves, and `status` by moderation. Neither is
+  registered as a writer.
+
+The ids-only rule on that hook data comes from the #1057 amendment of
+`specs/176-command-hooks-outbox/contracts/organization-hookable-actions.md`: "ids, codes and field
+names only (audit-state list 1), never the tax ID, name or address". It cites
+`specs/conventions/audit-state.md` list 1. That convention governs audit state, though, not hook
+data, and 176 FR-031 limits only the outbox. Hook data is handed in process to
+`beforeCommit` hooks. The `afterCommit` delivery uses the separate outbox type
+(`OrganizationConvertToCompanyOutbox`). `OrganizationUpdateHookData`, the admin PATCH's hook data,
+already carries the full after-state `OrganizationRecord`, name, tax ID and address included.
+`form-field-declaration.md` §4 shows `name` accepting `validation`. A deployment that caps an
+organization's name at its ERP's length is the plainest case of a tightened core rule in issue
+#2006.
+
+**Decision.** `name` accepts `validation`, and this goes into WP-E1.
+- `OrganizationConvertToCompanyHookData` gains `readonly organization: OrganizationRecord`, the
+  after-state, as `OrganizationUpdateHookData` has it. Its doc comment drops "never the tax ID, the
+  name or the address" and says instead that the outbox data stays ids, codes and field names. Hook
+  data is additive-only (`specs/conventions/contract-surface.md`, the *Hook data* row), and a new
+  member is additive, so the contracts changeset is a `minor` with an additive note.
+  `OrganizationConvertToCompanyOutbox` does not change. The tax ID, name and address now reach the
+  conversion's `beforeCommit` hooks, as they already reach `organization.admin_patch`'s. This
+  amends 176's #1057 sentence, so WP-DOC adds a 176 addendum line beside T079's 178 and 187
+  addenda, and WP-E1 updates the hook-data table in
+  `packages/modules/organizations/docs/organizations.md`.
+- `organization.convert_to_company`'s Command fills the member from the converted entity.
+- The conversion's writer projects `name`, `vatStatus` and `registeredAddress` from it:
+  `CONVERT_WRITES = ['name', 'registeredAddress', 'vatStatus']`, with `changed` from
+  `changedFields` as now. `taxId` is not projected, because `organization.tax_id.change` still
+  cannot project it (R-9). That keeps `taxId` presentation only, whichever writers carry it.
+- `name`'s `accepts` gains `validation`. `registeredAddress` stays presentation only, because a
+  composite field admits no tightening (`field-rules.md` §1). It is projected anyway, so that a
+  later widening is a one-word change.
+- `parentId` and `status` stay presentation only for now. Their other writers (the hierarchy
+  moves, moderation) are not registered. That is not because they are unhookable: D-300.27 lets
+  any Command be a rule-check-only writer, so registering them with hook data that projects the
+  field is the route when a case asks for a rule on them. No case does yet (IV), and `accepts`
+  may widen later.
+
+**Rationale.** The hook-data restriction protects nothing that the admin PATCH's hook data does not
+already expose to the same in-process hooks. Keeping it would hold back the canonical example on a
+convention that does not apply to it. "Make the conversion a writer" and "give its hook data values"
+are the same change here: the conversion already is a writer, and what it lacks is the values to
+project.
+
+**Rejected.**
+- *Ship the narrow `accepts` and widen later.* Widening is additive (`accepts` may widen,
+  form-field-declaration §5). It would still leave the first adopter unable to show the most
+  requested tightening, and the hook-data change is about twenty lines.
+- *Register the conversion as a rule-check-only writer as well.* It is a declared hookable action,
+  and one action cannot be both. The values have to come through its hook data.
+- *Add the tax ID to `organization.tax_id.change`'s hook data too.* No case asks for a tax-ID
+  pattern, and the value is normalised before its bound applies (WP-E1's note on `taxId`), so a
+  tightening there needs a design of its own (IV).
+
+### R-26.2: `organization.update` as a rule-check-only writer (D-300.27)
+
+**Measured.** `organizationCommandPort.update` (issue #1029) runs `organization.update`. That action
+is not declared hookable, and it is not reversible. FR-113 introduced rule-check-only writers for
+writes that a stored-revert undo reverses. If the port's write is not a writer at all, a rule binds
+the form and the admin API but not the port, which fails SC-002's fourth path.
+
+**Decision.** Confirmed. FR-113 and `field-rules.md` §2 are widened. Any Command that is not a
+declared hookable action may be a rule-check-only writer, reversible or not. It supplies
+`hookData` for the check alone, and no module hook may register on it. WP-E1 needs no code change.
+
+**Rationale.** The mechanism already admits exactly what the port needs: the check, and no hook.
+Reversibility was why the catalog writer had to be rule-check-only. It is not a condition of the
+mechanism.
+
+**Rejected.** *Declare `organization.update` hookable.* That would make the integration port a
+hook surface, with an outbox type and `expectHookableCommand` obligations, when no module wants to
+hook it. A slot cannot ride on it either, because the port carries no `extensions`.
+
+### R-26.3: The merge is held (D-300.28, re-ruled)
+
+**Measured.** The first ruling excluded `organization.merge.finalize` from the writers. Review
+showed that this broke constitution 4.6.0 XV, which says "A rule that narrows validation MUST be
+enforced on every write the Command Bus runs for that entity, never only in the form". It also
+broke FR-045 and the owner's D-300.3 ("every operator, API-key and system write").
+- The finalize is a bus Command (`objectType: 'organization'`, `merge-finalize.command.ts` on
+  `feat/193-e1`). It writes `name`, `vatStatus`, `registeredAddress`, `fulfilmentStrategy`, `taxId`
+  and `orderConfirmationEmails` on the survivor, and D-300.11 holds the fields a write changes.
+- The merge is gated only by `organizations:merge`. Excluding it would have made it a route around
+  a deployment's `writePermission` on `vatStatus` or `fulfilmentStrategy`. "Restrict the merge
+  grant" means withdrawing the merge from those operators altogether.
+- The choices are fixed at `organization.merge.start` (`MergeStartCommandInput.fieldChoices`). The
+  participants' steps then run, and the finalize runs last (`specs/192-organization-merge/`
+  FR-007, forward-only and resumable). A refusal that first appeared at finalize would leave a
+  merge *needs attention* after every other module's records had moved.
+
+**Decision.** The merge is held, with no exception. That needs no owner answer, because it is what
+XV and D-300.3 already say.
+- **At start.** `organization.merge.start` is already hookable with `beforeCommit`, and it becomes
+  a writer (mode `update`) of the outcome it fixes. `OrganizationMergeStartHookData` gains
+  `survivor: { after: Readonly<Record<string, unknown>>; changed: readonly string[] }`. That is the
+  survivor's field values after the choices, with the union of the order-confirmation e-mails,
+  computed by the same `effectiveFieldChoices` and union that the finalize applies, in one shared
+  function. Hook data is additive-only and stays in process, so the outbox type does not change
+  (R-26.1's reasoning). The writer projects that, and `writes` is the merge's offered fields. The
+  field-rule check then runs at start:
+  - a chosen value that breaks a tightened rule is `422 FIELD_RULE_VIOLATION`;
+  - a changed field whose `writePermission` the admin lacks is `403 FIELD_WRITE_FORBIDDEN`;
+  - in both cases `details[].path` is the field key, and nothing is recorded, frozen or enqueued.
+- **What the merge screen shows.** The refusal is mapped onto the field's choice row by
+  `details[].path`. The row reads the rule's message, or "You do not have permission to change this
+  field", and offers *Keep the survivor's value*. Choosing it and starting again is the remedy.
+  The preview still carries no choices, so the preview cannot refuse a choice; the start is the
+  first place that sees one.
+- **At finalize.** `organization.merge.finalize` becomes a rule-check-only writer (D-300.27). Its
+  Command supplies hook data (`organization`, the survivor's after-state, and `changedFields`).
+  This is the backstop XV requires, because a deployment could redeploy with a new rule while a
+  merge is in flight. The merge runner runs the finalize inside `enterSystemScope`
+  (`packages/platform/src/kernel/merge/runtime.ts`), so its actor is `system`, and its check is
+  validation only. `writePermission` is decided once, at start, under the admin who chose. A
+  refusal at finalize leaves the merge *needs attention*, as any failing step does (192 FR-007).
+  This is a new cause of that state. The refusal's field and code are shown on the merge, and
+  *resume* finalizes once the rule admits the value. The start-time check makes this need a rule
+  change during a running merge.
+- **The e-mail union.** `orderConfirmationEmails` is never a choice: the survivor always takes the
+  union of both lists (192 `contracts/organization-merge.md`). It is in `survivor.changed` whenever
+  the loser adds a recipient, and it is held like every other changed field, because XV binds the
+  validation and the deployment's `writePermission` exists precisely to control who changes the
+  recipients. The remedies differ from a choice row's:
+  - a validation refusal (`format`, `pattern`, a bound) names the offending recipient's field. The
+    operator corrects the loser's or the survivor's recipient list on its own page, where the same
+    rule holds, and starts again;
+  - a `writePermission` refusal means the merge adds recipients the admin may not change. The
+    screen shows it on a read-only *Order confirmation e-mails (combined)* row, naming the
+    permission, and the remedy is that an admin who holds it starts the merge.
+- **`startMerge` on the port.** `organizationCommandPort.startMerge`, once it exists, runs with the
+  ambient actor (192 FR-062). An admin is held exactly as on the screen. A system actor is held to
+  validation and, as FR-043 says of every system write, not to `writePermission`.
+- **Later improvement, not the control.** The merge screen could lock up front a choice the admin
+  may not make. That needs the preview to carry each offered field's effective `writePermission`,
+  which is a new read on the sealed registry. It is recorded as a follow-up issue. The server
+  refusal above is the control, because a screen is never access control.
+
+**Rationale.** The values a merge copies are already stored, but the survivor's field changes, and
+the operator chooses the change. That is an operator write, held like any other (D-300.11). Holding
+it at start, where the choice is made, makes the refusal cost nothing. Holding it again at
+finalize makes the MUST unconditional.
+
+**Rejected.**
+- *Exclude the merge (the first ruling).* It contradicts XV and D-300.3, and it opens a route
+  around `writePermission`.
+- *Check only at finalize.* A refusal would come after the participants' steps had moved records,
+  and the merge would stop *needs attention* for a reason the start could have shown.
+- *Check only at start.* XV binds every bus write of the entity, and the finalize is the one that
+  writes it.
+- *Ask the owner for a merge exception.* Nothing makes one necessary: the check fits both Commands
+  with existing mechanisms.
+
+### R-26.4: The provider's `form` prop (D-300.29)
+
+**Measured.** `field-slots.md` §3 showed `<DeclaredFormProvider form={…} values={…} …>`.
+`check:admin-forms` (`packages/cli/src/lib/admin-forms.ts`, `FORM_RENDERER`) reads the `form`
+attribute of that element, or of its compiled `jsx(DeclaredFormProvider, { form })` twin, to know
+which forms a host renders. WP-C shipped `useDeclaredForm({ form, … })` plus
+`<DeclaredFormProvider declared>`, so the check could see no form. WP-E1 added an optional `form`
+prop that throws when its id differs from `declared.formId`.
+
+**Decision.** Keep WP-E1's prop and make it **required**. The mismatch throw stays.
+`field-slots.md` §3 now shows the kit's real shape: renderers are given once to
+`useDeclaredForm`, and the provider takes `form` and `declared`. The kit's own tests and its header
+example pass `form`. The prop is unreleased API (WP-C merged after 0.112.0), and no consumer in
+`../paid-modules` renders it yet, so requiring it breaks nothing published.
+
+**Rationale.** The check reads JSX in source and in compiled packages alike, and the prop is the one
+place both forms of a screen show. An optional prop would leave a host that forgot it to
+`unrendered-form`, an error that is true but points away from the cause. Required makes the type
+checker say it first. The two mentions of the form can only disagree by a developer error, which
+the throw reports on the first render in any test.
+
+**Rejected.**
+- *Have the check read `useDeclaredForm({ form })` instead.* The hook call may sit in another
+  component or file from the render, its options may be built elsewhere, and the merged check and
+  its read-size records would change for no gain at run time.
+- *Drop `declared` and have the provider build the controller from `form`.* The host needs the
+  controller outside the provider (`validate`, `submission`, `applyError` in its Save handler).
+
+### R-26.5: `composeModuleForTest` and the form registry (D-300.30)
+
+**Measured.** `composeModuleForTest` (`packages/test-kit/src/module/index.ts`) builds its context
+with no `formRegistry`. `ModuleContext.fieldSets` and `fieldFormats` throw "this composition root
+mounts no form registry" when it is absent (`packages/platform/src/kernel/module-context.ts`).
+Every adopter's `registerModule` calls `ctx.fieldSets`, so the first unit test that composes
+`projects`, `customer_accounts`, `crm` or `catalog` through the helper would throw. WP-E1 fixed the
+hand-built `composeModules` roots under `backend/test` with `generatedListForms`.
+
+**Decision.** In WP-E1, `ComposeModuleForTestOptions` gains `formRegistry?: FormRegistry`. When it
+is absent, the helper mounts `new FormRegistry()` and does not seal it, because sealing needs the
+whole composition. `ComposedModule` exposes it as `formRegistry`, so that a test can assert what the
+module registered. The test-kit changeset is a `minor`.
+
+**Rationale.** The helper's promise is "compose one module the way a composition root does", and
+both real roots mount a registry. One default in the shared helper replaces four identical fixes
+in four work packages.
+
+**Rejected.**
+- *Each adopter passes a registry.* That is four copies of the same setup, and the fifth adopter
+  meets the throw again.
+- *Make `fieldSets` a no-op without a registry.* That reopens the silent partial registration
+  D-300.13 refused.
+
+### R-26.6: Personal-organization provisioning (D-300.31)
+
+**Measured.** WP-E1's note said provisioning writes "fixed values outside the Command Bus". Review
+showed that to be inaccurate.
+- `PersonalOrganizationService.provisionFor` runs inside `customer_account.register_standalone`, a
+  bus Command, on the caller's `EntityManager`.
+- The name is derived from the first name, last name and e-mail (`personalName`), not fixed.
+- `customerAccountCommandPort.createStandalone` is a published port that a system actor can call,
+  and it is not buyer self-service.
+- The storefront registration *is* a `createStandalone` call:
+  `customers/src/backend/services/customer-registration-service.ts` calls it with no options. So a
+  flag on the Command type would either bind the storefront or skip every system caller.
+- Other paths reach the same service.
+  - The federated sign-in seam in `customer_accounts` (`index.ts`) runs
+    `withSystemScope(…, () => bus.run(() => emFactory().transactional(…)))`. `bus.run` is a scope,
+    not a Command, so there is no root Command there.
+  - The detach-to-personal path is `provisionPersonalOrganizationFor`, on its own
+    `EntityManager`, which `customers`' `unassign` calls under the operator.
+  - The repair path is `ensureForCustomerAccountId`, behind the published
+    `personalOrganizationPort.ensureForCustomerAccount`, under whatever actor its caller has. Since
+    D-178 it provisions only for an account written before that ruling.
+- The fixed values are `status: 'active'`, `vatStatus: 'vat_exempt'`, `taxId: null` and a
+  placeholder address. Of these, only `vatStatus` accepts a server-enforced kind (`options`).
+
+**Decision.** Provisioning is a write like any other, and it is held.
+- **One Command.** Every path runs `organization.personal.provision`, an `organizations` Command
+  (mode `create`, hook data `{ organization: OrganizationRecord }`) registered as a rule-check-only
+  writer (D-300.27). `writes` lists `name`, `status`, `vatStatus`, `registeredAddress` and `taxId`.
+  The check holds only the keys a writer writes (`guardedKeys` in `field-rule-check.ts`), so a
+  tightened `required` on `orderConfirmationEmails` or `fulfilmentStrategy`, which provisioning
+  leaves empty, never reaches it.
+  - Inside `register_standalone` it runs as a child through that Command's `run`, on the same
+    transaction. The internal provisioning port that `organizations` hands `customer_accounts`
+    therefore takes `{ em, run }` instead of `em`. As a child it answers `skipAudit`, because the
+    caller's entry already records the account and its organisation. Registration's audit is
+    unchanged.
+  - The federated seam runs it as the root Command, under its system actor, inside the seam's
+    transaction, with `buyerSelfService: true` set by the seam.
+  - The repair (`ensureForCustomerAccountId`) and the detach-to-personal
+    (`provisionPersonalOrganizationFor`) run it as a root Command with their caller's actor. Each
+    records one names-only entry, because no caller entry covers them.
+  - The stale `command-coverage-ignore` on `provisionFor` goes, because the write is now a Command.
+- **Who is bound.** The lineage decides (D-300.10 as amended).
+  - The flag is set per call. `createStandalone`'s options gain `buyerSelfService?: true`,
+    following `CustomerAccountMemberWritePort.create`'s input (`hookable-writers.md` §1).
+    `customers`' storefront registration passes it, and `register_standalone` puts it on the
+    Command. This brings forward the `register_standalone` half of T088 into WP-E1, because the
+    new writer would otherwise bind the storefront registration until WP-E3 landed.
+  - The storefront registration and the federated sign-in are therefore skipped. A system
+    `createStandalone` call without the flag is bound, and so are the repair and the detach.
+  - Server code running as a `system` actor can declare itself buyer self-service. D-300.10's guard
+    stops admin, API-key and impersonated actors only. The flag is a statement in server code, and
+    the storefront-route inventory test of T088 is what holds it to the storefront.
+- **`writePermission` and fixed values.** A root `create` has `changed` equal to every non-empty
+  field, so the detach would refuse an operator who lacks a deployment's `writePermission` on
+  `vatStatus`, for `'vat_exempt'`, a value the operator never chose. The provisioning writer
+  therefore returns `{ after, changed: ['name'] }`. `name` is the one value derived
+  from the person, and `changed` names what the actor chose. The check holds every written field to
+  validation on a create whatever `changed` says (`touched = isCreate`), and it uses `changed` for
+  `writePermission` only. XV binds validation, not `writePermission`. No platform change is needed,
+  and a merge that chooses `'vat_exempt'` is still held, because its `changed` is the merge's.
+  - A derived name that breaks a deployment's `name` rule therefore refuses that integration call
+    or that detach with `422 FIELD_RULE_VIOLATION` on `name`. That is "every write", and the
+    documentation (WP-DOC) tells a deployment that tightens `name` that personal organisations are
+    named from the person.
+- **System values.** `FieldDeclaration` gains `systemValues?: readonly unknown[]`, the fixed values
+  that the owner's system paths write. Composition (`FormRegistry.seal`) checks each against the
+  merged tightenings with the check's own `violationsOf`. If one fails, the deployment is refused
+  with `rule-excludes-system-value`, naming the field, the value and the module. The organization
+  field set declares `systemValues: ['vat_exempt']` on `vatStatus`. Without that refusal, a
+  deployment narrowing `vatStatus`'s options would make every bound provisioning fail at run
+  time. With it, the configuration is refused at boot. `status` accepts no server-enforced kind and
+  needs no entry.
+
+**Rationale.** The XV MUST holds without an exception. A refusal can only come from a rule the
+deployment chose, on the one value the request supplied (the person's name). A fixed value can never
+be refused, because composition will not admit a rule against it. A field provisioning does not
+write is never held, because the check holds only written keys.
+
+**Rejected.**
+- *Keep provisioning unregistered.* It is a bus write, and its name is derived input, so this would
+  contradict XV.
+- *Register a writer on `customer_account.register_standalone`.* The field set's owner would then
+  name another module's action. That inverts the dependency, and it would not cover the other
+  paths.
+- *Exempt personal organisations from `name` rules.* That is an exception XV does not give.
+- *Skip `writePermission` platform-wide for a value in `systemValues`.* A merge that chose the
+  loser's `'vat_exempt'` would then escape a deployment's `writePermission` on `vatStatus`. The
+  exemption belongs to the writer whose value is fixed, not to the value.
+- *Extend `systemValues` to the fields provisioning leaves empty.* The narrow `writes` already
+  keeps them out of the check, with no declaration.
+
+### R-26.7: Anonymisation (D-300.32)
+
+**Measured.** `PersonalOrganizationService.anonymizeIfOrphaned` is the retention sweep's cascade
+over a member-less personal organisation. It runs in `em.transactional`, outside the Command Bus,
+and records its own entry through `auditLog.recordWithin` (`organization.anonymized`, null actor,
+names and counts only). It writes:
+- `name` = `ANONYMIZED_ORGANIZATION_NAME` (`'Deleted customer'`);
+- `legalName` = `null`;
+- `orderConfirmationEmails` = `[]`;
+- `customFieldValues` = `{}`;
+- `blockedReason` and `rejectedReason` = `null`;
+- placeholder street, city and postal code, keeping the country;
+- `deletedAt`, when not already set.
+
+Its `command-coverage-ignore` reason, "a system-initiated scrub on a timer, audited below with the
+null actor that fact deserves", is not one of the recognised escape-hatch categories
+(`docs/docs/architecture/command-bus.md` § *Auditable write vs. escape hatch*). An erasure of a
+durable domain record is an audited domain write, so this is a standing deviation from Principle
+XIII, which is non-negotiable. It predates this feature and is tracked in #2039.
+
+**Decision.** Anonymisation is an erasure. It stays outside the bus and is held to no rule, and
+this feature changes nothing in its code.
+- XV's MUST covers "every write the Command Bus runs", so XV itself needs no exception. That
+  conclusion **rests on the XIII deviation above**. When the scrub moves onto the bus, as XIII
+  requires, XV will bind it.
+- A scrubbed row that breaks a rule added later is a stored value, and stored values are tolerated
+  (D-300.4, D-300.11). The row stays editable in its other fields.
+- Moving the scrub onto the bus therefore needs a decision first, which must keep erasure
+  unrefusable. #2039 carries it as an owner question, with the recommendation: an explicit erasure
+  carve-out in XV, worded so that an erasure Command a module declares as such is held to no
+  narrowed validation rule and stays audited through the bus. `field-rules.md` §2 records this.
+
+**Rationale.** Erasure is a legal obligation. A tightened rule must not be able to refuse it.
+Outside the bus nothing can.
+
+**Rejected.** *Declare the scrub's values as `systemValues` now.* That would refuse legitimate
+company-name rules (a `minLength` of 20, a pattern) to protect rows that no write is checked
+against. It would also forbid `required` on `orderConfirmationEmails`, which the scrub empties.

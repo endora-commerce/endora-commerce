@@ -26,8 +26,13 @@ anonymously under a `system` actor, so the root Command declares `buyerSelfServi
 child inherits it through the bus's lineage (D-300.10). The roots are `organization.register`,
 `customer_account.register_standalone`, and the invitation acceptance's `customer_account.create`.
 That last one is run through `CustomerAccountMemberWritePort.create`, whose input gains an optional
-`buyerSelfService?: true` for it. Slot hooks still run, and they
-see no `extensions`.
+`buyerSelfService?: true` for it. The same applies to the standalone registration, which is a
+`customerAccountCommandPort.createStandalone` call: its options gain `buyerSelfService?: true`, and
+`customers`' storefront registration passes it, while every other caller is bound (D-300.31). The
+flag is per call, not per Command type. A server-side caller running as a `system` actor can set
+it, because D-300.10's guard stops only admin, API-key and impersonated actors, and the T088
+storefront-route inventory test is what keeps it to storefront callers. Slot hooks still run, and
+they see no `extensions`.
 
 ## §2 `crm`, in `opportunity-hooks.ts`
 

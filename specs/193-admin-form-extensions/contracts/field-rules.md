@@ -32,7 +32,10 @@ fieldSets(entries: readonly {
   readonly set: FieldSetDeclaration;
   readonly writers: readonly {
     readonly on: HookableActionRef<any>;               // must offer 'beforeCommit', unless ruleCheckOnly
-    /** FR-113: a reversible Command (not hookable). Admits only the field-rule check; needs hookData. */
+    /**
+     * FR-113: a Command that is not a declared hookable action, reversible or not (D-300.27).
+     * Admits only the field-rule check; needs hookData.
+     */
     readonly ruleCheckOnly?: boolean;
     /** FR-124: scoped writer — `project` returns one entry per saved scope. */
     readonly scoped?: boolean;
@@ -55,6 +58,29 @@ fieldSets(entries: readonly {
   `changedFields`), the projection derives `before` only for what it needs: the platform needs
   `changed` (for `writePermission`, D-300.4) — so `project` may instead return
   `{ after, changed: readonly string[] }`. One of `before` or `changed` is required on update.
+- **Every bus write of a field that accepts a server-enforced kind is a writer of it**
+  (constitution 4.6.0 XV, D-300.3). That is what XV needs, and I-5 with `accepts-unenforceable`
+  enforces it: a kind is invited only on a field every writer of which projects it. A Command that
+  writes such a field and is not a declared hookable action is registered as a rule-check-only
+  writer (D-300.27). In `organizations` this covers `organization.update`,
+  `organization.merge.finalize` and `organization.personal.provision`. Bus writes of fields that
+  accept no server-enforced kind may stay unregistered: moderation (`status`), the hierarchy moves
+  (`parentId`) and `organization.tax_id.change` (`taxId`). A write that fixes another write's
+  outcome is also a writer of that outcome: `organization.merge.start` projects the survivor's
+  values after the choices, so a merge is refused before it moves anything (D-300.28, D-300.31).
+- **`changed` on a create.** A create holds every key it writes to validation, whatever `changed`
+  says. It may return `{ after, changed }` to name what the actor chose, and only those keys meet
+  `writePermission`. A writer whose other values are fixed by the system names only the derived
+  ones (`organization.personal.provision` returns `changed: ['name']`, D-300.31).
+- **The only writes held to nothing are outside the bus**, and they write only fixed values. An
+  erasure (the personal organisation's anonymisation) is one, and it must stay unrefusable. It is
+  outside the bus only through a standing XIII deviation (#2039). Moving it onto the bus needs a
+  decision first, carried on #2039 (D-300.32).
+- **System values.** A field declaration MAY list `systemValues`, the fixed values its owner's
+  system paths write (`vatStatus: ['vat_exempt']` on the organization set). `FormRegistry.seal`
+  checks each against the merged tightenings, with the same `violationsOf` as §5. A tightening that
+  rejects one is refused with `rule-excludes-system-value`, naming the module, the field and the
+  value (D-300.31).
 - Test helpers (`@endora-commerce/test-kit`): `expectFieldSetMatchesSchemas(set, { create, update })`
   and `expectFieldSetWriters(set, commandsByAction)` — the latter runs each writer's Command in a
   fixture and asserts the projection covers `writes`.
@@ -119,7 +145,8 @@ writer, steps 3–4 run per projected scope, and `required` is evaluated for the
    look the same from here.
 3. `{ before|changed, after } = project(hookData)`.
 4. For each field with an effective rule, decide whether this write **holds** it (D-300.4,
-   D-300.11). A create holds every field. An update holds a field when the field is in `changed`
+   D-300.11). A create holds every field the writer writes (its `writes`; the check guards no
+   other key). An update holds a field when the field is in `changed`
    (set or cleared). For `requiredWhen` only, an update also holds the field when `changed` contains
    any field the condition reads (the leaves' `field`s). A held field is checked: `required` (or a
    true `requiredWhen`, via `evaluateFieldCondition(cond, after)`) on `after`; and bounds,
