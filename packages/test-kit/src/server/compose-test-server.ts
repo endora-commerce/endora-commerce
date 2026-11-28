@@ -98,6 +98,7 @@ import {
   activeEntityExtensionContext,
   activeSchemaExtensionContext,
   createSchemaExtensionReads,
+  recordedSchemaExtensions,
   verifyEntityExtensions,
   verifySchemaExtensions,
 } from '@endora-commerce/platform/db';
@@ -447,7 +448,8 @@ export async function composeTestServer(
     // against the composed manifests' `extends`, sealed by `composeModules`.
     const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
       declarations: entityExtensionDeclarationsFrom(manifests),
-      columnExtensions: () => activeSchemaExtensionContext().declarations,
+      // 193 D-300.23 — the reader refuses before the ORM recorded them, as in `composeApp`.
+      columnExtensions: recordedSchemaExtensions,
     });
     // `specs/193-admin-form-extensions/` WP-B — as `composeApp` builds it: one
     // registry, shared by every module context and `_lifecycle`'s route,

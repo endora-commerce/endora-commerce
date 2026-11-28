@@ -42,10 +42,14 @@ export type ExtensionsQuery = z.infer<typeof ExtensionsQuerySchema>;
 
 /**
  * `extensions` on a host record: per requested module, its declared columns'
- * keys and their values, or the value of its side-table loader
- * (`specs/193-admin-form-extensions/` FR-015) — `null` on a record without one.
- * Present only when the request named the module and the module exposes the
- * host on admin reads (FR-052).
+ * keys and their values, or its side-table loader's object keyed by field
+ * (`specs/193-admin-form-extensions/` FR-015, D-300.24) — `null` when the
+ * module is served but the record has no value (D-300.25). Present only when
+ * the request named the module and the module exposes the host on admin reads
+ * (FR-052); an absent key means the module is not served there.
  */
-export const ExtensionAttributesSchema = z.record(extensionModuleIdSchema, z.json());
+export const ExtensionAttributesSchema = z.record(
+  extensionModuleIdSchema,
+  z.record(z.string(), z.json()).nullable(),
+);
 export type ExtensionAttributes = z.infer<typeof ExtensionAttributesSchema>;

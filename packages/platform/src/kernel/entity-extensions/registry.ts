@@ -52,8 +52,10 @@ export interface EntityExtensionLoaderRegistryOptions {
   readonly declarations?: readonly DeclaredEntityExtension[];
   /**
    * The D2 column declarations this platform's ORM registered — what L4 is
-   * judged against, read at each registration (the ORM is configured before any
-   * module registers). Absent: no module serves columns.
+   * judged against, read at the registration of an `adminReads` loader only
+   * (the ORM is configured before any module registers; the composition roots
+   * pass a reader that refuses otherwise, D-300.23). Absent: no module serves
+   * columns.
    */
   readonly columnExtensions?: () => readonly Pick<ColumnExtension, 'module' | 'host' | 'adminReads'>[];
 }

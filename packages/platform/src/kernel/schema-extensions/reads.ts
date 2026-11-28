@@ -22,7 +22,8 @@ import type { ColumnExtension } from './types.js';
  * (`specs/193-admin-form-extensions/` FR-015, D-300.1; 187 R-17): its loader
  * for the host's entity, registered with `adminReads: true`, is called once per
  * response with the records' ids and its values parsed with its schema, `null`
- * on a record without one — as the read ports attach it. A module never serves
+ * on a record without one — as the read ports attach it. Each value must be an
+ * object keyed by field, or `null` (D-300.24); anything else fails the read. A module never serves
  * both under one key on one host: the loader registry refuses that pair
  * (`loader-and-columns-on-one-host`). Unlike a read port's `include`, a key no
  * module serves is omitted, never `422 ENTITY_EXTENSION_UNCLAIMED` (R-17 rule 2).
@@ -37,10 +38,14 @@ export type ExtensionJsonValue =
   | { [key: string]: ExtensionJsonValue };
 
 /**
- * record id → module id → value: D2's key → value record, or an `adminReads`
- * loader's value (`null` where the record has none).
+ * record id → module id → key → value: D2's columns, or an `adminReads`
+ * loader's object keyed by field — `null` where a served module has no value
+ * for the record (`specs/193-admin-form-extensions/` D-300.24, D-300.25).
  */
-export type ExtensionAttributeMap = ReadonlyMap<string, Record<string, ExtensionJsonValue>>;
+export type ExtensionAttributeMap = ReadonlyMap<
+  string,
+  Record<string, Record<string, ExtensionJsonValue> | null>
+>;
 
 export interface SchemaExtensionReads {
   attach<T extends { readonly id: string }>(
@@ -67,6 +72,13 @@ function toJsonDeep(value: unknown): ExtensionJsonValue {
   return value as ExtensionJsonValue;
 }
 
+/** A plain object — not an array, not a class instance such as a `Date`. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value) as unknown;
+  return proto === Object.prototype || proto === null;
+}
+
 /** The side-table host reference (`<ownerModuleId>.<EntityClassName>`) of a D2 host table. */
 function entityOfHost(table: string): string | undefined {
   for (const [entity, host] of ENTITY_EXTENSION_HOSTS) if (host.table === table) return entity;
@@ -85,7 +97,7 @@ export function createSchemaExtensionReads(deps: {
 }): SchemaExtensionReads {
   return {
     async attach(em, host, records, requested) {
-      const out = new Map<string, Record<string, ExtensionJsonValue>>();
+      const out = new Map<string, Record<string, Record<string, ExtensionJsonValue> | null>>();
       if (records.length === 0 || requested.length === 0) return out;
       const ids = records.map((record) => record.id);
       const entity = entityOfHost(host);
@@ -113,9 +125,20 @@ export function createSchemaExtensionReads(deps: {
               });
             }
             parsed = result.data;
+            // D-300.24 — the wire carries slot values by key: an object keyed by
+            // field, or null. Anything else could never reach a slot.
+            if (parsed !== null && !isPlainObject(parsed)) {
+              throw new EntityExtensionLoaderOutputError({
+                moduleId,
+                host: loader.host,
+                detail:
+                  `for id "${id}": an adminReads loader answers an object keyed by field, or null; ` +
+                  `this one answered ${Array.isArray(parsed) ? 'an array' : typeof parsed}`,
+              });
+            }
           }
           const attributes = out.get(id) ?? {};
-          attributes[moduleId] = toJsonDeep(parsed);
+          attributes[moduleId] = toJsonDeep(parsed) as Record<string, ExtensionJsonValue> | null;
           out.set(id, attributes);
         }
       };

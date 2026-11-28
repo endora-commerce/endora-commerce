@@ -40,12 +40,12 @@ const records = [{ id: 'a' }, { id: 'b' }, { id: 'c' }] as const;
 function loaderFor(
   moduleId: string,
   calls: Call[],
-  options: { adminReads?: boolean; values?: Record<string, unknown> } = {},
+  options: { adminReads?: boolean; values?: Record<string, unknown>; schema?: z.ZodType } = {},
 ): EntityExtensionLoaderEntry<unknown> {
   return {
     host: HOST_ENTITY,
     ...(options.adminReads === undefined ? {} : { adminReads: options.adminReads }),
-    schema: z.object({ ref: z.string() }),
+    schema: options.schema ?? z.object({ ref: z.string() }),
     load: async (ids, ctx) => {
       calls.push({ moduleId, ids: [...ids], em: ctx.em });
       // `b` has no side row: a loader resolves only ids that have a value.
@@ -65,7 +65,10 @@ function registryWith(
   });
 }
 
-function setup(entries: Record<string, { adminReads?: boolean; values?: Record<string, unknown> }>, present?: string[]) {
+function setup(
+  entries: Record<string, { adminReads?: boolean; values?: Record<string, unknown>; schema?: z.ZodType }>,
+  present?: string[],
+) {
   const calls: Call[] = [];
   const modules = Object.keys(entries);
   const registry = registryWith(modules);
@@ -149,6 +152,25 @@ describe('schemaExtensionReads over adminReads loaders (FR-015)', () => {
       EntityExtensionLoaderOutputError,
     );
     await expect(reads.attach(em, HOST_TABLE, records, ['acme_links'])).rejects.toThrow(/acme_links/);
+  });
+
+  it('refuses a value its schema admits but that is neither an object keyed by field nor null (D-300.24)', async () => {
+    for (const value of [['a', 'b'], 'plain', 42, true]) {
+      const { reads } = setup({ acme_links: { adminReads: true, schema: z.unknown(), values: { a: value } } });
+      const failure = await reads.attach(em, HOST_TABLE, records, ['acme_links']).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(EntityExtensionLoaderOutputError);
+      expect((failure as Error).message).toMatch(/object keyed by field, or null/);
+      expect((failure as Error).message).toContain('acme_links');
+    }
+  });
+
+  it('admits a parsed null from the loader as the record’s value (D-300.24)', async () => {
+    const { reads } = setup({ acme_links: { adminReads: true, schema: z.object({ ref: z.string() }).nullable(), values: { a: null } } });
+    const out = await reads.attach(em, HOST_TABLE, records, ['acme_links']);
+    expect(out.get('a')).toEqual({ acme_links: null });
   });
 
   it('ignores a value for an id the route did not hand it', async () => {

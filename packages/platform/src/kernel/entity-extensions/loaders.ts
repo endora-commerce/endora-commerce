@@ -27,7 +27,10 @@ export interface EntityExtensionLoaderEntry<T> {
    * Also serve the value on the host's admin detail read, under
    * `?extensions=<moduleId>` (`specs/193-admin-form-extensions/` FR-015,
    * D-300.1; opt-in, as D2's `adminReads` is). Absent: the read ports alone
-   * see it. Refused as `loader-and-columns-on-one-host` when this module also
+   * see it, and `T` may be anything. With it, every value `load` answers must
+   * parse to an object keyed by field, or `null` — a slot is read by key — and
+   * anything else fails the admin read as `EntityExtensionLoaderOutputError`
+   * (D-300.24). Refused as `loader-and-columns-on-one-host` when this module also
    * serves `adminReads` columns on the host's table — one key holds one value.
    */
   readonly adminReads?: boolean;
