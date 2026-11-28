@@ -43,7 +43,7 @@ export interface FieldSlotProps<T = unknown> {
   readonly recordId: string | null;             // null on create
   readonly value: T | undefined;                // from the host read's extensions.<moduleId>.<key>
   readonly onChange: (next: T | undefined) => void;
-  readonly readOnly: boolean;                   // host read-only, or writePermission missing
+  readonly readOnly: boolean;                   // host read-only, or writePermission missing; the component honours it
   readonly error: string | undefined;           // mapped from extensions.<moduleId>.<key> details
   readonly control: FormFieldControlProps;      // id / aria wiring from the kit's FormField
   /** Read-only view of the form's current core values, for the contributor's own logic. */
@@ -78,6 +78,12 @@ renders the input only (IX).
   form is in `core` with its derived value, on create always and on edit when the value differs
   from the loaded one (D-300.12; the replacement pattern relies on it). A hidden field is never
   submitted, derived or not.
+- **`readOnly` (D-300.18).** A `{ label, input }` renderer, a `{ field }` renderer, a replacing
+  control and a slot component each honour `readOnly` on their own input: `readOnly` where the
+  element has it, `disabled` where HTML has no read-only state (switch, select, picker). The kit adds
+  no `<fieldset disabled>`. It drops an operator change to a key it renders read-only, so the value
+  shown is the value submitted, and warns once per key in development. A change made by the form
+  itself (a derivation, a `default`) is not dropped.
 - The host's existing one-Save session is unchanged; slots fold into the host part (FR-016).
 
 ## §4 Server side
@@ -88,10 +94,18 @@ renders the input only (IX).
   declarations are unaffected.
 - **Reading** (D-300.1): the host's admin detail route accepts `?extensions=<moduleId>[,…]`
   (`ExtensionsQuerySchema`) and answers each named module's D2 columns or its `adminReads: true`
-  loader's value under `extensions.<moduleId>`; a module may serve one or the other on one host
-  (`loader-and-columns-on-one-host`, refused at composition); an absent or off module's key is
-  omitted (187 R-17 rules 1 and 2). The admin form requests exactly the modules whose slots it
-  renders.
+  loader's value under `extensions.<moduleId>`. The admin form requests exactly the modules whose
+  slots it renders.
+  - The per-module value is `record<string, json> | null` (`ExtensionAttributesSchema`). An
+    `adminReads` loader answers an object keyed by field, or `null`. Any other value fails the read
+    with `EntityExtensionLoaderOutputError` (D-300.24).
+  - A served module with no value for a record answers `null`. An absent key means the module is
+    not served there: not requested, not opted in, absent or off (187 R-17 rule 2, D-300.25).
+  - A module may not serve both on one host, meaning both its loader and its D2 columns opting into
+    `adminReads`. Columns without `adminReads` beside an `adminReads` loader are allowed. The loader
+    registry refuses the pair at registration (`loader-and-columns-on-one-host`, rule L4). The
+    column reader that the composition roots pass to it refuses to answer before the ORM
+    configuration has recorded its declarations (D-300.22, D-300.23).
 - **Writing.** `@endora-commerce/platform/kernel` publishes:
 
 ```ts
@@ -124,7 +138,8 @@ For one form, after overrides (`field-overrides.md`):
 2. For each core key `k` in that order: emit slots anchored `before k` sorted by
    `(weight, moduleId, localKey)`, then `k` (unless hidden — then nothing, but its anchor stays),
    then slots anchored `after k`, same sort. A slot anchored on an own-module slot is emitted after
-   / before that slot, recursively, same sort.
+   / before that slot, recursively, same sort. `hidden` applies to a slot's wire key in the same way:
+   the slot emits nothing, and the own-module slots anchored on it still emit (D-300.17).
 3. Section `start` slots before the first item, `end` slots after the last.
 4. Drop items whose `visibleWhen` is false for the current values; drop a section with no item.
 

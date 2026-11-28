@@ -40,7 +40,15 @@ The codes are `override-not-accepted`, `hidden-required-field`, `required-not-fi
 translated in `pl` and `en`.
 
 `OPERATOR_KINDS = ['label', 'help', 'placeholder', 'position', 'hidden', 'readOnly']`. Slot fields
-admit `label`, `help`, `position` and `hidden`.
+admit `SLOT_OPERATOR_KINDS`, which are `label`, `help`, `position` and `hidden`.
+
+**Slot keys (D-300.17).** `set` admits a key that is neither a core key nor a family member when it
+matches `<moduleIdRe>.<slotFieldKeyRe>` with a composed module id (present or not), its kinds are in
+`SLOT_OPERATOR_KINDS` (`override-not-accepted` otherwise), and its `position` names a core key or a
+section of the form (`unknown-field`, `unknown-section`). Any other key is `unknown-field`. The
+server cannot tell whether the module contributes that slot. The screen reads the admin
+contributions and lists a row on an undeclared slot as `orphaned`. The effective forms serve slot
+rows as `forms[].slots` (`field-overrides.md` §2).
 
 ## §3 Layering (normative)
 

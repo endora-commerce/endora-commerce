@@ -3,9 +3,9 @@
 **Feature Branch**: `spec/193-admin-form-extensions`
 **Created**: 2026-11-27
 **Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
-**D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-24); the
-phase 2 rulings D-300.9 to D-300.16 (2026-11-27) are architect rulings too, recorded below. No
-question is open. The constitution amendment this feature drafts (XV, 4.6.0) is pending the owner's
+**D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-25); the
+phase 2 rulings D-300.9 to D-300.16 (2026-11-27) and the phase 3 rulings D-300.17 to D-300.25
+(2026-11-28) are architect rulings too, recorded below. No question is open. The constitution amendment this feature drafts (XV, 4.6.0) is pending the owner's
 sign-off (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
 replacement". The owner approved its direction, and the issue compares the approach with Magento 2,
@@ -94,8 +94,8 @@ without editing core and without a rule that the UI enforces and the API ignores
 ### Phase 2 architect rulings *(D-300.9 to D-300.16, 2026-11-27, raised by WP-B and WP-D)*
 
 None of these changes an owner answer, so none needs one. D-300.11 extends D-300.4's reasoning to
-the other rule kinds and is flagged for the owner, who may overrule it. The reasoning and the
-rejected alternatives are in R-24.
+the other rule kinds and was accepted by the owner, 2026-11-27. The reasoning and the rejected
+alternatives are in R-24.
 
 - **D-300.9** *(architect ruling, raised by WP-B)*: The effective forms are served at
   `GET /api/v1/admin/effective-forms`. `/api/v1/admin/forms` and `/:id` beneath it are the `forms`
@@ -139,6 +139,49 @@ rejected alternatives are in R-24.
   merge request. The declaration-level refusals the spec did not list are kept and are now listed.
   `minLength > maxLength` stays a composition refusal (`override-contradiction`). The CLI reader of
   `formOverrideGrants` is WP-D's and is done (R-24.8).
+
+### Phase 3 architect rulings *(D-300.17 to D-300.25, 2026-11-28, raised by WP-C and WP-B2)*
+
+None of these changes an owner answer, so none needs one. The reasoning and the rejected
+alternatives are in R-25.
+
+- **D-300.17** *(architect ruling, raised by WP-C)*: Operator overrides on slot fields stay in scope
+  (FR-091). The effective-forms response gains, per form, an optional `slots` array: the operator
+  rows on slot keys (`<moduleId>.<key>`) of effectively present modules, carrying `label`, `help`,
+  `position` and `hidden`. The kit applies them; `formLayout` honours `hidden` for a slot's wire key
+  and keeps its anchor. The contracts, platform and `custom_fields` halves land in WP-L1, the kit
+  half in WP-L2. Nothing changes in WP-C (R-25.1).
+- **D-300.18** *(architect ruling, raised by WP-C)*: The host's input honours `readOnly`. The kit
+  does not wrap a field in `<fieldset disabled>`. The kit drops an operator change to a field it
+  renders read-only, so what the form shows is what it submits (R-25.2).
+- **D-300.19** *(architect ruling, raised by WP-C)*: The client rules check only what the
+  field-rule check checks: the merged tightenings, `requiredWhen`, formats and the integer format.
+  The core declaration's `required` and bounds remain the host's own validation, as before it
+  adopted. `field-rules.md` §6's "the same effective rules" means exactly this (R-25.3).
+- **D-300.20** *(architect ruling, raised by WP-C)*: On an edit form a derivation writes its target
+  only while one of its `from` fields differs from its loaded value and the operator has not edited
+  the target. When every `from` field is back at its loaded value, the target returns to its loaded
+  value. Opening a record never rewrites a stored value. FR-044 and `field-rules.md` §4 are aligned
+  (R-25.4).
+- **D-300.21** *(architect ruling, raised by WP-C)*: The provider's plain GET is accepted. The
+  browser's HTTP cache revalidates against the `ETag`. The route states that explicitly with
+  `Cache-Control: private, no-cache`, and the kit never sets `If-None-Match` or a fetch `cache`
+  mode itself (R-25.5).
+- **D-300.22** *(architect ruling, raised by WP-B2)*: `loader-and-columns-on-one-host` refuses only
+  a module whose loader **and** D2 columns both opt into `adminReads` on one host. Those are the
+  only two that would answer one `extensions.<moduleId>` key. Columns without `adminReads` beside an
+  `adminReads` loader are legitimate (R-25.6).
+- **D-300.23** *(architect ruling, raised by WP-B2)*: The refusal stays at loader registration
+  (rule L4). The column reader that the composition roots pass to the registry refuses to answer
+  before the ORM configuration has recorded its declarations, so a reordering fails loudly instead
+  of skipping L4 (R-25.7).
+- **D-300.24** *(architect ruling, raised by WP-B2)*: An `adminReads` loader's value is an object
+  keyed by field, or `null`. `ExtensionAttributesSchema`'s per-module value becomes
+  `record<string, json> | null`, not any JSON value. A loader that answers anything else fails the
+  read with `EntityExtensionLoaderOutputError` (R-25.8).
+- **D-300.25** *(architect ruling, raised by WP-B2)*: A served module with no value for a record
+  answers `null` under its key, as the 187 read ports do. An absent key still means that the module
+  is not served there: not requested, not opted in, absent or switched off (R-25.9).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -529,8 +572,11 @@ they are, with the same props. The four PIM modules render their protection togg
 - **FR-015**: The form MUST read slot values from the host's admin detail read (D-300.1). A
   side-table loader MAY declare `adminReads: true`. Each adopting host's admin detail route MUST
   serve `?extensions=<moduleId>[,…]` from D2 columns or `adminReads` loaders, omitting an absent or
-  switched-off module's key. A module MUST NOT serve both D2 columns and a loader under one key on one
-  host (`loader-and-columns-on-one-host`).
+  switched-off module's key. A served module with no value for a record MUST answer `null` under its
+  key (D-300.25). An `adminReads` loader's value MUST be an object keyed by field, or `null`
+  (D-300.24). A module MUST NOT serve both D2 columns and a loader under one key on one host. That
+  means both opting into `adminReads`, and composition refuses it at loader registration
+  (`loader-and-columns-on-one-host`, D-300.22, D-300.23).
 - **FR-016**: A slot field MUST NOT be a save-session participant. Its value is part of the host's
   one request, folded into the host part (`specs/conventions/module-admin-surfaces.md` § *Zone-panel
   editors save once*, item 3).
@@ -557,8 +603,8 @@ they are, with the same props. The four PIM modules render their protection togg
 - **FR-023**: `_lifecycle` MUST serve `GET /api/v1/admin/effective-forms` (D-300.9). It returns the effective overrides
   of every declared form, filtered by presence and computed from the composition (§2 of
   `contracts/field-overrides.md`). It is gated by an authenticated admin with no permission code, on
-  `/api/v1/admin/module-presence`'s terms. The admin MUST take every override from it and MUST NOT
-  bundle a second copy.
+  `/api/v1/admin/module-presence`'s terms. It answers an `ETag` and `Cache-Control: private,
+  no-cache` (D-300.21). The admin MUST take every override from it and MUST NOT bundle a second copy.
 - **FR-024**: The admin MUST refresh the effective forms whenever it refreshes module presence, and
   after any operator-layout write. The server MUST compute them per process from the composition, the
   effective presence and the operator layer. The memo MUST be invalidated by
@@ -604,8 +650,10 @@ they are, with the same props. The four PIM modules render their protection togg
   refuses with `403 FIELD_WRITE_FORBIDDEN`. A system actor is not subject to it.
 - **FR-044**: Masks and derivations MUST be admin-layer code (`AdminContributions.fieldBehaviours`)
   that constrains the UI only. A mask MUST declare in the override, as data, whether it has a
-  server-side `pattern`. A derivation MUST pre-fill only while the target is untouched, and the server
-  MUST NOT recompute it. A read-only field that a present derivation targets is submitted with its
+  server-side `pattern`. A derivation MUST pre-fill only while the operator has not edited the target
+  in this form session, and the server MUST NOT recompute it. On an edit form it MUST write the target
+  only while one of its `from` fields differs from its loaded value, and the target MUST return to its
+  loaded value when none does, so opening a record never rewrites a stored value (D-300.20). A read-only field that a present derivation targets is submitted with its
   derived value (D-300.12).
 - **FR-045**: The field-rule check MUST bind every operator, API-key and system write, and MUST skip
   buyer self-service writes (D-300.3): a customer acting for itself, or a write run as or below a
@@ -674,7 +722,8 @@ they are, with the same props. The four PIM modules render their protection togg
   `accepts`. `hidden` MUST NOT be set on a core-required field, and neither `hidden` nor `readOnly`
   may be set on a field that is effectively required on a create form. The operator layer cannot
   see a derivation, so this refusal has no exemption (D-300.12). Slot fields accept `label`, `help`,
-  `position` and `hidden`.
+  `position` and `hidden`. The effective forms serve a present module's slot rows to the kit, which
+  applies them (D-300.17).
 - **FR-092**: `label`, `help` and `placeholder` MUST be per-language maps over the supported admin
   languages (`en`, `pl`), all present. Each is at most 200 characters, and `help` follows the
   280-character budget. For a language added to the platform later, the field falls back to the code

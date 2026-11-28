@@ -188,6 +188,18 @@ imports `applyFieldMoves` from WP-D's contracts change.
 - [ ] T088 [T] WP-E1 and WP-E3: `buyerSelfService` on `organization.register`, on `customer_account.register_standalone`, and on the invitation acceptance through `CustomerAccountMemberWritePort.create`'s new optional input. Add a test that lists every storefront route reaching a field-set writer (D-300.10).
 - [ ] T089 [T] WP-L1: an operator `hidden` or `readOnly` on an effectively required create-form field is refused with no exemption (D-300.12).
 
+## Phase 3 ruling follow-ups (D-300.17 to D-300.25, R-25)
+
+These are added to the work package named on each line.
+- [ ] T090 [T] WP-C: an operator change to a key the kit renders read-only (core or slot) is dropped and warned once per key in development, and a derived or defaulted value is not dropped (D-300.18).
+- [ ] T091 [T] WP-C: on an edit form a derivation whose `from` field changes and then changes back returns its target to the loaded value, and the submission omits the target (D-300.20).
+- [ ] T092 [T] WP-C: `GET /api/v1/admin/effective-forms` answers `Cache-Control: private, no-cache` (assert in `routes.admin.forms.test.ts`, `patch` platform changeset), and the route's stale "pending the architect's ruling" note goes (D-300.21).
+- [ ] T093 [T] WP-C: `flattenExtensions` types a module's value as `Record<string, unknown> | null`, following D-300.24.
+- [ ] T094 [T] WP-L1: `EffectiveSlotOverrideSchema`, `SLOT_OPERATOR_KINDS` and `forms[].slots` in contracts; `formLayout` honours `hidden` for a slot's wire key, keeping its anchor, with a `FORM_LAYOUT_VECTORS` case; `effective-forms.ts` serves slot rows (presence, `no-longer-accepted`, `position-fallback`) and its header is corrected; `custom_fields.form_layout.set` admits slot keys per `operator-form-layout.md` §2 (D-300.17).
+- [ ] T095 [T] WP-L2: the kit applies `forms[].slots` (label and help in the reader's language only, hidden, position to anchor), and the screen lists a row on an undeclared slot as `orphaned` (D-300.17).
+- [ ] T096 [T] WP-B2: the `columnExtensions` reader passed by `composeApp` and `composeTestServer` throws before `schemaExtensionContextRecorded()`; a `composeTestServer` test refuses a module with `adminReads` columns and an `adminReads` loader on `organizations` (D-300.22, D-300.23).
+- [ ] T097 [T] WP-B2: `ExtensionAttributesSchema`'s per-module value is `z.record(z.string(), z.json()).nullable()` and `ExtensionAttributeMap` follows; a non-object, non-null `adminReads` loader value fails the read with `EntityExtensionLoaderOutputError`; the `adminReads` doc comment and the contracts changeset say so (D-300.24). `null` for a record with no value stays (D-300.25).
+
 ## Dependencies (summary)
 
 ```text

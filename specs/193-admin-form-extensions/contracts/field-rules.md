@@ -89,6 +89,10 @@ export interface AdminFieldBehaviour {
 
 Requires `behaviour` in the target's `accepts` (own slot fields always accept it). `derive` writes
 the target only while the operator has not edited it in this form session; the server never runs it.
+On an edit form it writes the target only while at least one of its `from` fields differs from its
+loaded value. When none does, and the operator has not edited the target, the target returns to its
+loaded value. Opening a record therefore never rewrites a stored value, and a round trip of a `from`
+field leaves the target as stored (D-300.20).
 A `derive` that targets a field is what clears `check:admin-forms`' `required-not-fillable` for a
 read-only field (D-300.12). The check cannot tell a `derive` from a `mask`, because both are behind
 the lazy factory, so it accepts any `fieldBehaviours` entry of the module that sets `readOnly`,
@@ -144,7 +148,11 @@ bundle.
 
 The admin evaluates the same effective rules (from `GET /api/v1/admin/effective-forms`) with the
 same `evaluateFieldCondition` and the platform format twins before submit, over the same held set as
-§5 step 4: on an edit form, a field the operator has not changed, and whose `requiredWhen` inputs
+§5 step 4. "The same effective rules" means what §5 checks: the merged tightenings, `requiredWhen`,
+platform formats and the integer format that `platform.integer` implies. A module format is left to
+the server. The core declaration's `required` and bounds stay the host's own validation, as they
+were before it adopted; the kit shows the core `required` marker but does not check it (D-300.19).
+The held set: on an edit form, a field the operator has not changed, and whose `requiredWhen` inputs
 are unchanged, is not checked (D-300.11); a server `details[]` entry is
 mapped onto the field by `path` (core key, or `extensions.<moduleId>.<key>` for a slot). A shared
 vector table (`packages/contracts/src/admin-forms.vectors.ts`) is run by the contracts, platform and
