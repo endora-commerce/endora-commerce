@@ -95,7 +95,7 @@ export const EffectiveFormsResponseSchema = z.object({
 });
 ```
 
-- Only forms of a **present** owner; only overrides of **present** declaring modules (FR-052); a
+- Only forms for which the owner of the form's field set and the module that renders the form are effectively present; only overrides of **present** declaring modules (FR-052); a
   `control` of an absent module resolves to `null`.
 - Computed per process from the sealed `FormRegistry`, `effectiveState` and the operator layer
   (`FormLayoutOverrideSource` port, operator-form-layout.md §4), memoised per (presence snapshot,
@@ -107,10 +107,11 @@ export const EffectiveFormsResponseSchema = z.object({
   its own session permissions.
 - **Slot rows (D-300.17).** A stored operator row is a slot row when its key is neither a core key
   nor a declared family member of the set. It is served when the key's module prefix is effectively
-  present and the form's owner is present. A row that holds a kind outside `SLOT_OPERATOR_KINDS` is
-  not served (`no-longer-accepted`). A `before` or `after` that names no core key the form shows
-  after code moves, or a `section` the form does not declare, is dropped from `position`
-  (`position-fallback`). The server does not know which slots exist. The kit ignores an entry for a
+  present and the owner of the form's field set and the module that renders the form are effectively present. A row that holds a kind outside `SLOT_OPERATOR_KINDS` is
+  not served (`no-longer-accepted`). When a row sets both `section` and `before` or `after`, the
+  `before` or `after` wins and `section` is ignored, because the anchor key's section is implied. A
+  `before` or `after` that names no core key the form shows after code moves, or a `section` the
+  form does not declare, is dropped from `position` (`position-fallback`). The server does not know which slots exist. The kit ignores an entry for a
   slot it does not render, and applies the rest: operator text replaces the slot's label and help in
   the reader's language only (FR-092); `hidden` puts the wire key into `formLayout`'s `hidden`;
   `before`/`after` k becomes the anchor `{ field: k, position }`, and `section` alone becomes

@@ -215,7 +215,8 @@ presentation overrides only, unless the owner adds the value to the hook data.
 
 **Constitution.** The check is a declared refusal inside a declared hookable action, and it writes
 nothing, as XIII's middleware sentence requires of `admit`. On the owner's instruction (D-300.7),
-XV is amended (4.6.0, drafted on top of #2010's 4.5.0 and pending sign-off). The amendment adds
+XV is amended (4.6.0, drafted on top of #2010's 4.5.0, approved by the owner on 2026-11-27, merged
+in #2007). The amendment adds
 "declared form extensions" to the bounded surface, and adds one bullet stating what a deployment may
 and may not adjust on a core form, and that operator overrides are presentation only.
 
@@ -751,7 +752,8 @@ because they touch disjoint files.
 WP-B (platform, `packages/platform/src/kernel/forms/`) and WP-D (CLI and check,
 `packages/cli/src/lib/admin-forms.ts`, `backend/scripts/check-admin-forms.ts`) raised eight points
 before their merge requests opened. Each ruling below prefers the least machinery. None changes an
-owner answer. R-24.3 extends D-300.4's reasoning and was accepted by the owner, 2026-11-27.
+owner answer. R-24.3 extends D-300.4's reasoning and was accepted
+(owner, 2026-11-27; recorded on #2026).
 
 ### R-24.1: The effective-forms path (D-300.9)
 
@@ -840,8 +842,8 @@ required, while leaving `vatId` empty, is the write that creates the violation, 
 - *`requiredWhen` held only when the target changed (WP-B as built).* That lets a write create a
   violation it never has to answer for.
 
-**Owner decision.** This extends the owner's D-300.4 from `required` to every kind. Accepted by the
-owner, 2026-11-27.
+**Owner decision.** This extends the owner's D-300.4 from `required` to every kind. Accepted
+(owner, 2026-11-27; recorded on #2026).
 
 ### R-24.4: Where `required-not-fillable`'s derivation exemption lives (D-300.12)
 
@@ -994,13 +996,27 @@ filtering a hidden slot out of its input would also drop the own-module slots an
   no fallback to another language (FR-092). A hidden slot goes into `formLayout`'s `hidden` by its
   wire key. A position becomes the slot's anchor: `before` or `after` k becomes
   `{ field: k, position }`, and `section` alone becomes `{ section, position: 'end' }`. The slot
-  keeps its `weight`.
+  keeps its `weight`. When a row sets both `section` and `before` or `after`, the `before` or
+  `after` wins, because the anchor key's section is implied. A section that disagreed with it could
+  not be honoured anyway.
+- **In the screen's detail response** (`operator-form-layout.md` §2), slot rows have their own
+  `slots` array, since the server has no core, code or accepts data for them. `status` (`active`,
+  `owner-absent`, `no-longer-accepted`) and the `position-fallback` notice are computed by the
+  server, by the same checks it applies to core rows. `orphaned` is computed by the screen, which
+  alone can see the slot contributions.
+- **A slot value is never required.** If an operator hid a slot whose write hook required its key,
+  every create of the host would fail: the kit omits the hidden key, and the hook refuses the slice
+  without it. For core fields D-300.12 refuses the equivalent. Slots get the cheaper guarantee:
+  `fieldSlotHook` refuses, during registration, a `schema` for which `safeParse({})` fails. Its
+  contract already says "every key optional (a partial write)" but did not enforce it. With that
+  refusal, `hidden` on a slot is always safe and needs no required-ness check anywhere.
 - `formLayout` honours `hidden` for a slot's wire key the way it does for a core key. It emits
   nothing for that slot, but the slot's anchor stays, so the own-module slots anchored on it still
   render. `FORM_LAYOUT_VECTORS` gains that case.
 
 **Where it lands.** The contracts schema, `SLOT_OPERATOR_KINDS`, the `formLayout` line and its
-vector, `effective-forms.ts` and the `set` validation all go in WP-L1. WP-L1 produces the rows and
+vector, `effective-forms.ts`, the `fieldSlotHook` refusal, the `set` validation and the detail
+response's `slots` array all go in WP-L1. WP-L1 produces the rows and
 already depends on WP-B, and the corrected `effective-forms.ts` header goes in with it. The kit's
 application goes in WP-L2, because WP-L2 depends on WP-C, and its live preview
 (`operator-form-layout.md` §6) is a `DeclaredFormSection` that has to show the rows. WP-C changes
@@ -1020,6 +1036,11 @@ what an API accepts.
 - *Make slots manifest data so the server can validate them.* That would add a second declaration
   of every slot (manifest and admin layer) and a reconciliation between them, to verify
   presentation rows that the screen can already classify.
+- *A `required` flag on slot contributions, refused for operator `hidden`.* Only the screen could
+  see the flag, because slot contributions are admin data. The server's `set` would still accept
+  the row, so the instrument that has to be safe could not be. It also adds a declaration kind.
+- *Accept the risk.* A presentation setting would then be able to stop every create of a host,
+  which FR-100's "presentation only" rules out.
 - *Let the kit read the operator rows from `custom_fields`' own routes.* `custom_fields:read` gates
   those routes, but every admin renders forms, and FR-023 gives the admin exactly one source for
   overrides.

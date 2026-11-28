@@ -45,10 +45,40 @@ admit `SLOT_OPERATOR_KINDS`, which are `label`, `help`, `position` and `hidden`.
 **Slot keys (D-300.17).** `set` admits a key that is neither a core key nor a family member when it
 matches `<moduleIdRe>.<slotFieldKeyRe>` with a composed module id (present or not), its kinds are in
 `SLOT_OPERATOR_KINDS` (`override-not-accepted` otherwise), and its `position` names a core key or a
-section of the form (`unknown-field`, `unknown-section`). Any other key is `unknown-field`. The
+section of the form (`unknown-field`, `unknown-section`). Any other key is `unknown-field`. `hidden`
+on a slot needs no required-ness check: a slot value is never required (`field-slots.md` §4,
+D-300.17). The
 server cannot tell whether the module contributes that slot. The screen reads the admin
 contributions and lists a row on an undeclared slot as `orphaned`. The effective forms serve slot
-rows as `forms[].slots` (`field-overrides.md` §2).
+rows as `forms[].slots` (`field-overrides.md` §2). When a row sets both `section` and `before` or
+`after`, the `before` or `after` wins and `section` is ignored.
+
+**Slot rows in `FormLayoutDetailSchema` (D-300.17).** The detail response carries them in their own
+array, `slots`, beside the per-field entries, because the server has no core, code or accepts data
+for a slot:
+
+```ts
+slots: z.array(z.object({
+  key: z.string(),                                        // '<moduleId>.<localKey>'
+  operator: FormLayoutOverrideRowSchema,                  // the stored row
+  accepts: z.array(z.enum(SLOT_OPERATOR_KINDS)),          // always all four
+  status: z.enum(['active', 'owner-absent', 'no-longer-accepted']),
+  notices: z.array(z.literal('position-fallback')),
+}))
+```
+
+- **`status` is the server's.** `owner-absent` follows the off-state rule in §3, with the slot's
+  module counted as an owner. `no-longer-accepted` means the row holds a kind outside
+  `SLOT_OPERATOR_KINDS`. Every other row is `active`.
+- **`orphaned` is the screen's.** The server cannot see slot contributions, so it never answers
+  `orphaned` for a slot row. The screen (WP-L2) shows a row as `orphaned` when its status is
+  `active` and no slot of a present module, filtered by `requiredPermission` as the form filters
+  it, contributes that key to this form. The row stays deletable through `reset`. For core rows,
+  `orphaned` stays the server's (§3).
+- **`position-fallback` is the server's,** in `notices`. It is reported when the row's `before` or
+  `after` names no core key the form shows after code moves, or its `section` is not declared. The
+  effective forms then drop the position (`field-overrides.md` §2). That is the same check and the
+  same place as for a core row.
 
 ## §3 Layering (normative)
 
@@ -69,9 +99,9 @@ For each form, field and kind, the effective value is:
   A row that names a removed key is `orphaned`. A row holding a kind that the field no longer
   accepts is `no-longer-accepted`. Both are ignored by the effective forms and can be deleted
   through `reset`.
-- **Off-state** (FR-098). If the owner of a row's field set, or the rendering module of its form, is
-  not effectively present, the row is ignored and its status is `owner-absent`. The row itself is
-  kept.
+- **Off-state** (FR-098). Unless the owner of the form's field set and the module that renders the form are effectively present, the row is ignored and its status
+  is `owner-absent`. For a slot row the slot's module must be effectively present too. The row
+  itself is kept.
 
 ## §4 Port and invalidation
 

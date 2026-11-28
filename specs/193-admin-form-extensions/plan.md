@@ -56,7 +56,8 @@ its existing scope-aware `EditorField`.
 
 ## Constitution Check
 
-The constitution is amended to 4.6.0 (pending sign-off). It is drafted as a delta on #2010's 4.5.0.
+The constitution is amended to 4.6.0 (approved by the owner on 2026-11-27, merged in #2007). It is
+drafted as a delta on #2010's 4.5.0.
 
 | Principle | Verdict | Note |
 | --- | --- | --- |
@@ -170,8 +171,8 @@ None. There is no new runtime dependency and no unjustified violation.
 
 ## Constitution Check verdict
 
-**PASS.** This depends on the XV amendment to 4.6.0, approved by the owner on 2026-11-27 and merged in #2007. IX,
-XIII and XVII were reviewed and need no change.
+**PASS.** This depends on the XV amendment to 4.6.0, approved by the owner on 2026-11-27 and merged
+in #2007. IX, XIII and XVII were reviewed and need no change.
 
 ## Handoff summary for `endora-commerce-dev`
 

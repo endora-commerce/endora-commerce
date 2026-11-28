@@ -5,8 +5,9 @@
 **Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
 **D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-25); the
 phase 2 rulings D-300.9 to D-300.16 (2026-11-27) and the phase 3 rulings D-300.17 to D-300.25
-(2026-11-28) are architect rulings too, recorded below. No question is open. The constitution amendment this feature drafted (XV, 4.6.0) was approved by the
-owner on 2026-11-27 and merged in #2007 (Governance step 4).
+(2026-11-28) are architect rulings too, recorded below. No question is open. The constitution
+amendment this feature drafted (XV, 4.6.0) was approved by the owner on 2026-11-27 and merged in
+#2007 (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
 replacement". The owner approved its direction, and the issue compares the approach with Magento 2,
 Sylius and Medusa v2.
@@ -94,8 +95,8 @@ without editing core and without a rule that the UI enforces and the API ignores
 ### Phase 2 architect rulings *(D-300.9 to D-300.16, 2026-11-27, raised by WP-B and WP-D)*
 
 None of these changes an owner answer, so none needs one. D-300.11 extends D-300.4's reasoning to
-the other rule kinds and was accepted by the owner, 2026-11-27. The reasoning and the rejected
-alternatives are in R-24.
+the other rule kinds and was accepted (owner, 2026-11-27; recorded on #2026). The reasoning and
+the rejected alternatives are in R-24.
 
 - **D-300.9** *(architect ruling, raised by WP-B)*: The effective forms are served at
   `GET /api/v1/admin/effective-forms`. `/api/v1/admin/forms` and `/:id` beneath it are the `forms`
@@ -149,8 +150,12 @@ alternatives are in R-25.
   (FR-091). The effective-forms response gains, per form, an optional `slots` array: the operator
   rows on slot keys (`<moduleId>.<key>`) of effectively present modules, carrying `label`, `help`,
   `position` and `hidden`. The kit applies them; `formLayout` honours `hidden` for a slot's wire key
-  and keeps its anchor. The contracts, platform and `custom_fields` halves land in WP-L1, the kit
-  half in WP-L2. Nothing changes in WP-C (R-25.1).
+  and keeps its anchor. When a row sets both `section` and `before` or `after`, the `before` or
+  `after` wins. In the operator screen's detail response, slot rows have their own array. Their
+  `status` and `position-fallback` are the server's, and `orphaned` is the screen's. A slot value is
+  never required: `fieldSlotHook` refuses a schema that does not accept `{}`, so hiding a slot
+  cannot make a create fail. The contracts, platform and `custom_fields` halves land in WP-L1, the
+  kit and screen half in WP-L2. Nothing changes in WP-C (R-25.1).
 - **D-300.18** *(architect ruling, raised by WP-C)*: The host's input honours `readOnly`. The kit
   does not wrap a field in `<fieldset disabled>`. The kit drops an operator change to a field it
   renders read-only, so what the form shows is what it submits (R-25.2).
@@ -653,8 +658,9 @@ they are, with the same props. The four PIM modules render their protection togg
   server-side `pattern`. A derivation MUST pre-fill only while the operator has not edited the target
   in this form session, and the server MUST NOT recompute it. On an edit form it MUST write the target
   only while one of its `from` fields differs from its loaded value, and the target MUST return to its
-  loaded value when none does, so opening a record never rewrites a stored value (D-300.20). A read-only field that a present derivation targets is submitted with its
-  derived value (D-300.12).
+  loaded value when none does, so opening a record never rewrites a stored value (D-300.20). A
+  read-only field that a present derivation targets is submitted with its derived value
+  (D-300.12).
 - **FR-045**: The field-rule check MUST bind every operator, API-key and system write, and MUST skip
   buyer self-service writes (D-300.3): a customer acting for itself, or a write run as or below a
   Command that declares `buyerSelfService: true` under an actor with no acting admin (D-300.10). On

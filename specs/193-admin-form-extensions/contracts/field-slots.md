@@ -118,6 +118,11 @@ export function fieldSlotHook<S extends z.ZodType>(spec: {
 }): CommandHookEntry[];
 ```
 
+  **A slot value is never required (D-300.17).** `fieldSlotHook` refuses, when it is called during
+  registration, a `schema` that does not accept `{}` (`schema.safeParse({})` fails). The refusal
+  names the module, the hook `id` and the remedy (make every key optional). A hidden slot, which the
+  form never submits, therefore cannot make a host write fail. A value that must be present on
+  every write is a core field, through the replacement pattern (`field-replacement-pattern.md`).
   Absent slice → no-op. Invalid → `422 FIELD_SLOT_INPUT_INVALID`, `details[].path`
   `extensions.<moduleId>.<key>`. A changed key whose `writePermissions` code the actor lacks →
   `403 FIELD_WRITE_FORBIDDEN` (same resolution as `field-rules.md` §5). `write` returns the changed
