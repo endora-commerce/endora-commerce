@@ -6949,8 +6949,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `deployment-admin` counts the overlay layers the generated deployment
     // registries import, and is omitted rather than printed `0/0` when no
     // deployment ships one.
-    files: 894,
-    sites: 0,
+    // **`specs/193-admin-form-extensions/` WP-E1 (`feat/193-e1`): sites 0 -> 5,
+    // files 894 -> 913.** The first adopter: `organizations` declares one field
+    // set and two forms, and its two host screens render them through
+    // `DeclaredFormProvider` — 1 + 2 + 2 declarations judged. `files` had
+    // drifted inside the band since T033 recorded it; this branch adds one
+    // host source to the walk (`organizations`' `components/declared-field-notes.tsx`),
+    // and the value is recorded because this entry is re-recorded, not because
+    // it left the band. Measured in a
+    // fresh detached `git worktree` of the branch commit after
+    // `scripts/setup-worktree.sh` and `build:packages`, nothing in the walked
+    // roots but the commit's files.
+    files: 913,
+    sites: 5,
     sources: ['manifest-index', 'module-admin'],
     conditionalSources: ['deployment-admin'],
   },
