@@ -46,6 +46,36 @@ export { invoiceEmailNotSentReason, issueInvoiceNotice, sendInvoiceEmailMessage 
 export type { Translate } from './invoice-email-outcome.js';
 export { getModulePresence, ModulePresenceProvider, setModuleActivation, useModulePresence } from './module-presence/index.js';
 export type { ModulePresenceContextValue, ModulePresenceProviderProps } from './module-presence/index.js';
+// Feature 193 (WP-C) — declared forms: the effective forms beside module presence, and the
+// pure half of `DeclaredFormSection` (`specs/193-admin-form-extensions/contracts/field-slots.md` §3).
+export {
+  EffectiveFormsProvider,
+  checkPlatformFieldFormat,
+  clientFieldViolations,
+  declaredFormLayout,
+  declaredFormSections,
+  declaredFormSubmission,
+  fieldValueChanged,
+  getEffectiveForms,
+  isEffectivelyRequired,
+  mapDeclaredFormError,
+  useEffectiveForm,
+  useEffectiveForms,
+} from './forms/index.js';
+export type {
+  ClientFieldViolation,
+  ClientFieldViolationsInput,
+  DeclaredFormErrorMapping,
+  DeclaredFormLayoutInput,
+  DeclaredFormSubmission,
+  DeclaredFormSubmissionInput,
+  EffectiveForm,
+  EffectiveFormsContextValue,
+  EffectiveFormsProviderProps,
+  EffectiveFormsStatus,
+  SubmissionFieldState,
+  SubmissionSlot,
+} from './forms/index.js';
 export { PAGE_SIZE_OPTIONS } from './page-size-options.js';
 export type { PageSizeOption } from './page-size-options.js';
 export { readableTextColor, statusBadgeStyle } from './status-color.js';

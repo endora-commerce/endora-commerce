@@ -22,7 +22,13 @@
  * here"*.
  */
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import type { AdminBlockContribution, AdminZoneContribution } from '@endora-commerce/contracts';
+import type {
+  AdminBlockContribution,
+  AdminFieldBehaviour,
+  AdminFieldContribution,
+  AdminInputControlContribution,
+  AdminZoneContribution,
+} from '@endora-commerce/contracts';
 
 /**
  * One module's zone contributions, keyed by the module that shipped them.
@@ -54,6 +60,29 @@ export interface OwnedBlockContribution extends AdminBlockContribution {
 }
 
 /**
+ * A declared form's contributions — slot fields, input-control components and
+ * field behaviours (`specs/193-admin-form-extensions/` `contracts/field-slots.md`
+ * §1, `input-controls.md` §1, `field-rules.md` §4) — each with the module that
+ * shipped it, the registry entry's key as for a zone (D-142).
+ */
+export interface OwnedFieldContribution extends AdminFieldContribution {
+  readonly module: string;
+}
+export interface OwnedInputControlContribution extends AdminInputControlContribution {
+  readonly module: string;
+}
+export interface OwnedFieldBehaviour extends AdminFieldBehaviour {
+  readonly module: string;
+}
+
+/** The three lists a declared form reads, flattened in declaration order and unfiltered. */
+export interface AdminFormContributions {
+  readonly fields: readonly OwnedFieldContribution[];
+  readonly controls: readonly OwnedInputControlContribution[];
+  readonly fieldBehaviours: readonly OwnedFieldBehaviour[];
+}
+
+/**
  * Flattened contributions, in declaration order.
  *
  * `null` is the "no provider mounted" state and is distinct from "the provider
@@ -74,6 +103,18 @@ const AdminBlockContributionsContext = createContext<readonly OwnedBlockContribu
   null,
 );
 
+/**
+ * The declared forms' contributions, carried beside the zones for the blocks'
+ * reason: another population, read by other mounts. Unlike a zone, a declared
+ * form outside the provider reads **none** — its declaration with no slot, no
+ * module control and no behaviour — because a host that adopted a declared form
+ * renders the same fields it rendered before, and a test of that host that
+ * mounts no provider must keep passing unedited (WP-E's gate).
+ */
+const AdminFormContributionsContext = createContext<AdminFormContributions | null>(null);
+
+const NO_FORM_CONTRIBUTIONS: AdminFormContributions = { fields: [], controls: [], fieldBehaviours: [] };
+
 /** Raised when a zone is rendered outside {@link AdminContributionsProvider}. */
 export class AdminContributionsUnavailableError extends Error {
   override readonly name = 'AdminContributionsUnavailableError';
@@ -92,6 +133,10 @@ export interface AdminContributionsProviderProps {
     readonly contributions: {
       readonly zones?: readonly AdminZoneContribution[];
       readonly blocks?: readonly AdminBlockContribution[];
+      /** Feature 193: slot fields, control components and field behaviours. */
+      readonly fields?: readonly AdminFieldContribution[];
+      readonly controls?: readonly AdminInputControlContribution[];
+      readonly fieldBehaviours?: readonly AdminFieldBehaviour[];
     };
   }[];
   readonly children: ReactNode;
@@ -120,13 +165,40 @@ export function AdminContributionsProvider({
       ),
     [entries],
   );
+  const forms = useMemo(
+    (): AdminFormContributions => ({
+      fields: entries.flatMap((entry) =>
+        (entry.contributions.fields ?? []).map((field): OwnedFieldContribution => ({ ...field, module: entry.moduleId })),
+      ),
+      controls: entries.flatMap((entry) =>
+        (entry.contributions.controls ?? []).map(
+          (control): OwnedInputControlContribution => ({ ...control, module: entry.moduleId }),
+        ),
+      ),
+      fieldBehaviours: entries.flatMap((entry) =>
+        (entry.contributions.fieldBehaviours ?? []).map(
+          (behaviour): OwnedFieldBehaviour => ({ ...behaviour, module: entry.moduleId }),
+        ),
+      ),
+    }),
+    [entries],
+  );
   return (
     <AdminContributionsContext.Provider value={flattened}>
       <AdminBlockContributionsContext.Provider value={blocks}>
-        {children}
+        <AdminFormContributionsContext.Provider value={forms}>{children}</AdminFormContributionsContext.Provider>
       </AdminBlockContributionsContext.Provider>
     </AdminContributionsContext.Provider>
   );
+}
+
+/**
+ * The declared forms' contributions, unfiltered — the presence and permission
+ * filter is the declared form's, decided before any chunk is loaded, as
+ * `useAdminZone`'s is. With no provider mounted: none (see the context's note).
+ */
+export function useAdminFormContributions(): AdminFormContributions {
+  return useContext(AdminFormContributionsContext) ?? NO_FORM_CONTRIBUTIONS;
 }
 
 /**

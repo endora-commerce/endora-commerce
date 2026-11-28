@@ -829,6 +829,8 @@
   "countrySelect.error": "Could not load countries",
   "countrySelect.loading": "Loading countries…",
   "countrySelect.placeholder": "Select a country…",
+  "declaredForm.control.choose": "Choose…",
+  "declaredForm.control.customColor": "Custom colour",
   "adminUserPicker.ariaLabel": "Select admin user",
   "adminUserPicker.placeholder": "Search admin users by name or e-mail address…",
   "adminUserPicker.prompt": "Type a name or e-mail address to search.",
