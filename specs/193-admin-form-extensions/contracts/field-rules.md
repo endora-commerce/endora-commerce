@@ -32,7 +32,7 @@ fieldSets(entries: readonly {
   readonly set: FieldSetDeclaration;
   readonly writers: readonly {
     readonly on: HookableActionRef<any>;               // must offer 'beforeCommit', unless ruleCheckOnly
-    /** FR-113: a reversible Command (not hookable). Admits only the field-rule check; needs hookData. */
+    /** FR-113: a Command that is not a declared hookable action, reversible or not (D-300.27). Admits only the field-rule check; needs hookData. */
     readonly ruleCheckOnly?: boolean;
     /** FR-124: scoped writer — `project` returns one entry per saved scope. */
     readonly scoped?: boolean;
@@ -55,6 +55,12 @@ fieldSets(entries: readonly {
   `changedFields`), the projection derives `before` only for what it needs: the platform needs
   `changed` (for `writePermission`, D-300.4) — so `project` may instead return
   `{ after, changed: readonly string[] }`. One of `before` or `changed` is required on update.
+- **A write that is not a writer** is not held to any rule. That is right only where the write
+  cannot create a violation of its own: fixed system values written outside the Command Bus, or
+  values copied from records that already store them. `organization.merge.finalize` is the case in
+  `organizations` (D-300.28). Its own grant is the authority for the fields it copies, so
+  `writePermission` does not bind a merge. A deployment that protects a field with
+  `writePermission` should restrict the merge grant to match.
 - Test helpers (`@endora-commerce/test-kit`): `expectFieldSetMatchesSchemas(set, { create, update })`
   and `expectFieldSetWriters(set, commandsByAction)` — the latter runs each writer's Command in a
   fixture and asserts the projection covers `writes`.

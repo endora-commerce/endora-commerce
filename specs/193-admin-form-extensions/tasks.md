@@ -200,6 +200,15 @@ These are added to the work package named on each line.
 - [ ] T096 [T] (WP-B2, #2033) the `columnExtensions` reader passed by `composeApp` and `composeTestServer` throws before `schemaExtensionContextRecorded()`; a `composeTestServer` test refuses a module with `adminReads` columns and an `adminReads` loader on `organizations` (D-300.22, D-300.23).
 - [ ] T097 [T] (WP-B2, #2033) `ExtensionAttributesSchema`'s per-module value is `z.record(z.string(), z.json()).nullable()` and `ExtensionAttributeMap` follows; a non-object, non-null `adminReads` loader value fails the read with `EntityExtensionLoaderOutputError`; the `adminReads` doc comment and the contracts changeset say so (D-300.24). `null` for a record with no value stays (D-300.25).
 
+## Phase 4 ruling follow-ups (D-300.26 to D-300.30, R-26)
+
+All five go into WP-E1 (branch `feat/193-e1`) before it merges.
+- [ ] T098 [T] (WP-E1) `OrganizationConvertToCompanyHookData.organization` (after-state `OrganizationRecord`), filled by `organization.convert_to_company`, with the outbox data unchanged; `CONVERT_WRITES = ['name', 'registeredAddress', 'vatStatus']`; `name` accepts `validation`; an `expectFieldSetWriters` case and a parity test refusing a tightened `name` on the conversion; an additive contracts changeset (D-300.26).
+- [ ] T099 (WP-E1) No code: `organization.update` stays a rule-check-only writer under the widened FR-113 (D-300.27).
+- [ ] T100 (WP-E1) The `organization-field-set.ts` header states that the merge's grant, not `writePermission`, governs what a merge copies (D-300.28). WP-DOC repeats it on the permissions section of `admin-form-extensions.md` (en and pl).
+- [ ] T101 [T] (WP-E1) `DeclaredFormProvider`'s `form` prop is required; the kit's header example and tests pass it; a test for the mismatch throw (D-300.29).
+- [ ] T102 [T] (WP-E1) `composeModuleForTest` mounts an unsealed `FormRegistry` unless `options.formRegistry` is given and exposes it as `formRegistry`; a test-kit test composes a module that calls `ctx.fieldSets`; a `minor` test-kit changeset (D-300.30).
+
 ## Dependencies (summary)
 
 ```text

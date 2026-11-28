@@ -120,7 +120,11 @@ export const ORGANIZATION_FORMS = {
 ```
 
 The exact field list is the WP-E task (it is the organization write contract's, field by field); the
-above fixes the shape, not the inventory.
+above fixes the shape, not the inventory. As shipped (D-300.26), `name` accepts `validation`: the
+conversion's hook data carries the after-state record, so every writer of `name` projects it.
+`taxId`, `registeredAddress`, `parentId` and `status` accept presentation kinds only, because a
+writer of each cannot project it (`organization.tax_id.change`) or is not hookable (hierarchy
+moves, moderation), or because a composite admits no tightening.
 
 ## §5 Contract-surface rows (added to `specs/conventions/contract-surface.md` by WP-H)
 

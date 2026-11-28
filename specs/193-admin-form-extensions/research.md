@@ -1236,3 +1236,158 @@ matches the ports, so a module author learns one rule.
 
 **Rejected.** *Omit the key.* That merges "no value" with "module off", which XVII keeps distinct
 everywhere else on this wire.
+
+## R-26: Phase 4 rulings (D-300.26 to D-300.30, architect rulings, 2026-11-28)
+
+WP-E1 (`organizations`, the first adopter, branch `feat/193-e1`) raised five points. The code
+cited is `packages/modules/organizations/src/backend/forms/organization-field-set.ts` and
+`packages/contracts/src/organization-form.ts` on that branch.
+
+### R-26.1: What the organization field set invites (D-300.26)
+
+**Measured.** WP-E1 invites server-enforced kinds on `vatStatus`, `orderConfirmationEmails` and
+`fulfilmentStrategy` only, and its reading of I-5 is correct: a kind is invited only on a field that
+every writer of it projects.
+- `name`, `taxId` and `registeredAddress` are also written by `organization.convert_to_company`.
+  Its hook data, `OrganizationConvertToCompanyHookData` in
+  `packages/contracts/src/organization-hooks.ts`, is ids and codes only, so no projection can return
+  them.
+- `parentId` is also written by the hierarchy moves, and `status` by moderation. Neither is a
+  declared hookable action.
+
+The ids-only rule on that hook data cites `specs/conventions/audit-state.md` list 1. That
+convention governs audit state, though, not hook data. Hook data is handed in process to
+`beforeCommit` hooks. The `afterCommit` delivery uses the separate outbox type
+(`OrganizationConvertToCompanyOutbox`). `OrganizationUpdateHookData`, the admin PATCH's hook data,
+already carries the full after-state `OrganizationRecord`, name, tax ID and address included.
+`form-field-declaration.md` §4 shows `name` accepting `validation`. A deployment that caps an
+organization's name at its ERP's length is the plainest case of a tightened core rule in issue
+#2006.
+
+**Decision.** `name` accepts `validation`, and this goes into WP-E1.
+- `OrganizationConvertToCompanyHookData` gains `readonly organization: OrganizationRecord`, the
+  after-state, as `OrganizationUpdateHookData` has it. Its doc comment drops "never the tax ID, the
+  name or the address" and says instead that the outbox data stays ids, codes and field names. The
+  member is additive, so the contracts changeset is a `minor` with an additive note.
+  `OrganizationConvertToCompanyOutbox` does not change.
+- `organization.convert_to_company`'s Command fills the member from the converted entity.
+- The conversion's writer projects `name`, `vatStatus` and `registeredAddress` from it:
+  `CONVERT_WRITES = ['name', 'registeredAddress', 'vatStatus']`, with `changed` from
+  `changedFields` as now. `taxId` is not projected, because `organization.tax_id.change` still
+  cannot project it (R-9). That keeps `taxId` presentation only, whichever writers carry it.
+- `name`'s `accepts` gains `validation`. `registeredAddress` stays presentation only, because a
+  composite field admits no tightening (`field-rules.md` §1). It is projected anyway, so that a
+  later widening is a one-word change.
+- `parentId` and `status` stay presentation only. A deployment that needs a rule on them asks the
+  owner to declare those writers hookable. That is a separate decision with its own cost (176 §6
+  for moderation's reversibility), not one this feature makes.
+
+**Rationale.** The hook-data restriction protects nothing that the admin PATCH's hook data does not
+already expose to the same in-process hooks. Keeping it would hold back the canonical example on a
+convention that does not apply to it. "Make the conversion a writer" and "give its hook data values"
+are the same change here: the conversion already is a writer, and what it lacks is the values to
+project.
+
+**Rejected.**
+- *Ship the narrow `accepts` and widen later.* Widening is additive (`accepts` may widen,
+  form-field-declaration §5). It would still leave the first adopter unable to show the most
+  requested tightening, and the hook-data change is about twenty lines.
+- *Register the conversion as a rule-check-only writer as well.* It is a declared hookable action,
+  and one action cannot be both. The values have to come through its hook data.
+- *Add the tax ID to `organization.tax_id.change`'s hook data too.* No case asks for a tax-ID
+  pattern, and the value is normalised before its bound applies (WP-E1's note on `taxId`), so a
+  tightening there needs a design of its own (IV).
+
+### R-26.2: `organization.update` as a rule-check-only writer (D-300.27)
+
+**Measured.** `organizationCommandPort.update` (issue #1029) runs `organization.update`. That action
+is not declared hookable, and it is not reversible. FR-113 introduced rule-check-only writers for
+writes that a stored-revert undo reverses. If the port's write is not a writer at all, a rule binds
+the form and the admin API but not the port, which fails SC-002's fourth path.
+
+**Decision.** Confirmed. FR-113 and `field-rules.md` §2 are widened. Any Command that is not a
+declared hookable action may be a rule-check-only writer, reversible or not. It supplies
+`hookData` for the check alone, and no module hook may register on it. WP-E1 needs no code change.
+
+**Rationale.** The mechanism already admits exactly what the port needs: the check, and no hook.
+Reversibility was why the catalog writer had to be rule-check-only. It is not a condition of the
+mechanism.
+
+**Rejected.** *Declare `organization.update` hookable.* That would make the integration port a
+hook surface, with an outbox type and `expectHookableCommand` obligations, when no module wants to
+hook it. A slot cannot ride on it either, because the port carries no `extensions`.
+
+### R-26.3: Writes left unregistered (D-300.28)
+
+**Decision.** Confirmed, with one sentence added to the contract.
+- **`organization.merge.finalize`.** It sets the survivor's fields to values that one of the two
+  records already stores, and `orderConfirmationEmails` to their union. Holding those values to a
+  rule would refuse a merge over data that predates the rule, which is what D-300.4 and D-300.11
+  exclude. The merge does change fields, though, and a deployment may have put a `writePermission`
+  on one of them (`vatStatus`, `fulfilmentStrategy`). The merge's own grant
+  (`specs/192-organization-merge/`, an irreversible operation with a grant of its own) is the
+  authority for the fields it copies, and `writePermission` does not bind it. `field-rules.md` §2
+  now says so, and the form-extensions page (WP-DOC) states it beside the permissions section, so
+  that a deployment knows a merge is an alternative route to a protected field.
+- **Personal-organization provisioning and anonymisation.** These are fixed values written outside
+  the Command Bus. Provisioning is buyer self-service besides (D-300.3).
+
+**Rationale.** A merge is a deliberate, separately granted act that reconciles two existing
+records. A field-level permission that could veto one of its choices would make the operation fail
+halfway through a decision the merge screen already asked for.
+
+**Rejected.** *Register the merge as a rule-check-only writer.* Under D-300.11 the check would hold
+every field the merge changed, refusing merges over stored values, and it would bind
+`writePermission` inside an operation whose grant already decides who may run it.
+
+### R-26.4: The provider's `form` prop (D-300.29)
+
+**Measured.** `field-slots.md` §3 showed `<DeclaredFormProvider form={…} values={…} …>`.
+`check:admin-forms` (`packages/cli/src/lib/admin-forms.ts`, `FORM_RENDERER`) reads the `form`
+attribute of that element, or of its compiled `jsx(DeclaredFormProvider, { form })` twin, to know
+which forms a host renders. WP-C shipped `useDeclaredForm({ form, … })` plus
+`<DeclaredFormProvider declared>`, so the check could see no form. WP-E1 added an optional `form`
+prop that throws when its id differs from `declared.formId`.
+
+**Decision.** Keep WP-E1's prop and make it **required**. The mismatch throw stays.
+`field-slots.md` §3 now shows the kit's real shape: renderers are given once to
+`useDeclaredForm`, and the provider takes `form` and `declared`. The kit's own tests and its header
+example pass `form`. The prop is unreleased API (WP-C merged after 0.112.0), and no consumer in
+`../paid-modules` renders it yet, so requiring it breaks nothing published.
+
+**Rationale.** The check reads JSX in source and in compiled packages alike, and the prop is the one
+place both forms of a screen show. An optional prop would leave a host that forgot it to
+`unrendered-form`, an error that is true but points away from the cause. Required makes the type
+checker say it first. The two mentions of the form can only disagree by a developer error, which
+the throw reports on the first render in any test.
+
+**Rejected.**
+- *Have the check read `useDeclaredForm({ form })` instead.* The hook call may sit in another
+  component or file from the render, its options may be built elsewhere, and the merged check and
+  its read-size records would change for no gain at run time.
+- *Drop `declared` and have the provider build the controller from `form`.* The host needs the
+  controller outside the provider (`validate`, `submission`, `applyError` in its Save handler).
+
+### R-26.5: `composeModuleForTest` and the form registry (D-300.30)
+
+**Measured.** `composeModuleForTest` (`packages/test-kit/src/module/index.ts`) builds its context
+with no `formRegistry`. `ModuleContext.fieldSets` and `fieldFormats` throw "this composition root
+mounts no form registry" when it is absent (`packages/platform/src/kernel/module-context.ts`).
+Every adopter's `registerModule` calls `ctx.fieldSets`, so the first unit test that composes
+`projects`, `customer_accounts`, `crm` or `catalog` through the helper would throw. WP-E1 fixed the
+hand-built `composeModules` roots under `backend/test` with `generatedListForms`.
+
+**Decision.** In WP-E1, `ComposeModuleForTestOptions` gains `formRegistry?: FormRegistry`. When it
+is absent, the helper mounts `new FormRegistry()` and does not seal it, because sealing needs the
+whole composition. `ComposedModule` exposes it as `formRegistry`, so that a test can assert what the
+module registered. The test-kit changeset is a `minor`.
+
+**Rationale.** The helper's promise is "compose one module the way a composition root does", and
+both real roots mount a registry. One default in the shared helper replaces four identical fixes
+in four work packages.
+
+**Rejected.**
+- *Each adopter passes a registry.* That is four copies of the same setup, and the fifth adopter
+  meets the throw again.
+- *Make `fieldSets` a no-op without a registry.* That reopens the silent partial registration
+  D-300.13 refused.
