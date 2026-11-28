@@ -223,6 +223,7 @@ function bundleFor(language: 'en' | 'pl'): Bundle {
     acme_off: { 'slot.flag': 'Flag' },
     acme_perm: { 'slot.secret': 'Secret' },
     acme_edit_only: { 'slot.note': 'Edit note' },
+    acme_locked: { 'slot.code': 'Locked code' },
   };
 }
 
@@ -631,6 +632,57 @@ describe('submission', () => {
     const note = screen.getByLabelText('Edit note');
     fireEvent.change(note, { target: { value: 'changed' } });
     expect(declaredController().submission().extensions).toEqual({ acme_edit_only: { note: 'changed' } });
+  });
+
+  it('drops an operator change to a field it renders read-only, and still applies a derivation to one (D-300.18)', async () => {
+    mount(<Host mode="create" initial={CREATE_VALUES} />);
+    const parent = await screen.findByLabelText('Parent organization');
+    fireEvent.change(parent, { target: { value: 'p-2' } });
+    expect(parent).toHaveValue('p-1');
+    expect(declaredController().submission().core).not.toHaveProperty('parentId');
+    const displayName = screen.getByLabelText('Display name');
+    await waitFor(() => expect(displayName).toHaveValue('ACME'));
+    fireEvent.change(displayName, { target: { value: 'typed' } });
+    expect(displayName).toHaveValue('ACME');
+    fireEvent.change(screen.getByLabelText(/^Name/u), { target: { value: 'Beta' } });
+    await waitFor(() => expect(displayName).toHaveValue('BETA'));
+    expect(declaredController().submission().core).toMatchObject({ displayName: 'BETA' });
+  });
+
+  it('drops an operator change to a slot the operator may not write (D-300.18)', async () => {
+    const forms = effectiveForms();
+    render(
+      <TranslationProvider language="en" initialBundle={bundleFor('en')} initialFallbackBundle={bundleFor('en')}>
+        <AuthProvider initial={adminSession({ permissions: ['customers:rename'] })}>
+          <ModulePresenceProvider initial={modulePresence({ present: ['organizations', 'acme_locked'] })}>
+            <AdminContributionsProvider
+              entries={[{ moduleId: 'acme_locked', contributions: { fields: [slot({ key: 'code', labelKey: 'slot.code', anchor: { field: 'taxId', position: 'after' }, writePermission: 'erp:write' })] } }]}
+            >
+              <EffectiveFormsProvider initial={forms}>
+                <Host mode="create" initial={CREATE_VALUES} />
+              </EffectiveFormsProvider>
+            </AdminContributionsProvider>
+          </ModulePresenceProvider>
+        </AuthProvider>
+      </TranslationProvider>,
+    );
+    const code = await screen.findByRole('textbox', { name: 'Locked code' });
+    fireEvent.change(code, { target: { value: 'E-9' } });
+    expect(code).toHaveValue('');
+    expect(declaredController().submission().extensions).toBeUndefined();
+  });
+
+  it('on an edit form returns a derived target to its loaded value when its source returns to its loaded value (D-300.20)', async () => {
+    mount(<Host mode="edit" initial={{ ...CREATE_VALUES, displayName: 'Acme Ltd' }} />);
+    const name = await screen.findByLabelText(/^Name/u);
+    const displayName = screen.getByLabelText('Display name');
+    // Opening the record rewrites nothing.
+    expect(displayName).toHaveValue('Acme Ltd');
+    fireEvent.change(name, { target: { value: 'Beta' } });
+    await waitFor(() => expect(displayName).toHaveValue('BETA'));
+    fireEvent.change(name, { target: { value: 'Acme' } });
+    await waitFor(() => expect(displayName).toHaveValue('Acme Ltd'));
+    expect(declaredController().submission().core).not.toHaveProperty('displayName');
   });
 
   it('applies a mask behaviour to what the operator types', async () => {

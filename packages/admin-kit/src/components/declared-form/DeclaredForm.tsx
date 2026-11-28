@@ -389,33 +389,58 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
       });
     }
   };
+  // D-300.18: what the form shows is what it submits. An operator change to a
+  // field the form renders read-only is dropped — a host input that forgot to
+  // honour `readOnly` cannot slip one in. The form's own writes (a derivation,
+  // a `default`) still go through.
+  const refusedOnce = useRef(new Set<string>());
+  const refuseOperatorWrite = (key: string): void => {
+    if (!import.meta.env.DEV || refusedOnce.current.has(key)) return;
+    refusedOnce.current.add(key);
+    console.warn(`[declared-form] dropped an operator change to read-only '${key}' on '${form.id}'; its input should honour readOnly.`);
+  };
   const setCore = (key: string, next: unknown, by: 'operator' | 'form'): void => {
-    if (by === 'operator') touched.current.add(key);
+    if (by === 'operator') {
+      if (coreReadOnly(key)) return refuseOperatorWrite(key);
+      touched.current.add(key);
+    }
     clearError(key);
     options.onChange(key as FieldKeyOf<F>, by === 'operator' ? masked(key, next) : next);
   };
   const setSlot = (wire: string, next: unknown, by: 'operator' | 'form'): void => {
-    if (by === 'operator') touched.current.add(wire);
+    if (by === 'operator') {
+      const slot = formSlots.find((candidate) => wireOf(candidate) === wire);
+      if (slot === undefined || slotReadOnly(slot)) return refuseOperatorWrite(wire);
+      touched.current.add(wire);
+    }
     clearError(wire);
     const value = by === 'operator' ? masked(wire, next) : next;
     setStaged((current) => ({ ...current, [wire]: value }));
   };
 
   // Derivations pre-fill a target while the operator has not edited it in this
-  // session; on an edit form only once a field they derive from changed, so
-  // opening a record never rewrites what it stored. The server never runs them.
+  // session. On an edit form (D-300.20) a derivation writes only while one of
+  // its `from` fields differs from its loaded value; when every one is back,
+  // the target returns to its loaded value — so opening a record, or editing a
+  // source and undoing it, never rewrites what it stored. The server never runs them.
   const derivationKey = JSON.stringify(conditionValues) + behaviourKey + String(derivedKeys.size);
   useEffect(() => {
     for (const [target, modules] of behavioursOf) {
       for (const behaviour of modules) {
         if (behaviour.derive === undefined || touched.current.has(target)) continue;
-        if (mode === 'edit' && !behaviour.derive.from.some((key) => fieldValueChanged(own(initialConditionValues, key), own(conditionValues, key)))) continue;
-        const next = behaviour.derive.compute(conditionValues);
         const isSlot = slotByWire.has(target);
+        if (!isSlot && !declOf.has(target)) continue;
         const current = isSlot ? own(slotValues, target) : own(options.values, target);
+        const sourceChanged = behaviour.derive.from.some((key) => fieldValueChanged(own(initialConditionValues, key), own(conditionValues, key)));
+        let next: unknown;
+        if (mode === 'edit' && !sourceChanged) {
+          next = own(initialConditionValues, target);
+        } else {
+          next = behaviour.derive.compute(conditionValues);
+        }
         if (!fieldValueChanged(current, next)) continue;
         if (isSlot) setSlot(target, next, 'form');
-        else if (declOf.has(target)) setCore(target, next, 'form');
+        else setCore(target, next, 'form');
       }
     }
   }, [derivationKey]); // eslint-disable-line react-hooks/exhaustive-deps
