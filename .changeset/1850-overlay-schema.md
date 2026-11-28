@@ -34,8 +34,9 @@ an installed package's, and the refusals that stopped it are removed.
   overlay module, and say to write the entity and the migration by hand.
 
 **Upgrading an instance.** `backend/src/migrate.ts` imports `refuseOverlaySchema`, which now does
-nothing; delete the import and the call before 0.114.0, which removes it. `backend/src/mikro-orm.config.ts` does not yet pass the deployment
-root, so without it overlay migrations are not applied. `endora upgrade` rewrites both files while
+nothing; delete the import and the call before 0.114.0, which removes it.
+`backend/src/mikro-orm.config.ts` does not yet pass the deployment root, so without it overlay
+migrations are not applied. `endora upgrade` rewrites both files while
 they are still exactly what 0.112.0 rendered. The new `mikro-orm.config.ts` passes
 `deploymentRoot` (`backend/dist`), and `migrate.ts` catches a refusal with `exitOnRefusal`. A file
 you edited is reported and left as it is. In that case, delete the `refuseOverlaySchema` import and

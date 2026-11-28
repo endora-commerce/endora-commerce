@@ -433,9 +433,11 @@ export async function discoverOverlaySchema(
  * the file on the second `pnpm run upgrade` (`.changeset/1848-overlay-build.md`).
  * Without the export, that first `setup` stopped on the import.
  *
- * @deprecated since 0.113.0, removed in 0.114.0. Delete the import and the call
- * from `backend/src/migrate.ts`; `endora upgrade` does it for a file still as
+ * It is removed in 0.114.0. Delete the import and the call from
+ * `backend/src/migrate.ts`; `endora upgrade` does it for a file still as
  * 0.112.0 rendered it.
+ *
+ * @deprecated since 0.113.0; no replacement: overlay modules may now ship schema, so there is nothing to refuse.
  */
 export function refuseOverlaySchema(
   _deploymentRoot: string,
