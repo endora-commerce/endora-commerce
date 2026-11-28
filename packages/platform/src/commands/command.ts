@@ -150,4 +150,18 @@ export interface Command<TResult = unknown> {
    * write.
    */
   readonly extensions?: Readonly<Record<string, unknown>>;
+
+  /**
+   * This Command is a buyer's own storefront write (`specs/193-admin-form-extensions/`
+   * D-300.10): a registration or an invitation acceptance. An anonymous
+   * storefront request resolves to a `system` actor, which nothing can tell
+   * apart from a worker, so the root Command says what it is, and every child
+   * it runs inherits it. The platform's field-rule check then skips the write,
+   * as it skips a customer acting for itself.
+   *
+   * Honoured only on an actor with no acting admin whose kind is `system` or
+   * `customer`; on an admin, an API key or an impersonating admin it is
+   * ignored. It grants nothing else: no gate, guard or audit reads it.
+   */
+  readonly buyerSelfService?: true;
 }

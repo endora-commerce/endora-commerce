@@ -1318,6 +1318,19 @@ export const ModuleManifestSchema = z.object({
    * modules and is not a finding.
    */
   hookableActions: z.array(HookableActionDeclarationSchema).optional(),
+  /**
+   * The actions this module may run as a buyer's own storefront write
+   * (`specs/193-admin-form-extensions/` D-300.10, issue #2027): a Command of
+   * one of them may set `buyerSelfService: true`, which the platform's
+   * field-rule check skips under a `system` or `customer` actor with no acting
+   * admin, and every child Command it runs inherits. The Command Bus refuses
+   * the flag on any action no composed module lists here, so a worker, an
+   * import or a callback cannot opt out of field rules by setting it.
+   *
+   * {@link defineModuleManifest} refuses one action listed twice; two modules
+   * listing one action is the composer's refusal. Absent means none.
+   */
+  buyerSelfServiceActions: z.array(z.string().regex(hookableActionRe)).readonly().optional(),
   // `specs/187-side-table-extensions/` — kept last, in its own block.
   /**
    * Side tables this module owns on extensible hosts (data ladder D1,
@@ -1883,6 +1896,15 @@ function assertHookableActionRules(m: ModuleManifest): void {
       );
     }
     seen.add(declaration.action);
+  }
+  const buyer = new Set<string>();
+  for (const action of m.buyerSelfServiceActions ?? []) {
+    if (buyer.has(action)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" lists buyer self-service action "${action}" twice. List each action once.`,
+      );
+    }
+    buyer.add(action);
   }
 }
 

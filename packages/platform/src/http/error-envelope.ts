@@ -3,6 +3,7 @@ import { CustomerSessionRequiredError, ERROR_CODES, isAmountPrecisionIssue, isLi
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
 import { OrgWriteOutOfScopeError } from '../tenancy/tenant-context.js';
+import { localizableMessageRef } from './localizable-detail.js';
 import { installResponseLanguage } from './response-language.js';
 
 /**
@@ -509,12 +510,25 @@ async function localizeErrorEnvelope(
     ...(params ? { params } : {}),
     request,
   });
+  // `specs/193-admin-form-extensions/` FR-042 — the entries a thrower marked
+  // with the sentence they carry, in the same language. The same reference
+  // when nothing is marked, which is every error but the field-rule ones.
+  const details = await localizeDetails(options.translateErrorMessage, payload.error.details, language, request);
+  const withDetails = details === payload.error.details ? payload : { ...payload, error: { ...payload.error, details } };
   // A sentence with a placeholder nothing filled is worse than the prose the
   // thrower wrote: `The "{module}" module is off` tells the operator less than
   // the original message and looks broken doing it. Same ruling as the missing
   // token key above — untranslated prose that is true beats a rendered
   // sentence that is not.
-  if (hasUnfilledPlaceholder(translated)) return payload;
+  if (hasUnfilledPlaceholder(translated)) {
+    // The details may still have been translated: then the body is in that
+    // language, and says so, for the reason the header is set below.
+    if (withDetails !== payload) {
+      reply.header('Content-Language', language);
+      varyBy(reply, 'Accept-Language');
+    }
+    return withDetails;
+  }
   // Say which language was chosen, and that the body varies with the header
   // that chose it (D-139 § 8.2). The sales-channel resolver already echoes
   // `X-Sales-Channel` on every response for exactly this reason, and the
@@ -530,12 +544,43 @@ async function localizeErrorEnvelope(
   reply.header('Content-Language', language);
   varyBy(reply, 'Accept-Language');
   return {
-    ...payload,
+    ...withDetails,
     error: {
-      ...payload.error,
+      ...withDetails.error,
       message: translated,
     },
   };
+}
+
+/**
+ * Each `details[]` entry marked by `localizableDetail` with its `message` in
+ * `language`, from the bundle the mark names; a sentence the bundle lacks, or
+ * one with a placeholder nothing filled, keeps the thrower's English. The new
+ * entries are plain copies, so the mark stays off the wire either way. The
+ * same `details` reference when no entry is marked.
+ */
+async function localizeDetails(
+  translate: NonNullable<ErrorEnvelopeOptions['translateErrorMessage']>,
+  details: ErrorEnvelope['error']['details'],
+  language: SupportedLanguage,
+  request: FastifyRequest,
+): Promise<ErrorEnvelope['error']['details']> {
+  if (!Array.isArray(details) || !details.some((entry) => localizableMessageRef(entry) !== undefined)) return details;
+  return Promise.all(
+    (details as readonly Record<string, unknown>[]).map(async (entry) => {
+      const ref = localizableMessageRef(entry);
+      if (ref === undefined || typeof entry['message'] !== 'string') return entry;
+      const message = await translate({
+        moduleId: ref.moduleId,
+        key: ref.key,
+        language,
+        originalMessage: entry['message'],
+        ...(ref.params ? { params: { ...ref.params } } : {}),
+        request,
+      });
+      return { ...entry, message: hasUnfilledPlaceholder(message) ? entry['message'] : message };
+    }),
+  ) as Promise<ErrorEnvelope['error']['details']>;
 }
 
 /**

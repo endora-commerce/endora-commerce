@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { FormRegistry } from '../kernel/forms/registry.js';
 import type { CommandBus } from '../commands/command-bus.js';
 import { startCommandOutboxDrain } from '../commands/outbox/drain-worker.js';
 import { PostgresOutboxStore } from '../commands/outbox/store.js';
@@ -20,10 +21,12 @@ import {
   registerApiInterceptorAdminRoutes,
   registerCommandHookAdminRoutes,
   registerCommandOutboxAdminRoutes,
+  registerEffectiveFormsRoutes,
   registerLifecycleAdminRoutes,
   registerModulePresenceRoutes,
   type LifecycleAdminDeps,
   type ModulePresenceAdminDeps,
+  watchFormLayoutChanges,
 } from './routes.admin.js';
 import { registerModulePresenceStorefrontRoutes } from './routes.storefront.js';
 
@@ -67,6 +70,13 @@ export interface LifecycleCradle {
    * that wires no hooks serves no execution plan.
    */
   readonly commandHookRegistry?: CommandHookRegistry;
+  /**
+   * The composition's form registry (`specs/193-admin-form-extensions/` WP-B),
+   * registered by both roots. Read only when the root registered it.
+   */
+  readonly formRegistry?: FormRegistry;
+  /** The subscriber-mode connection every root registers; read only when it is there. */
+  readonly redisSubscriber?: Redis;
   /** The Command Bus every root registers; the outbox retry runs through it. */
   readonly commandBus: CommandBus;
   /**
@@ -200,6 +210,24 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     await startOutboxDrain(ctx, app);
   });
+
+  ctx.ungatedRoutes(
+    'The effective admin forms (specs/193-admin-form-extensions/ FR-023): what every present ' +
+      "module changes about a core form, read by every admin screen that renders one, on the " +
+      "module-presence projection's terms. Gating it on this module would leave every form " +
+      'without its overrides exactly when an operator is repairing presence; what each module ' +
+      'contributes is already filtered by its own presence.',
+    async (app) => {
+      const cradle = ctx.cradle<LifecycleCradle>();
+      // Asked of the container rather than resolved: a root that composes no
+      // form registry serves no effective forms.
+      if (!('formRegistry' in cradle)) return;
+      const registry = cradle.formRegistry as FormRegistry;
+      registerEffectiveFormsRoutes(app, { registry, requireAdmin: cradle.requireAdmin });
+      // FR-024 — every process drops its memo on an operator layout write.
+      if ('redisSubscriber' in cradle) await watchFormLayoutChanges(cradle.redisSubscriber as Redis, registry, ctx.log);
+    },
+  );
 
   ctx.ungatedRoutes(
     'Which release this platform is: a fact about the platform itself, read by the admin ' +

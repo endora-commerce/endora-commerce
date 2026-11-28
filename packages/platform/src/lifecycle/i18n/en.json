@@ -16,5 +16,18 @@
   "actions.openCommandOutbox.keywords": "deliveries, failed deliveries, dead letter",
   "module.name": "Module lifecycle",
   "module.description": "Platform-internal subsystem that orchestrates install / uninstall / enable / disable / status across every domain module.",
-  "module.nonDeactivatableReason": "Owns the presence machinery and the activation switches themselves; switched off, there is no way back on."
+  "module.nonDeactivatableReason": "Owns the presence machinery and the activation switches themselves; switched off, there is no way back on.",
+  "errors.FIELD_RULE_VIOLATION": "Some values break the rules of this form. Nothing was saved; correct the marked fields.",
+  "errors.FIELD_WRITE_FORBIDDEN": "You may not change some of these fields. Nothing was saved.",
+  "errors.FIELD_SLOT_INPUT_INVALID": "Some values added to this form by an extension are not valid. Nothing was saved.",
+  "fieldRules.required": "This field is required.",
+  "fieldRules.too_short": "Enter at least {limit} characters.",
+  "fieldRules.too_long": "Enter at most {limit} characters.",
+  "fieldRules.below_min": "Enter {limit} or more.",
+  "fieldRules.above_max": "Enter {limit} or less.",
+  "fieldRules.not_an_option": "Choose one of the allowed values.",
+  "fieldRules.pattern": "The value does not have the required form.",
+  "fieldRules.format": "The value is not in the required format.",
+  "fieldRules.writeForbidden.missingPermission": "You do not have permission to change this field.",
+  "fieldRules.writeForbidden.apiKeyScopesUnresolved": "An API key cannot change this field."
 }

@@ -340,6 +340,21 @@ export type { EntityExtensionLoaderEntry } from './entity-extensions/loaders.js'
  * without `include` resolves nothing.
  */
 export { lazyEntityExtensionReads, type EntityExtensionReads } from './entity-extensions/reads.js';
+/**
+ * Admin form extensions (`specs/193-admin-form-extensions/` WP-B). An owner
+ * hands `ctx.fieldSets` its field sets' writers and `ctx.fieldFormats` its
+ * module formats' validators — the shapes below are what it writes. A slot
+ * module writes its value through `fieldSlotHook`, whose entries it hands
+ * `ctx.commandHooks`. The registry itself is the root's, on `./composition`.
+ */
+export type {
+  FieldFormatRegistration,
+  FieldProjection,
+  FieldScopedProjection,
+  FieldSetRegistration,
+  FieldSetWriter,
+} from './forms/types.js';
+export { fieldSlotHook, type FieldSlotHookSpec } from './forms/field-slot-hook.js';
 export type {
   ColumnExtension,
   ColumnExtensionInput,

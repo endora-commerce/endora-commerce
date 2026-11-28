@@ -52,6 +52,7 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { Redis } from 'ioredis';
+import type { DeploymentDivergenceDeclaration, FormLayoutOverrideSource } from '@endora-commerce/contracts';
 
 import {
   ApiInterceptorRegistry,
@@ -61,6 +62,8 @@ import {
   createEntityExtensionReads,
   EntityExtensionLoaderRegistry,
   entityExtensionDeclarationsFrom,
+  FormRegistry,
+  formDeclarationsFrom,
   commandMiddlewareFrom,
   createCommandOutboxWake,
   AuditRedactionService,
@@ -76,6 +79,7 @@ import {
   forkScopedEm,
   healthRoutePlugin,
   hookableActionsFrom,
+  buyerSelfServiceActionsFrom,
   moduleDependencyClosureFrom,
   platformLogger,
   registerOrm,
@@ -287,6 +291,12 @@ export interface ComposeTestServerOptions {
    */
   readonly commandMiddlewareOrder?: readonly string[] | undefined;
   /**
+   * The field-set override grants the deployment declares
+   * (`specs/193-admin-form-extensions/` FR-051), forwarded to `composeModules`
+   * as `composeApp` forwards them, for `commandHookOrder`'s reason.
+   */
+  readonly formOverrideGrants?: DeploymentDivergenceDeclaration['formOverrideGrants'];
+  /**
    * Which module ids presence reports as enabled.
    *
    * Defaults to every module the composition's manifests declare, which is what
@@ -438,6 +448,18 @@ export async function composeTestServer(
     const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
       declarations: entityExtensionDeclarationsFrom(manifests),
     });
+    // `specs/193-admin-form-extensions/` WP-B — as `composeApp` builds it: one
+    // registry, shared by every module context and `_lifecycle`'s route,
+    // sealed by `composeModules` and attached to the hook registry there.
+    const formRegistry = new FormRegistry({
+      isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+      presenceVersion: () => effectiveState.presenceVersion(),
+      operatorLayer: () =>
+        container.hasRegistration('formLayoutOverrideSource')
+          ? (container.cradle as unknown as { formLayoutOverrideSource: FormLayoutOverrideSource }).formLayoutOverrideSource
+          : undefined,
+      log: platformLogger(),
+    });
     const commandBus = new CommandBus(orm, auditLogService, eventBus, {
       hooks: commandHookRegistry,
       outboxWake: commandOutboxWake,
@@ -503,6 +525,8 @@ export async function composeTestServer(
       commandBus,
       // 176 P2 — as `composeApp` registers it, for the execution-plan route.
       commandHookRegistry,
+      // 193 WP-B — as `composeApp` registers it, for the effective-forms route.
+      formRegistry,
       auditLogService,
       // Issue #844 — as `composeApp` registers it.
       auditRedactionService: new AuditRedactionService(em, auditLogService),
@@ -548,6 +572,8 @@ export async function composeTestServer(
       commandHooks: {
         hookableActions: hookableActionsFrom(manifests),
         moduleDependencies: moduleDependencyClosureFrom(manifests),
+        // 193 D-300.10, #2027 — the actions whose Commands may declare buyerSelfService.
+        buyerSelfServiceActions: buyerSelfServiceActionsFrom(manifests),
         commandHookOrder: options.commandHookOrder,
       },
       // 189 P1 — sealed after the hook registry, against the same manifest set.
@@ -559,6 +585,9 @@ export async function composeTestServer(
       },
       // 187 B1 — sealed after the middleware registry.
       entityExtensionLoaderRegistry,
+      // 193 WP-B — sealed after the loader registry, against the same manifest set.
+      formRegistry,
+      forms: formDeclarationsFrom(manifests, options.formOverrideGrants),
     });
 
     const composedContext: ComposedPlatformContext = { ...platform, composed };

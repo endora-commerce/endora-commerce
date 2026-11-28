@@ -324,6 +324,30 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '409; the client reloads. Raised by `crm` (`PUT /crm/statuses/order`) and `tasks` ' +
       '(`PUT /tasks/statuses/order`, `PUT /tasks/priorities/order`), so it sits in the platform block.',
   },
+  // `specs/193-admin-form-extensions/` WP-B — the platform's field-rule check
+  // and `fieldSlotHook`, declared by `_lifecycle` beside the sentences each
+  // `details[]` entry is worded from (`fieldRules.*`).
+  FIELD_RULE_VIOLATION: {
+    to: '_lifecycle',
+    reason:
+      'Minted by spec 193 WP-B (FR-042) for a write that breaks a declared field rule — a tightened ' +
+      'validation, a requiredWhen or a control format — refused 422 by the platform\'s field-rule check ' +
+      'before any module hook, so nothing is written. Raised by the platform for every module\'s writers.',
+  },
+  FIELD_WRITE_FORBIDDEN: {
+    to: '_lifecycle',
+    reason:
+      'Minted by spec 193 WP-B (FR-043) for a write that changed a field whose writePermission the actor ' +
+      'lacks, or that a bound API key changed (research R-12) — refused 403 by the field-rule check or by ' +
+      'fieldSlotHook, so nothing is written.',
+  },
+  FIELD_SLOT_INPUT_INVALID: {
+    to: '_lifecycle',
+    reason:
+      'Minted by spec 193 WP-B (FR-014) for a slot field\'s value under extensions.<moduleId> that the ' +
+      'contributing module\'s schema refuses — 422 from the platform\'s fieldSlotHook, with each path under ' +
+      'extensions.<moduleId>.',
+  },
   ADMIN_AUTHENTICATION_THROTTLED: {
     to: 'admin_users',
     reason:

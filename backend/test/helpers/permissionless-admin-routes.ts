@@ -167,6 +167,13 @@ export const PERMISSIONLESS_ADMIN_ROUTES: Readonly<Record<string, Permissionless
       "session, so no request can name another administrator's; resetting somebody else's is " +
       '`mfa:reset`.',
   },
+  'GET /api/v1/admin/effective-forms': {
+    guard: 'session',
+    reason:
+      'The effective form layouts every admin screen renders a core form from — labels, order, ' +
+      'hidden and read-only flags, and the rules the form mirrors (spec 193 FR-023). Presentation ' +
+      'only, the same for every role, and it carries no record data.',
+  },
   'GET /api/v1/admin/module-presence': {
     guard: 'session',
     reason:

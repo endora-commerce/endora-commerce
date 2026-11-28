@@ -194,6 +194,11 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // seals it. Platform infrastructure as `apiInterceptors` is: `_lifecycle`
   // reads it for the execution plan, and no module owns it.
   'commandHookRegistry',
+  // `specs/193-admin-form-extensions/` WP-B — the form registry both roots build
+  // and hand to `composeModules`, which seals it and attaches it to the hook
+  // registry. Platform infrastructure as `commandHookRegistry` is: `_lifecycle`
+  // reads it for the effective forms, and no module owns it.
+  'formRegistry',
   'settingsReadPort',
   // The same kernel object as `settingsReadPort`, seen from the writing side:
   // `composeSettingsKernel` builds one `SettingsCache` and a root contributes

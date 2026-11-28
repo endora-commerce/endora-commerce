@@ -15,7 +15,10 @@ import {
   CommandOutboxListResponseSchema,
   CommandOutboxRetryParamsSchema,
   CommandOutboxRetryResponseSchema,
+  EffectiveFormsResponseSchema,
+  FORM_LAYOUT_CHANGED_CHANNEL,
   type AdminModulePresenceResponse,
+  type EffectiveFormsResponse,
   type CommandHookPlanResponse,
   type CommandOutboxListResponse,
   type CommandOutboxRetryResponse,
@@ -29,6 +32,9 @@ import {
 import type { CommandBus } from '../commands/index.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { FormRegistry } from '../kernel/forms/registry.js';
+import { subscribeWhenReady, type HandshakeAwareSubscriber } from '../kernel/cache/subscribe-when-ready.js';
+import { enterSystemScope } from '../kernel/scope.js';
 import { listCommandOutbox, makeRetryCommandOutboxCommand } from '../commands/outbox/admin.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../http/error-envelope.js';
@@ -382,6 +388,85 @@ export function registerCommandHookAdminRoutes(app: FastifyInstance, deps: Comma
     },
     async (): Promise<CommandHookPlanResponse> => deps.registry.plan(),
   );
+}
+
+export interface EffectiveFormsAdminDeps {
+  registry: FormRegistry;
+  requireAdmin: RequireAdminFactory;
+}
+
+/**
+ * `specs/193-admin-form-extensions/` FR-023 — the effective forms: every
+ * present form's core fields with what is in force on each, layered core →
+ * deployment code → operator. The admin takes every override from here and
+ * bundles no second copy.
+ *
+ * No permission code, on `/api/v1/admin/module-presence`'s terms: every admin
+ * renders forms, and the body is the same for all of them — whether a field
+ * is read-only for *this* admin's `writePermission` the admin decides from its
+ * own session. An `ETag` digests the body, and a matching `If-None-Match`
+ * answers `304` with none, so the admin's refetch on every presence refresh
+ * costs a header when nothing changed.
+ *
+ * **The path.** `contracts/field-overrides.md` §2 names `/api/v1/admin/forms`,
+ * which the `forms` module (the form builder, `specs/170-forms-module/`)
+ * already serves — its form list, and `/:id` beneath it. Two owners of one
+ * path refuse the boot, so this is served at `/api/v1/admin/effective-forms`
+ * pending the architect's ruling on the final path.
+ */
+export function registerEffectiveFormsRoutes(app: FastifyInstance, deps: EffectiveFormsAdminDeps): void {
+  app.get(
+    '/api/v1/admin/effective-forms',
+    {
+      preHandler: deps.requireAdmin(),
+      schema: { response: { 200: EffectiveFormsResponseSchema } },
+    },
+    async (request, reply): Promise<EffectiveFormsResponse | undefined> => {
+      const { response, etag } = await deps.registry.effectiveForms();
+      void reply.header('etag', etag);
+      const match = request.headers['if-none-match'];
+      if (typeof match === 'string' && match.split(',').some((candidate) => candidate.trim() === etag)) {
+        // The 200 schema types the reply; a 304 has no body to type.
+        void (reply as unknown as { code(statusCode: number): unknown }).code(304);
+        return undefined;
+      }
+      return response;
+    },
+  );
+}
+
+/** The part of an ioredis subscriber {@link watchFormLayoutChanges} uses; `Redis` satisfies it. */
+export interface FormLayoutSubscriber extends HandshakeAwareSubscriber {
+  on(event: 'message', listener: (channel: string, message: string) => void): unknown;
+}
+
+/**
+ * `specs/193-admin-form-extensions/` FR-024, FR-097 — every process drops its
+ * effective-forms memo when `custom_fields` announces a committed operator
+ * layout write. Not fatal: a lost subscription leaves a presentation lag
+ * bounded by the memo's TTL, and no rule the server enforces comes from the
+ * operator layer.
+ */
+export async function watchFormLayoutChanges(
+  subscriber: FormLayoutSubscriber,
+  registry: FormRegistry,
+  log?: { warn(object: Record<string, unknown>, message: string): void },
+): Promise<void> {
+  subscriber.on('message', (channel) => {
+    if (channel !== FORM_LAYOUT_CHANGED_CHANNEL) return;
+    // A pub/sub callback has no caller to inherit a scope from, so it opens its
+    // own — around the callback, not the memo it drops, which a request also
+    // reaches. Nothing here reads a tenant-scoped row; the scope is the entry
+    // point's, as `registryCache.watch` opens one for its refresh.
+    void enterSystemScope('form layout changed', () => registry.bumpLayoutGeneration(), { entryPoint: 'message' }).catch(
+      (error: unknown) => log?.warn({ err: error }, '[forms] could not drop the effective-forms memo on b2b:form-layout:changed'),
+    );
+  });
+  try {
+    await subscribeWhenReady(subscriber, FORM_LAYOUT_CHANGED_CHANNEL);
+  } catch (error) {
+    log?.warn({ err: error }, '[forms] could not subscribe to b2b:form-layout:changed; operator layout changes reach this process within the memo TTL');
+  }
 }
 
 export interface CommandOutboxAdminDeps {
