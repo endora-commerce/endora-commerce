@@ -136,7 +136,7 @@ architektury *Command Bus*.
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCommandPort.setCustomFieldValues` | `organization`, `changedFields`, `changedCustomFields` |
-| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
+| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organization`, `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
 Wszystkie sześć oferuje obie fazy. Odbiorca `afterCommit` jest obsługiwany przez kolejkę dostarczeń platformy
@@ -147,8 +147,10 @@ aktualizacjach, `status` i `changedFields` przy zamianie na firmę oraz `changed
 NIP-u. Zmiany
 zgłoszone przez hook trafiają do jedynego wpisu audytu organizacji jako nazwy, w
 `extensions.<moduleId>.changedFields`. Hook rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
-Hooki zamiany na firmę i korekty NIP dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy
-NIP-u, nazwy ani adresu. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej hooki i tak
+Hooki zamiany na firmę dostają też przekształconą organizację (`organization`, jej stan po zmianie),
+więc NIP, nazwa i adres trafiają teraz do ich hooków `beforeCommit`, tak jak już trafiają do hooków
+`admin_patch`; dane outboxa nadal zawierają tylko identyfikatory, kody i nazwy pól. Hooki korekty NIP
+dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy NIP-u. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej hooki i tak
 są uruchamiane z pustym `changedFields`: wpis audytu powstaje tylko wtedy, gdy hook zgłosił zapis, i
 wtedy ten jeden wpis wymienia wyłącznie pola hooka. Dane rozszerzeń (`extensions`) może przekazać
 tylko kod po stronie serwera, w ostatnim argumencie każdej metody `organizationCommandPort` — a
@@ -1561,7 +1563,7 @@ Jak operator scala organizacje, śledzi scalanie i je wznawia w panelu administr
 | Metoda i ścieżka | Uprawnienie | Działanie |
 | --- | --- | --- |
 | `POST /api/v1/admin/organizations/:id/merge-preview` | `organizations:merge` | `{ loserId }` — odmowy, liczba rekordów do przeniesienia w każdym obszarze i różniące się wartości. Niczego nie zapisuje. |
-| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — ponownie sprawdza podgląd i rozpoczyna scalanie (`202`). |
+| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — ponownie sprawdza podgląd i rozpoczyna scalanie (`202`). Reguły pól wdrożenia obowiązują wynik w organizacji docelowej: wybrana wartość, która łamie zaostrzoną regułę, daje `422 FIELD_RULE_VIOLATION`, a zmieniane pole, do którego `writePermission` nie masz, daje `403 FIELD_WRITE_FORBIDDEN`; `details[].path` wskazuje pole i nic nie zostaje zapisane, zamrożone ani zakolejkowane. |
 | `GET /api/v1/admin/organization-merges` | `organizations:merge` | `?state=&organizationId=` — scalenia, do których obu organizacji masz dostęp. |
 | `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` | Jedno scalenie wraz z krokami. |
 | `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` — scalenie wymagające uwagi rusza ponownie; zakończone kroki nie są powtarzane. |
@@ -1588,7 +1590,10 @@ a razem z NIP-em przechodzi ostatni wynik walidacji VAT duplikatu.
   `409 RECORD_MERGE_IN_PROGRESS`. Zapisy do organizacji docelowej działają bez zmian.
 - Scalanie działa jako zadanie w tle, w fazach (struktura, konfiguracja, adresy, członkowie,
   rekordy, finalizacja). Nieudany krok jest ponawiany; gdy próby się wyczerpią, scalanie
-  zatrzymuje się w stanie *wymaga uwagi* i można je wznowić. Moduł wyłączony w chwili, gdy
+  zatrzymuje się w stanie *wymaga uwagi* i można je wznowić. Nową przyczyną jest reguła pola
+  wdrożona w trakcie scalania: finalizacja jest ponownie sprawdzana pod kątem walidacji, a wartość
+  odrzucona przez nową regułę zatrzymuje ją w tym miejscu; *wznowienie* kończy scalanie, gdy
+  reguła dopuści wartość. Moduł wyłączony w chwili, gdy
   scalanie do niego dochodzi, jest pomijany, a jego część wykonuje się automatycznie po
   ponownym włączeniu modułu.
 - Po zakończeniu duplikat jest zarchiwizowany: jest miękko usunięty, ma
@@ -1608,7 +1613,9 @@ a razem z NIP-em przechodzi ostatni wynik walidacji VAT duplikatu.
 - Zdarzenie `organization.merged.v1` jest publikowane jeden raz, z polami `organizationId`
   (organizacja docelowa), `mergedOrganizationId`, `mergeId`, `mergedAt` i `source`. Jest dostępne
   dla webhooków wychodzących. `organization.merge.start` jest akcją dostępną dla hooków, więc
-  wdrożenie może zablokować scalanie, zanim się rozpocznie.
+  wdrożenie może zablokować scalanie, zanim się rozpocznie. Jej dane hooka zawierają wynik, który
+  ustala w organizacji docelowej (`survivor`: wartości po wyborach i sumie e-maili oraz zmieniane
+  klucze); dane outboxa nadal zawierają tylko identyfikatory i kody.
 - Każdy wpis audytu zapisany przez scalanie zawiera jego `mergeId`, z nazwami pól i kodami, nigdy
   z wartościami.
 - Gdy scalanie zatrzyma się w stanie *wymaga uwagi*, każdy aktywny administrator z uprawnieniem

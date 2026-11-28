@@ -351,6 +351,10 @@ export class InvitationService {
       // to that address.
       emailVerified: true,
       preferredLanguage: input.preferredLanguage ?? null,
+      // `specs/193-admin-form-extensions/` D-300.10 — the invitee's own
+      // storefront write, run anonymously: a deployment's tightened field rule
+      // binds operators, not the buyer accepting (D-300.3).
+      buyerSelfService: true,
     });
     invitation.consumedAt = new Date();
     if (this.deps.auditLog) {

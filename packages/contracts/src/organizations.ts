@@ -15,7 +15,7 @@ import {
   vatValidationOutcomeSchema,
   vatValidationProviderSchema,
 } from './organization-registry-lookup.js';
-import { ExtensionAttributesSchema } from './schema-extensions.js';
+import { EntityExtensionsInputSchema, ExtensionAttributesSchema } from './schema-extensions.js';
 import { customFieldValuesSchema } from './custom-fields.js';
 import type { AggregateCommandOptions, CustomFieldMerge } from './aggregate-ports.js';
 import type { EntityExtensionReadOptions, WithEntityExtensions } from './entity-extensions.js';
@@ -524,6 +524,13 @@ export const adminPatchOrganizationRequestSchema = z.object({
   /** Feature 055 — custom-field values for this organization (validated on write). */
   customFieldValues: z.record(z.string(), z.unknown()).optional(),
   expectedUpdatedAt: z.string().optional(),
+  /**
+   * `specs/193-admin-form-extensions/` FR-013 — the slot fields' values of the
+   * modules hooked on `organization.admin_patch`, per module id, forwarded to
+   * the Command unchanged. A key no present hook module claims is refused
+   * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+   */
+  extensions: EntityExtensionsInputSchema.optional(),
 });
 
 /** Platform admin — POST `/admin/organizations/:id/recover-admin-access` */
@@ -2170,6 +2177,15 @@ export const AdminOrganizationCreateBodySchema = registerOrganizationRequestSche
      * platform administrator (D-260).
      */
     parentId: uuidSchema.optional(),
+    /**
+     * `specs/193-admin-form-extensions/` FR-013 — the slot fields' values of
+     * the modules hooked on `organization.create`, per module id, forwarded to
+     * the Command unchanged. A key no present hook module claims is refused
+     * `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written. Only the
+     * admin create carries it: the storefront registration, whose
+     * `organization` member this body derives from, does not.
+     */
+    extensions: EntityExtensionsInputSchema.optional(),
   });
 export type AdminOrganizationCreateBody = z.infer<typeof AdminOrganizationCreateBodySchema>;
 export type AdminOrganizationCreateRequest = z.input<typeof AdminOrganizationCreateBodySchema>;

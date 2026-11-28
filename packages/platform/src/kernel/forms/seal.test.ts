@@ -560,3 +560,40 @@ describe('sealForms — formats (193 T019, T023, input-controls.md §1)', () => 
     expect(error.remedy.length).toBeGreaterThan(10);
   });
 });
+
+describe('sealForms — system values (193 D-300.31)', () => {
+  /** `kind` is written `c` by a system path the owner declares; `code` is emptied by one. */
+  function withSystemValues(): FormSealInput {
+    const set = defineFieldSet({
+      id: 'widget',
+      ownerModuleId: 'widgets',
+      fields: WIDGET.fields.map((field) =>
+        field.key === 'kind' ? { ...field, systemValues: ['c'] } : field.key === 'code' ? { ...field, systemValues: [null] } : field,
+      ),
+    });
+    return input({ fieldSets: [{ moduleId: 'widgets', set }], writers: [{ moduleId: 'widgets', set, writers: [writer(WIDGET_CREATE), writer(WIDGET_UPDATE)] }] });
+  }
+  const sealWith = (...overrides: ReturnType<typeof override>[]) => sealForms({ ...withSystemValues(), formOverrides: overrides });
+
+  it('rule-excludes-system-value: a tightening that rejects a value a system path writes', () => {
+    let error: unknown;
+    try {
+      sealWith(override('acme', { target: 'widget.kind', validation: { options: ['a', 'b'] } }));
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(FormCompositionError);
+    expect((error as FormCompositionError).code).toBe('rule-excludes-system-value');
+    expect((error as Error).message).toMatch(/acme/u);
+    expect((error as Error).message).toMatch(/kind/u);
+    expect((error as Error).message).toMatch(/"c"/u);
+  });
+
+  it('rule-excludes-system-value: a tightened required on a field a system path leaves empty', () => {
+    expect(() => sealWith(override('acme', { target: 'widget.code', validation: { required: true } }))).toThrow(/rule-excludes-system-value/u);
+  });
+
+  it('admits a tightening every system value keeps', () => {
+    expect(() => sealWith(override('acme', { target: 'widget.kind', validation: { options: ['a', 'c'] } }), override('acme', { target: 'widget.code', validation: { maxLength: 8 } }))).not.toThrow();
+  });
+});

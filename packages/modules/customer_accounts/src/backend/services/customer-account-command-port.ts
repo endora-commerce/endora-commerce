@@ -146,13 +146,18 @@ export class CustomerAccountCommandService implements CustomerAccountCommandPort
 
   async createStandalone(
     input: CustomerAccountStandaloneCreateInput,
-    options: AggregateCommandOptions = {},
+    options: AggregateCommandOptions & { readonly buyerSelfService?: true } = {},
   ): Promise<CustomerAccountRecord> {
     const caller = callerOf(options);
     const { password, ...rest } = input;
     const passwordHash = await (this.deps.hash ?? hashPassword)(password);
     const account = await this.#run(
-      makeRegisterStandaloneCommand({ personalOrganizations: this.deps.personalOrganizations }, { ...rest, passwordHash }),
+      makeRegisterStandaloneCommand(
+        { personalOrganizations: this.deps.personalOrganizations },
+        { ...rest, passwordHash },
+        // D-300.10 as amended — set by the storefront caller only.
+        options.buyerSelfService === true ? { buyerSelfService: true } : {},
+      ),
       caller,
     );
     // Created inside this call: nobody has enrolled a second factor against it.

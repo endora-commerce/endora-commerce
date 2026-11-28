@@ -378,6 +378,19 @@ export interface CustomerAccountCreateInput {
    * direct-create, which has no buyer request to read it from.
    */
   preferredLanguage?: string | null;
+  /**
+   * `specs/193-admin-form-extensions/` D-300.10 — this create is a buyer's
+   * own storefront write: the invitation acceptance, which runs anonymously.
+   * The owner puts it on the `customer_account.create` Command it runs
+   * (`Command.buyerSelfService`), so a deployment's tightened field rule does
+   * not refuse the invitee (D-300.3). Ignored under an operator or an API key,
+   * as the flag is. Never set it on an operator path.
+   *
+   * **Honoured from WP-E3**, which declares the action in `customer_accounts`'
+   * manifest `buyerSelfServiceActions` together with the `customer_account`
+   * field set it matters for; until then the owner ignores it.
+   */
+  buyerSelfService?: true;
 }
 
 /** Absent fields are left unchanged. */
@@ -1402,10 +1415,16 @@ export interface CustomerAccountCommandPort {
    * personal Organization, in one transaction (D-178); the Organization's
    * channel is the current request's sales channel, the default one outside a
    * request. Refusals: `409 EMAIL_ALREADY_REGISTERED`.
+   *
+   * `options.buyerSelfService` (`specs/193-admin-form-extensions/` D-300.10 as
+   * amended by D-300.31): this call is a buyer's own storefront registration.
+   * The owner puts it on the Command, so a deployment's tightened field rule
+   * does not refuse the visitor (D-300.3). Only the storefront caller passes it;
+   * without it a `system` caller is bound. Ignored under an admin or an API key.
    */
   createStandalone(
     input: CustomerAccountStandaloneCreateInput,
-    options?: AggregateCommandOptions,
+    options?: AggregateCommandOptions & { readonly buyerSelfService?: true },
   ): Promise<CustomerAccountRecord>;
   /**
    * `customer_account.update_profile` — an absent field is left as it is; a

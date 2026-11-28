@@ -311,7 +311,7 @@ export type AdminUpdateRelatedPayerLinkBody = z.infer<typeof adminUpdateRelatedP
  */
 export const adminCreatePayerOrganizationBodySchema = z.strictObject({
   organization: z.strictObject(
-    AdminOrganizationCreateBodySchema.omit({ status: true, parentId: true, customFieldValues: true }).shape,
+    AdminOrganizationCreateBodySchema.omit({ status: true, parentId: true, customFieldValues: true, extensions: true }).shape,
   ),
   link: z
     .strictObject({
@@ -465,7 +465,7 @@ export type AdminRejectRelatedPayerRequestBody = z.infer<typeof adminRejectRelat
  */
 export const adminCreateRequestOrganizationBodySchema = z.strictObject({
   organization: z.strictObject(
-    AdminOrganizationCreateBodySchema.omit({ status: true, parentId: true, customFieldValues: true }).shape,
+    AdminOrganizationCreateBodySchema.omit({ status: true, parentId: true, customFieldValues: true, extensions: true }).shape,
   ),
 });
 export type AdminCreateRequestOrganizationBody = z.infer<typeof adminCreateRequestOrganizationBodySchema>;

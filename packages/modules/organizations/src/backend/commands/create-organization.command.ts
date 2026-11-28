@@ -56,7 +56,7 @@ import { toOrganizationRecord } from '../services/organization-details-port.js';
  * name only `organizationWritePort.create` sets (issue #1029). Its audit entry
  * names `legalName` among `changedFields` when one was stored.
  */
-export type CreateOrganizationInput = AdminOrganizationCreateBody & {
+export type CreateOrganizationInput = Omit<AdminOrganizationCreateBody, 'extensions'> & {
   readonly legalName?: string | null | undefined;
 };
 
@@ -96,8 +96,9 @@ export async function taxIdAvailableFor(em: EntityManager, taxId: string, rootId
 /**
  * What a caller may hand the Command besides the body
  * (`specs/176-command-hooks-outbox/` FR-018): extension input for the hook
- * modules on `organization.create`, keyed by module id. A server-side caller's
- * only — no HTTP field carries it yet (spec 178 decides that).
+ * modules on `organization.create`, keyed by module id. The admin create's
+ * body carries it as `extensions` (`specs/193-admin-form-extensions/` FR-013),
+ * and the route passes it here unchanged.
  */
 export interface OrganizationCommandOptions {
   readonly extensions?: Readonly<Record<string, unknown>>;
@@ -200,7 +201,7 @@ export function makeCreateOrganizationCommand(
  */
 async function validatedValues(
   deps: CreateOrganizationCommandDeps,
-  input: AdminOrganizationCreateBody,
+  input: CreateOrganizationInput,
 ): Promise<Record<string, unknown>> {
   if (!deps.customFieldValues) return {};
   try {

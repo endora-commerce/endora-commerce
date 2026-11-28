@@ -460,6 +460,15 @@ export interface FieldDeclaration<K extends string = string> {
   readonly writePermission?: string;
   /** Renamed keys still accepted for one release (FR-071). */
   readonly deprecatedAliases?: readonly { readonly key: string; readonly since: string }[];
+  /**
+   * The fixed values the owner's own system paths write into this field
+   * (`specs/193-admin-form-extensions/` D-300.31) — `vat_exempt` on a personal
+   * organisation's VAT status, `null` for a field such a path leaves empty.
+   * Composition refuses a deployment tightening that rejects one
+   * (`rule-excludes-system-value`), so no configuration can make a held
+   * system write fail at run time.
+   */
+  readonly systemValues?: readonly unknown[];
 }
 
 export interface FieldSetDeclaration<K extends string = string> {
@@ -532,6 +541,7 @@ export const FieldDeclarationSchema = z.strictObject({
     .array(z.strictObject({ key: z.string().max(64).regex(fieldKeyRe), since: z.string().regex(/^\d+\.\d+\.\d+$/) }))
     .readonly()
     .optional(),
+  systemValues: z.array(z.unknown()).min(1).readonly().optional(),
 });
 
 const isEnumType = (type: FieldValueType): boolean => type === 'enum' || type === 'enum[]';

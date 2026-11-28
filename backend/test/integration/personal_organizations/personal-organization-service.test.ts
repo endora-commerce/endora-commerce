@@ -7,6 +7,9 @@ import { PersonalOrganizationService } from '../../../../packages/modules/organi
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { transactionBoundCommandBus } from '../../helpers/sales-channels-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 
 /**
  * Feature 051 (T005) — PersonalOrganizationService: idempotent provisioning,
@@ -30,9 +33,14 @@ describe('PersonalOrganizationService', () => {
   });
   beforeEach(async () => {
     em = await db.beginTx();
+    // `specs/193-admin-form-extensions/` D-300.31 — the repair and the detach run `organization.personal.provision` on the bus.
+    const audit = new AuditLogService(() => em);
     svc = new PersonalOrganizationService(
       () => em,
       customerAccountPortsFor(() => em),
+      audit,
+      undefined,
+      transactionBoundCommandBus(() => em, audit, new EventBus()),
     );
   });
   afterEach(async () => db.rollbackTx());

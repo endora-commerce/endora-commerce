@@ -12,6 +12,8 @@ import {
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { CommandBus, type Command } from '@endora-commerce/platform/commands';
+import { sealedCommandHookRegistry } from '@endora-commerce/test-kit/command-hooks';
+import { manifest } from '../../manifest.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -22,6 +24,18 @@ import {
   type OrganizationEventBus,
   type RegistrationCustomFieldValues,
 } from './registration-service.js';
+
+// `specs/193-admin-form-extensions/` D-300.10 — `organization.register` is a
+// buyer self-service write, and the bus admits the flag only on an action a
+// manifest lists, so the bus is composed with this module's list.
+const buyerSelfService = {
+  hooks: sealedCommandHookRegistry({
+    hookableActions: [],
+    moduleDependencies: {},
+    hooks: [],
+    buyerSelfServiceActions: (manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: 'organizations', action })),
+  }),
+};
 
 /**
  * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-5, FR-022 –
@@ -100,7 +114,7 @@ function harness(values?: RegistrationCustomFieldValues, steps: string[] = []) {
   } as unknown as AuditPort;
   // `specs/176-command-hooks-outbox/` — registration is a Command on the bus;
   // the first account is the child the account port prepares.
-  const commandBus = new CommandBus({ em: { fork: () => em } } as unknown as MikroORM, auditLog, new EventBus());
+  const commandBus = new CommandBus({ em: { fork: () => em } } as unknown as MikroORM, auditLog, new EventBus(), buyerSelfService);
   const commands: CustomerAccountMemberCommandPort = {
     prepareCreate: async (input) => ({
       command: (target) => {

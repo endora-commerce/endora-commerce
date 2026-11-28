@@ -13,7 +13,8 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { RecordMergeService } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
-import { effectiveFieldChoices, resolvedCustomFieldValues } from '../merge/organization-merge-rules.js';
+import { toOrganizationRecord } from '../services/organization-details-port.js';
+import { mergedSurvivorFields, resolvedCustomFieldValues } from '../merge/organization-merge-rules.js';
 import { changedKeys } from '../services/organization-audit-state.js';
 import { taxIdConflictOf } from '../services/tax-id-conflict.js';
 import { taxIdExistsRefusal } from '../services/organization-write.js';
@@ -53,18 +54,6 @@ export interface MergeFinalizeResult {
   readonly mergedAt: Date;
 }
 
-function unionEmails(a: readonly string[], b: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const email of [...a, ...b]) {
-    const key = email.trim().toLowerCase();
-    if (key.length === 0 || seen.has(key)) continue;
-    seen.add(key);
-    out.push(email.trim());
-  }
-  return out;
-}
-
 function applyField(survivor: Organization, loser: Organization, code: OrganizationMergeFieldCode): void {
   switch (code) {
     case 'name':
@@ -97,10 +86,16 @@ function applyField(survivor: Organization, loser: Organization, code: Organizat
 export function makeMergeFinalizeCommand(deps: MergeFinalizeDeps, input: MergeStepInput): Command<MergeFinalizeResult> {
   const mergedAt = new Date();
   let source: string | null = null;
+  // `specs/193-admin-form-extensions/` D-300.28 — what this finalize changed
+  // on the survivor, for the field-rule check (it runs in the merge runner's
+  // system scope, so the check is validation only).
+  let changedFields: string[] = [];
   return {
     action: 'organization.merge.finalize',
     objectType: 'organization',
     objectId: input.survivorId,
+    // A rule-check-only writer (D-300.27): not hookable, checked as the backstop.
+    hookData: ({ survivor }) => ({ organization: toOrganizationRecord(survivor), changedFields }),
     run: async ({ em }: { em: EntityManager }) => {
       const ordered = [input.survivorId, input.loserId].sort();
       await em.execute('select "id" from "organizations" where "id" in (?, ?) order by "id" for update', ordered);
@@ -135,11 +130,12 @@ export function makeMergeFinalizeCommand(deps: MergeFinalizeDeps, input: MergeSt
       };
       const beforeCustom = { ...(survivor.customFieldValues ?? {}) };
 
-      const choices = effectiveFieldChoices(survivor, loser, merge.fieldChoices);
+      // `specs/193-admin-form-extensions/` D-300.28 — the outcome start held,
+      // from the one function both Commands read.
+      const { choices, emails } = mergedSurvivorFields(survivor, loser, merge.fieldChoices);
       for (const [code, choice] of Object.entries(choices) as [OrganizationMergeFieldCode, string][]) {
         if (choice === 'loser') applyField(survivor, loser, code);
       }
-      const emails = unionEmails(survivor.orderConfirmationEmails ?? [], loser.orderConfirmationEmails ?? []);
       if (!isDeepStrictEqual(emails, survivor.orderConfirmationEmails ?? [])) survivor.orderConfirmationEmails = emails;
 
       // Custom fields (FR-031): the resolved bag, validated as an operator's
@@ -195,13 +191,14 @@ export function makeMergeFinalizeCommand(deps: MergeFinalizeDeps, input: MergeSt
         fulfilmentStrategyWarehouseOrder: survivor.fulfilmentStrategyWarehouseOrder ?? null,
         orderConfirmationEmails: [...(survivor.orderConfirmationEmails ?? [])],
       };
+      changedFields = changedKeys(before, after);
       return {
         result: { survivor, finalized: true, mergedAt },
         before: null,
         after: {
           mergeId: input.mergeId,
           loserId: input.loserId,
-          changedFields: changedKeys(before, after),
+          changedFields,
           changedCustomFields: changedKeys(beforeCustom, survivor.customFieldValues ?? {}),
           taxIdTaken,
           ...(repointed.length > 0 ? { repointedMergedIds: repointed.map((row) => row.id).sort() } : {}),

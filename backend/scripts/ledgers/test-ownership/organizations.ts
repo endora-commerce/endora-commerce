@@ -8,10 +8,11 @@
  * deletes its entry in the same merge request. Delete this file when the last entry goes;
  * an empty shard is refused, because a done signal that says nothing is not one.
  *
- * Every entry but one is **scheduled**: the file is `organizations`'s and the only thing
+ * Every entry but two is **scheduled**: the file is `organizations`'s and the only thing
  * between it and its package is the batch that moves it. A retained entry — a plain
  * string — is the other claim, that the file is right to stay under `backend/test`; the
- * one below is `specs/187-side-table-extensions/` T037's.
+ * two below are `specs/187-side-table-extensions/` T037's and `specs/193-admin-form-extensions/`
+ * T088's.
  */
 import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 
@@ -56,4 +57,13 @@ export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
     'generated entity index, migration registry and ENTITY_OWNERS of this repository, and migrates ' +
     'the `mod-acme-links` fixture onto it (`specs/187-side-table-extensions/` T037). The package ' +
     'has neither the template nor the registries.',
+  // Retained: its subject is the composition — `organizations`' writer registration sealed into
+  // the platform's form registry beside a deployment override, consulted by the command-hook
+  // registry on the real bus — under an operator's and the anonymous storefront's tenant context.
+  'backend/test/unit/organizations/organization-field-rules-buyer-self-service.test.ts':
+    'Composes the host: it seals `FormRegistry` and `CommandHookRegistry` from ' +
+    '`@endora-commerce/platform/composition`, a host-internal subpath contract §3 refuses a package ' +
+    'test, and runs Commands under admin and anonymous contexts through `runWithTenantContext`, ' +
+    'which no module-facing barrel publishes (`specs/193-admin-form-extensions/` T088, D-300.10). ' +
+    'The package can name neither.',
 };

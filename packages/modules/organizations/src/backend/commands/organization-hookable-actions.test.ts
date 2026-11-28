@@ -91,6 +91,8 @@ function harness(hooks: ReadonlyArray<{ moduleId: string; entries: readonly Comm
     hookableActions: (manifest.hookableActions ?? []).map((declaration) => ({ moduleId: 'organizations', ...declaration })),
     moduleDependencies: { acme_erp: ['organizations'] },
     hooks,
+    // `specs/193-admin-form-extensions/` D-300.10 — `organization.register` sets `buyerSelfService`.
+    buyerSelfServiceActions: (manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: 'organizations', action })),
   });
   const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>(), { hooks: registry });
   return { bus, audits, stored, em: em as unknown as EntityManager };
@@ -131,7 +133,7 @@ describe('organizations declares six hookable actions (176 T028, FR-024; #1057)'
 });
 
 describe('organization.merge.start is hookable (`specs/192-organization-merge/` FR-061)', () => {
-  it('declares its data and outbox data, ids and a source code only', () => {
+  it('declares its data and outbox data: ids and a source code, plus the survivor outcome in-process', () => {
     const command = makeMergeStartCommand(
       { recordMerge: () => ({}) as never },
       {
@@ -150,6 +152,11 @@ describe('organization.merge.start is hookable (`specs/192-organization-merge/` 
       survivorId: ORG_ID,
       loserId: '00000000-0000-4000-8000-000000192f02',
       source: 'erp_connector',
+      // `specs/193-admin-form-extensions/` D-300.28 — the in-process hook data
+      // also carries the outcome the start fixes on the survivor, which `run`
+      // computes (here it has not run, so nothing changes). The outbox data
+      // stays ids and codes.
+      survivor: { after: expect.any(Object), changed: [] },
     });
   });
 });
@@ -421,6 +428,8 @@ function taxIdHarness(
     hookableActions: (manifest.hookableActions ?? []).map((declaration) => ({ moduleId: 'organizations', ...declaration })),
     moduleDependencies: { acme_erp: ['organizations'] },
     hooks,
+    // `specs/193-admin-form-extensions/` D-300.10 — `organization.register` sets `buyerSelfService`.
+    buyerSelfServiceActions: (manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: 'organizations', action })),
   });
   const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>(), { hooks: registry });
   const accounts = { listByOrganization: async () => [{ id: ACCOUNT_ID, organizationRoleId: ADMIN_ROLE }] as never };
@@ -435,8 +444,14 @@ const conversionInput = {
   vatStatus: 'vat_payer' as const,
 };
 
-/** Neither tax ID, name nor address reaches what a hook is handed. */
+/** Neither tax ID, name nor address reaches what a hook is handed (the tax-ID correction's hook data). */
 function expectNoValuesHanded(data: unknown): void {
+  const serialised = JSON.stringify(data);
+  for (const sentinel of TAX_SENTINELS) expect(serialised, sentinel).not.toContain(sentinel);
+}
+
+/** Neither tax ID, name nor address reaches what is stored for an `afterCommit` handler. */
+function expectNoValuesStored(data: unknown): void {
   const serialised = JSON.stringify(data);
   for (const sentinel of TAX_SENTINELS) expect(serialised, sentinel).not.toContain(sentinel);
 }
@@ -448,10 +463,13 @@ describe('organization.convert_to_company is hookable (#1057)', () => {
     const converted = { ...company(), convertedToCompanyAt: new Date() } as unknown as Organization;
     const command = makeConvertToCompanyCommand(deps, { organizationId: ORG_ID, input: conversionInput });
     expectHookableCommand(command, ORG.convertToCompany, { result: converted, sentinels: TAX_SENTINELS });
-    expectNoValuesHanded(command.hookData!(converted));
+    // `specs/193-admin-form-extensions/` D-300.26 — the in-process hook data carries the
+    // after-state; the stored outbox data stays ids, codes and field names.
+    expect(command.hookData!(converted)).toMatchObject({ organization: { id: ORG_ID } });
+    expectNoValuesStored(command.outboxData!(converted));
   });
 
-  it('hands a hook ids, codes and the names of what changed — never the tax ID — and merges its notes', async () => {
+  it('hands a hook the after-state, ids, codes and the names of what changed, and merges its notes', async () => {
     const recording = recordingCommandHooks();
     const h = taxIdHarness(personal(), [
       {
@@ -472,13 +490,14 @@ describe('organization.convert_to_company is hookable (#1057)', () => {
     expect(recording.calls).toHaveLength(1);
     const data = recording.calls[0]!.data as OrganizationConvertToCompanyHookData;
     expect(data).toEqual({
+      // D-300.26 — the converted Organization, which the field-rule check projects.
+      organization: expect.objectContaining({ id: ORG_ID, name: conversionInput.name, isPersonal: false }),
       organizationId: ORG_ID,
       status: 'active',
       vatStatus: 'vat_payer',
       changedFields: ['isPersonal', 'legalName', 'name', 'registeredAddress', 'taxId', 'vatStatus'],
       approvalStamped: true,
     });
-    expectNoValuesHanded(data);
     expect(recording.calls[0]!.extension).toEqual({ creditLimitCode: 'C-1' });
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]!['stateAfter']).toMatchObject({ extensions: { acme_erp: { changedFields: ['kyc_status'] } } });

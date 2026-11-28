@@ -144,7 +144,7 @@ page.
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCommandPort.setCustomFieldValues` | `organization`, `changedFields`, `changedCustomFields` |
-| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
+| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organization`, `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
 All six offer both phases. An `afterCommit` handler is delivered through the
@@ -155,8 +155,11 @@ plus `customerAccountId` and `status` on registration, `status` on create,
 `changedFields` on a conversion, and `changedFields` on a tax-ID correction. A
 hook's noted changes appear in the Organization's single audit entry as names,
 under `extensions.<moduleId>.changedFields`. The registration hook never sees
-the e-mail verification token. The conversion and tax-ID hooks are handed ids,
-codes and field names only — never the tax ID, the name or the address. A
+the e-mail verification token. The conversion's hooks are also handed the
+converted Organization (`organization`, its after-state), so the tax ID, the name
+and the address now reach its `beforeCommit` hooks, as they already reach
+`admin_patch`'s; its outbox data stays ids, codes and field names. The tax-ID
+correction's hooks are handed ids, codes and field names only — never the tax ID. A
 tax-ID correction to the same value changes nothing, and its hooks still run
 with an empty `changedFields`: no audit entry is recorded unless a hook noted a
 write, and then the one entry names only the hook's fields. Extension input
@@ -1625,7 +1628,7 @@ How an operator merges, follows and resumes a merge in the Admin UI is the
 | Method and path | Permission | What it does |
 | --- | --- | --- |
 | `POST /api/v1/admin/organizations/:id/merge-preview` | `organizations:merge` | `{ loserId }` — refusals, per area how many records would follow, and the values that differ. Writes nothing. |
-| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — re-checks the preview and starts the merge (`202`). |
+| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — re-checks the preview and starts the merge (`202`). The deployment's field rules hold the outcome on the survivor: a chosen value that breaks a tightened rule is `422 FIELD_RULE_VIOLATION`, and a changed field whose `writePermission` you lack is `403 FIELD_WRITE_FORBIDDEN`; `details[].path` names the field, and nothing is recorded, frozen or enqueued. |
 | `GET /api/v1/admin/organization-merges` | `organizations:merge` | `?state=&organizationId=` — merges both of whose organizations you reach. |
 | `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` | One merge with its steps. |
 | `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` — a merge that needs attention runs again; finished steps are not repeated. |
@@ -1650,7 +1653,9 @@ releases it in the same write, and the loser's latest VAT validation result come
   `409 RECORD_MERGE_IN_PROGRESS`. Writes to the survivor continue.
 - The merge runs as a background job in phases (structure, configuration, addresses, members,
   records, finalize). A failed step is retried; when the retries are exhausted the merge stops
-  in *needs attention* and can be resumed. A module that is switched off when the merge reaches
+  in *needs attention* and can be resumed. A field rule deployed while the merge runs is a new
+  cause of that: the finalize is held to validation again, and a value the new rule refuses
+  stops it there; *resume* completes once the rule admits the value. A module that is switched off when the merge reaches
   it is skipped, and its part runs automatically once it is switched back on.
 - After completion the loser is archived: it is soft-deleted, carries
   `mergedIntoOrganizationId`, `mergedAt` and `mergeId`, and appears in no list, picker or
@@ -1669,7 +1674,9 @@ releases it in the same write, and the loser's latest VAT validation result come
 - `organization.merged.v1` is published once, with `organizationId` (the survivor),
   `mergedOrganizationId`, `mergeId`, `mergedAt` and `source`. It is offered for outbound
   webhooks. `organization.merge.start` is a hookable action, so a deployment can veto a merge
-  before it starts.
+  before it starts. Its hook data carries the outcome it fixes on the survivor (`survivor`:
+  the values after the choices and the e-mail union, and the keys that change); the outbox
+  data stays ids and codes.
 - Every audit entry a merge writes carries its `mergeId`, with field names and codes, never the
   values.
 - When a merge stops in *needs attention*, every active administrator holding

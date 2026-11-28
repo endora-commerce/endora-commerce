@@ -34,7 +34,6 @@ import type {
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
-import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyEntityExtensionReads, lazyPort, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
@@ -48,7 +47,7 @@ import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-orga
 import { CustomerAccount } from './entities/customer-account.entity.js';
 import { CustomerGroup } from './entities/customer-group.entity.js';
 import { PasswordResetToken } from './entities/password-reset-token.entity.js';
-import { accountCreatedAuditState } from './services/customer-account-audit-state.js';
+import { makeRegisterSocialCommand } from './commands/customer-account-register-social.command.js';
 import { registerCustomerGroupAdminRoutes } from './routes.admin.js';
 import {
   CustomerAccountMemberWriteService,
@@ -646,7 +645,7 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort(
     'customerSocialLoginPort',
     ctx
-      .asFunction(({ emFactory, auditLogService }: CustomerAccountsCradle) => ({
+      .asFunction(({ emFactory }: CustomerAccountsCradle) => ({
         async resolveByEmail(email: string): Promise<{
           id: string;
           organizationId: string | null;
@@ -725,74 +724,21 @@ export function registerModule(ctx: ModuleContext): void {
             ctx,
             'personalOrganizationProvisionApi',
           );
-          // Issue #1926 — the transaction runs inside a bus scope, so the
-          // personal organisation's access-cache drop, which the channel
-          // binding defers to the scope, follows the commit; the binding's
-          // events are dropped with a rollback.
-          const bus = cradle.eventBus;
+          // `specs/193-admin-form-extensions/` D-300.10, D-300.31 — the federated
+          // sign-in is one Command, `customer_account.register_social`: the
+          // personal organisation (`organization.personal.provision`, its child)
+          // and the account on its one transaction, recorded by its one entry.
+          // It is a buyer's own write under the anonymous system actor, so it
+          // says so, and a deployment's field rule does not refuse the visitor.
+          // The bus opens the event scope itself (issue #1926): the channel
+          // binding's access-cache drop follows the commit.
           return withSystemScope('mfa: auto-create customer from social login', async () =>
-            bus.run(() => emFactory().transactional(async (em) => {
-              /**
-               * D-178 — the personal organisation, in the same transaction as
-               * the account.
-               *
-               * This path provisioned **none**, so every account a federated
-               * sign-in created carried `organization_id = NULL` permanently:
-               * not a window but the steady state of a shipped feature, and the
-               * buyer reaching checkout was told to attach an Organization they
-               * had no way to attach. `customers`' self-registration provisioned
-               * one in a second unit of work; this one is a single transaction,
-               * which is what closes the window that shape leaves.
-               *
-               * The provider sends no name with the claim this seam reads, so
-               * the organisation is named from the address' local part — which
-               * is exactly what `PersonalOrganizationService.personalName` falls
-               * back to for a nameless account.
-               */
-              const organization = await provision.provisionFor(em, {
-                customerAccountId,
-                email: folded,
-                // Feature 154 (owner decision D6) — the store the federated
-                // sign-in was started on, which `mfa` carries in the OAuth
-                // transaction because the provider's redirect names none, so
-                // the session issued next is accepted there. `mfa` creates an
-                // account only on a store open to anonymous visitors. A caller
-                // with no channel never gets here (issue #773).
-                salesChannelId,
-              });
-              const account = em.create(CustomerAccount, {
-                id: customerAccountId,
-                email: folded,
-                passwordHash,
-                passwordSetAt: null,
-                firstName: '',
-                lastName: '',
-                organizationId: organization.id,
-                // The individual administers their personal Organization (owner
-                // ruling PR-3, research R-34) — the provisioning answer's id,
-                // because the role row exists only in this transaction.
-                organizationRoleId: organization.administratorRoleId,
-                emailVerifiedAt: new Date(),
-                // Issue #652 (D-292) — the language of the page the federated
-                // sign-in was started on, resolved by `mfa` against the channel.
-                preferredLanguage: context.preferredLanguage ?? null,
-              });
-              // The other way an account is created without an admin —
-              // `customers`' standalone self-registration — records this same
-              // shape with a null actor, and this path did not record anything at
-              // all until the coverage scan reached `backend.ts` (issue #122). An
-              // account appearing out of a federated sign-in is exactly the event
-              // an operator later needs to explain.
-              recordAuditFromContext(auditLogService, em, {
-                action: 'customer_account.register_social',
-                objectType: 'customer_account',
-                objectId: account.id,
-                stateBefore: null,
-                stateAfter: accountCreatedAuditState(account),
-              });
-              await em.flush();
-              return { id: account.id, organizationId: organization.id };
-            })),
+            cradle.commandBus.run(
+              makeRegisterSocialCommand(
+                { personalOrganizations: provision },
+                { customerAccountId, email: folded, passwordHash, salesChannelId, preferredLanguage: context.preferredLanguage ?? null },
+              ),
+            ),
           );
         },
       }))

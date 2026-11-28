@@ -1,14 +1,28 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { OrganizationSalesChannelOption } from '@endora-commerce/contracts';
+import {
+  ORGANIZATION_FIELD_SET,
+  ORGANIZATION_FORMS,
+  type OrganizationSalesChannelOption,
+} from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import { CustomFieldValuesPanel, OrganizationPicker, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
+import {
+  CustomFieldValuesPanel,
+  DeclaredFormNotices,
+  DeclaredFormProvider,
+  DeclaredFormSection,
+  OrganizationPicker,
+  customFieldErrorsOf,
+  useDeclaredForm,
+} from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
   Button,
   Card,
   CardContent,
+  FormField,
+  HelpTip,
   Input,
   Label,
   PageHeader,
@@ -17,6 +31,7 @@ import {
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationSalesChannelsClient } from '../api/sales-channels.js';
 import { SalesChannelChecklist } from '../components/SalesChannelChecklist.js';
+import { DeclaredFieldError, describedBy } from '../components/declared-field-notes.js';
 
 /**
  * *New organization* — an operator creates a customer Organization and chooses
@@ -36,6 +51,16 @@ import { SalesChannelChecklist } from '../components/SalesChannelChecklist.js';
  * the create and a refusal said at the field it names. Its definitions are
  * `custom_fields:read`'s, so without that code the panel is not shown and the
  * create carries no values, as before.
+ *
+ * `specs/193-admin-form-extensions/` WP-E1 — the form is the declared form
+ * `organization.create` (`ORGANIZATION_FORMS.create`): its fields render
+ * through the admin kit's `DeclaredFormSection`, so a module may add a slot
+ * field at an anchor and a deployment or an operator may relabel, move, hide
+ * or lock what the field set invites. Each field keeps its own markup (`field`
+ * renderers), so with no override and no slot the form is the form it was. The
+ * slot values travel in the create's one request as `extensions`. The custom
+ * fields stay their own panel: they are operator-defined fields, not the field
+ * set's (D0).
  */
 
 /** The panel's starting bag: a new Organization has none. */
@@ -53,20 +78,32 @@ const STATUSES = ['active', 'pending_verification'] as const;
 const SCOPED_ROLE_CODE = 'sales_representative';
 type Status = (typeof STATUSES)[number];
 
+/** The declared form's values: the field set's keys, in the shapes the create sends. */
+type CreateValues = {
+  name: string;
+  taxId: string;
+  parentId: string | null;
+  registeredAddress: { street: string; postalCode: string; city: string; country: string };
+  status: Status;
+  salesChannelIds: string[];
+};
+
+const INITIAL_VALUES: CreateValues = {
+  name: '',
+  taxId: '',
+  parentId: null,
+  registeredAddress: { street: '', postalCode: '', city: '', country: '' },
+  status: 'active',
+  salesChannelIds: [],
+};
+
 export function OrganizationCreate(): ReactNode {
   const t = useTranslation('organizations');
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [taxId, setTaxId] = useState('');
-  const [street, setStreet] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-  const [city, setCity] = useState('');
-  const [country, setCountry] = useState('');
-  const [parentId, setParentId] = useState<string | null>(null);
+  const [values, setValues] = useState<CreateValues>(INITIAL_VALUES);
+  const { name, taxId, parentId, registeredAddress: address, status, salesChannelIds: channels } = values;
   const canNameParent = (useAuth().me?.role?.code ?? SCOPED_ROLE_CODE) !== SCOPED_ROLE_CODE;
-  const [status, setStatus] = useState<Status>('active');
   const [options, setOptions] = useState<OrganizationSalesChannelOption[] | null>(null);
-  const [channels, setChannels] = useState<string[]>([]);
   const [optionsError, setOptionsError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -83,7 +120,7 @@ export function OrganizationCreate(): ReactNode {
       .then((res) => {
         if (cancelled) return;
         setOptions(res.data);
-        setChannels(res.data.filter((o) => o.systemDefault).map((o) => o.id));
+        setValues((current) => ({ ...current, salesChannelIds: res.data.filter((o) => o.systemDefault).map((o) => o.id) }));
       })
       .catch(() => {
         if (!cancelled) setOptionsError(true);
@@ -99,31 +136,286 @@ export function OrganizationCreate(): ReactNode {
   const submit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     if (cannotSubmit) return;
-    setSaving(true);
+    // A previous attempt's page error is not this one's.
     setError(null);
+    // The deployment's tightened rules, before the round trip; the server holds
+    // the same ones whatever the form showed (FR-062).
+    if (!declared.validate()) return;
+    setSaving(true);
     setCustomFieldErrors({});
+    // A field the declared form does not submit — hidden, or read-only — is
+    // left out, so the create stores the field's default (`field-slots.md` §3).
+    const { core, extensions } = declared.submission();
+    const sent = (key: keyof CreateValues): boolean => Object.prototype.hasOwnProperty.call(core, key);
     try {
       const res = await organizationSalesChannelsClient.create({
         name: name.trim(),
         taxId: taxId.trim(),
         registeredAddress: {
-          street: street.trim(),
-          postalCode: postalCode.trim(),
-          city: city.trim(),
-          country: country.trim().toUpperCase(),
+          street: address.street.trim(),
+          postalCode: address.postalCode.trim(),
+          city: address.city.trim(),
+          country: address.country.trim().toUpperCase(),
         },
-        status,
+        ...(sent('status') ? { status } : {}),
         salesChannelIds: channels,
-        ...(parentId ? { parentId } : {}),
+        ...(parentId && sent('parentId') ? { parentId } : {}),
         ...(Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
+        ...(extensions ? { extensions } : {}),
       });
       navigate(`/organizations/${res.data.id}`, { replace: true });
     } catch (err) {
       setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
+      // A field rule or a slot's refusal, said at the field it names.
+      declared.applyError(err);
       setError(err instanceof ApiError ? err.envelope.error.message : t('create.error'));
       setSaving(false);
     }
   };
+
+  const declared = useDeclaredForm({
+    form: ORGANIZATION_FORMS.create,
+    fieldSet: ORGANIZATION_FIELD_SET,
+    recordId: null,
+    values,
+    onChange: (key, value) => setValues((current) => ({ ...current, [key]: value })),
+    render: {
+      // Each field keeps its id and its own copy; `FormField` wires the label,
+      // the override's help, the error and the required marker (IX). A field
+      // core requires keeps its native `required` and shows no marker, as it
+      // did before; a marker appears where an override makes a field required.
+      name: {
+        field: (p) => (
+          <FormField label={p.labelOverride ?? t('create.field.name')} help={p.helpOverride} error={p.error}>
+            <Input
+              id="org-new-name"
+              value={name}
+              onChange={(e) => p.onChange(e.target.value)}
+              maxLength={255}
+              required
+              readOnly={p.readOnly}
+              placeholder={p.placeholder}
+            />
+          </FormField>
+        ),
+      },
+      taxId: {
+        field: (p) => (
+          <FormField
+            id="org-new-tax-id"
+            label={p.labelOverride ?? t('create.field.taxId')}
+            help={p.helpOverride}
+            error={p.error}
+            {...(parentId ? { describedBy: 'org-new-tax-id-hint' } : {})}
+          >
+            {(control) => (
+              <>
+                <Input
+                  {...control}
+                  value={taxId}
+                  onChange={(e) => p.onChange(e.target.value)}
+                  minLength={8}
+                  maxLength={32}
+                  required
+                  readOnly={p.readOnly}
+                  placeholder={p.placeholder}
+                />
+                {parentId ? (
+                  <p id="org-new-tax-id-hint" className="mt-1 text-xs text-muted-foreground">
+                    {t('create.hint.sharedTaxId')}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </FormField>
+        ),
+      },
+      parentId: {
+        // Naming a parent is an unscoped administrator's alone (D-260).
+        field: (p) =>
+          canNameParent ? (
+            <FormField
+              id="org-new-parent"
+              className="md:max-w-md"
+              label={p.labelOverride ?? t('create.field.parent')}
+              help={p.helpOverride}
+              error={p.error}
+              required={p.required}
+              describedBy="org-new-parent-help"
+            >
+              {(control) => (
+                <>
+                  <OrganizationPicker
+                    id={control.id}
+                    ariaLabel={p.labelOverride ?? t('create.field.parent')}
+                    value={parentId}
+                    onChange={(next) => p.onChange(next)}
+                    clearable
+                    disabled={saving || p.readOnly}
+                    describedBy={control['aria-describedby']}
+                    invalid={control['aria-invalid'] === true}
+                  />
+                  <p id="org-new-parent-help" className="mt-1 text-xs text-muted-foreground">
+                    {t('create.field.parentHelp')}
+                  </p>
+                </>
+              )}
+            </FormField>
+          ) : null,
+      },
+      registeredAddress: {
+        // A fieldset of four inputs: a group `FormField` cannot wrap. The
+        // error is on each input, and the fieldset carries none (`aria-invalid`
+        // is not supported on a group).
+        field: (p) => {
+          const change = (part: keyof CreateValues['registeredAddress'], next: string): void =>
+            p.onChange({ ...address, [part]: next });
+          const invalid = p.error !== undefined ? { 'aria-invalid': true as const } : {};
+          const describe = (...existing: string[]): string | undefined => describedBy('org-new-address', p.error, ...existing);
+          return (
+            <fieldset className="grid gap-2">
+              <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                <span id="org-new-address-legend">{p.labelOverride ?? t('create.field.registeredAddress')}</span>
+                {p.helpOverride !== undefined ? <HelpTip subjectId="org-new-address-legend">{p.helpOverride}</HelpTip> : null}
+              </legend>
+              <div className="grid gap-2">
+                <Label htmlFor="org-new-street">{t('create.field.street')}</Label>
+                <Input
+                  id="org-new-street"
+                  value={address.street}
+                  onChange={(e) => change('street', e.target.value)}
+                  maxLength={255}
+                  autoComplete="street-address"
+                  required
+                  readOnly={p.readOnly}
+                  aria-describedby={describe()}
+                  {...invalid}
+                />
+              </div>
+              <div className="grid gap-2 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="org-new-postal-code">{t('create.field.postalCode')}</Label>
+                  <Input
+                    id="org-new-postal-code"
+                    value={address.postalCode}
+                    onChange={(e) => change('postalCode', e.target.value)}
+                    maxLength={20}
+                    autoComplete="postal-code"
+                    required
+                    readOnly={p.readOnly}
+                    aria-describedby={describe()}
+                    {...invalid}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="org-new-city">{t('create.field.city')}</Label>
+                  <Input
+                    id="org-new-city"
+                    value={address.city}
+                    onChange={(e) => change('city', e.target.value)}
+                    maxLength={120}
+                    autoComplete="address-level2"
+                    required
+                    readOnly={p.readOnly}
+                    aria-describedby={describe()}
+                    {...invalid}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="org-new-country">{t('create.field.country')}</Label>
+                  <Input
+                    id="org-new-country"
+                    value={address.country}
+                    onChange={(e) => change('country', e.target.value)}
+                    minLength={2}
+                    maxLength={2}
+                    pattern="[A-Za-z]{2}"
+                    autoComplete="country"
+                    aria-describedby={describe('org-new-country-help')}
+                    required
+                    readOnly={p.readOnly}
+                    {...invalid}
+                  />
+                  <p id="org-new-country-help" className="text-xs text-muted-foreground">
+                    {t('create.field.countryHelp')}
+                  </p>
+                </div>
+              </div>
+              <DeclaredFieldError id="org-new-address" error={p.error} />
+            </fieldset>
+          );
+        },
+      },
+      status: {
+        field: (p) => (
+          <FormField className="md:max-w-xs" label={p.labelOverride ?? t('create.field.status')} help={p.helpOverride} error={p.error}>
+            <Select
+              id="org-new-status"
+              value={status}
+              onChange={(e) => p.onChange(e.target.value as Status)}
+              // A select has no read-only state (D-300.18).
+              disabled={p.readOnly}
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`create.status.${s}`)}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        ),
+      },
+      salesChannelIds: {
+        // A checklist with a label of its own (`SalesChannelChecklist`'s group):
+        // the error region is `FormField`'s, linked from the group.
+        field: (p) => (
+          <div className="grid gap-2">
+            <p id="org-new-channels-label" className="flex items-center gap-1.5 text-sm font-medium">
+              <span>{p.labelOverride ?? t('salesChannels.title')}</span>
+              {p.helpOverride !== undefined ? <HelpTip subjectId="org-new-channels-label">{p.helpOverride}</HelpTip> : null}
+            </p>
+            <p id="org-new-channels-help" className="text-xs text-muted-foreground">
+              {t('salesChannels.description')}
+            </p>
+            {optionsError ? (
+              <Alert variant="destructive">
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{t('salesChannels.loadError')}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAttempt((n) => n + 1)}
+                  >
+                    {t('salesChannels.retry')}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : options === null ? (
+              <p className="text-sm text-muted-foreground">{t('salesChannels.loading')}</p>
+            ) : (
+              <SalesChannelChecklist
+                options={options}
+                value={channels}
+                onChange={(next) => p.onChange(next)}
+                disabled={saving || p.readOnly}
+                idPrefix="org-new-channel"
+                labelledBy="org-new-channels-label"
+                describedBy={describedBy('org-new-channels', p.error, 'org-new-channels-help', noChannel && 'org-new-channels-error')}
+                invalid={noChannel || p.error !== undefined}
+              />
+            )}
+            {noChannel ? (
+              <p id="org-new-channels-error" role="alert" className="text-xs font-medium text-destructive">
+                {t('salesChannels.atLeastOne')}
+              </p>
+            ) : null}
+            <DeclaredFieldError id="org-new-channels" error={p.error} />
+          </div>
+        ),
+      },
+    },
+  });
 
   return (
     <>
@@ -136,165 +428,13 @@ export function OrganizationCreate(): ReactNode {
             </Alert>
           ) : null}
           <form className="grid gap-4" onSubmit={(e) => void submit(e)}>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="org-new-name">{t('create.field.name')}</Label>
-                <Input
-                  id="org-new-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={255}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="org-new-tax-id">{t('create.field.taxId')}</Label>
-                <Input
-                  id="org-new-tax-id"
-                  value={taxId}
-                  onChange={(e) => setTaxId(e.target.value)}
-                  minLength={8}
-                  maxLength={32}
-                  required
-                  {...(parentId ? { 'aria-describedby': 'org-new-tax-id-hint' } : {})}
-                />
-                {parentId ? (
-                  <p id="org-new-tax-id-hint" className="text-xs text-muted-foreground">
-                    {t('create.hint.sharedTaxId')}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-
-            {canNameParent ? (
-              <div className="grid gap-2 md:max-w-md">
-                <Label htmlFor="org-new-parent">{t('create.field.parent')}</Label>
-                <OrganizationPicker
-                  id="org-new-parent"
-                  ariaLabel={t('create.field.parent')}
-                  value={parentId}
-                  onChange={setParentId}
-                  clearable
-                  disabled={saving}
-                />
-                <p className="text-xs text-muted-foreground">{t('create.field.parentHelp')}</p>
-              </div>
-            ) : null}
-
-            <fieldset className="grid gap-2">
-              <legend className="mb-2 text-sm font-medium">{t('create.field.registeredAddress')}</legend>
-              <div className="grid gap-2">
-                <Label htmlFor="org-new-street">{t('create.field.street')}</Label>
-                <Input
-                  id="org-new-street"
-                  value={street}
-                  onChange={(e) => setStreet(e.target.value)}
-                  maxLength={255}
-                  autoComplete="street-address"
-                  required
-                />
-              </div>
-              <div className="grid gap-2 md:grid-cols-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="org-new-postal-code">{t('create.field.postalCode')}</Label>
-                  <Input
-                    id="org-new-postal-code"
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
-                    maxLength={20}
-                    autoComplete="postal-code"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="org-new-city">{t('create.field.city')}</Label>
-                  <Input
-                    id="org-new-city"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    maxLength={120}
-                    autoComplete="address-level2"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="org-new-country">{t('create.field.country')}</Label>
-                  <Input
-                    id="org-new-country"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    minLength={2}
-                    maxLength={2}
-                    pattern="[A-Za-z]{2}"
-                    autoComplete="country"
-                    aria-describedby="org-new-country-help"
-                    required
-                  />
-                  <p id="org-new-country-help" className="text-xs text-muted-foreground">
-                    {t('create.field.countryHelp')}
-                  </p>
-                </div>
-              </div>
-            </fieldset>
-
-            <div className="grid gap-2 md:max-w-xs">
-              <Label htmlFor="org-new-status">{t('create.field.status')}</Label>
-              <Select
-                id="org-new-status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as Status)}
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`create.status.${s}`)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <p id="org-new-channels-label" className="text-sm font-medium">
-                {t('salesChannels.title')}
-              </p>
-              <p id="org-new-channels-help" className="text-xs text-muted-foreground">
-                {t('salesChannels.description')}
-              </p>
-              {optionsError ? (
-                <Alert variant="destructive">
-                  <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-                    <span>{t('salesChannels.loadError')}</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setAttempt((n) => n + 1)}
-                    >
-                      {t('salesChannels.retry')}
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              ) : options === null ? (
-                <p className="text-sm text-muted-foreground">{t('salesChannels.loading')}</p>
-              ) : (
-                <SalesChannelChecklist
-                  options={options}
-                  value={channels}
-                  onChange={setChannels}
-                  disabled={saving}
-                  idPrefix="org-new-channel"
-                  labelledBy="org-new-channels-label"
-                  describedBy={
-                    noChannel ? 'org-new-channels-help org-new-channels-error' : 'org-new-channels-help'
-                  }
-                  invalid={noChannel}
-                />
-              )}
-              {noChannel ? (
-                <p id="org-new-channels-error" role="alert" className="text-xs font-medium text-destructive">
-                  {t('salesChannels.atLeastOne')}
-                </p>
-              ) : null}
-            </div>
+            <DeclaredFormProvider form={ORGANIZATION_FORMS.create} declared={declared}>
+              <DeclaredFormNotices />
+              <DeclaredFormSection section="identity" className="grid gap-x-2 gap-y-4 space-y-0 md:grid-cols-2" />
+              <DeclaredFormSection section="parent" className="empty:hidden" />
+              <DeclaredFormSection section="address" />
+              <DeclaredFormSection section="access" />
+            </DeclaredFormProvider>
 
             {hasPermission('custom_fields:read') ? (
               <CustomFieldValuesPanel

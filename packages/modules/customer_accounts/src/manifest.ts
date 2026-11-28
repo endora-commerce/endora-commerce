@@ -221,6 +221,11 @@ export const manifest = defineModuleManifest({
   // `specs/192-organization-merge/` T069): a deployment may veto or follow it,
   // and tell a merge from a move by its `mode`.
   hookableActions: Object.values(CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
+  // `specs/193-admin-form-extensions/` D-300.10, D-300.31 — the buyer's own
+  // writes this module runs: the storefront's standalone registration (flagged
+  // by its caller, `customers`) and the federated sign-in. The bus refuses the
+  // flag on any other action.
+  buyerSelfServiceActions: ['customer_account.register_standalone', 'customer_account.register_social'],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   // Feature 076 (D-79) — the customer-group admin surface came here with the

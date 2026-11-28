@@ -28,6 +28,8 @@ import { CartAnonymizationService } from '../../../../packages/modules/carts/src
 import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
 import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { transactionBoundCommandBus } from '../../helpers/sales-channels-service.js';
 
 /**
  * Issue #920 — the retention sweep erases the free text operators and
@@ -135,7 +137,8 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     cartAudit = new CartAuditService(() => em, audit);
     carts = new CartAnonymizationService(() => em, audit);
     addresses = createAddressServicePort(() => new AddressService(() => em, undefined, audit));
-    personalOrgs = new PersonalOrganizationService(() => em, customerAccountPortsFor(() => em), audit);
+    // `specs/193-admin-form-extensions/` D-300.31 — the repair and the detach run `organization.personal.provision` on the bus.
+    personalOrgs = new PersonalOrganizationService(() => em, customerAccountPortsFor(() => em), audit, undefined, transactionBoundCommandBus(() => em, audit, new EventBus()));
     anonymizedEvents = [];
     // `specs/186-aggregate-ports/` — the writes are the aggregate port's Commands.
     accountWrites = customerAccountCommandsFor(() => em, audit, {

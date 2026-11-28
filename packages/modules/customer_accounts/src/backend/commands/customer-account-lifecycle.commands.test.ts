@@ -18,6 +18,8 @@ import { describe, expect, it } from 'vitest';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import type { RecordAuditInput } from '@endora-commerce/platform/kernel';
 import { withSystemScope, withSystemScopeActingFor } from '@endora-commerce/platform/tenancy';
+import { sealedCommandHookRegistry } from '@endora-commerce/test-kit/command-hooks';
+import { manifest } from '../../manifest.js';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { CustomerAccountCommandService } from '../services/customer-account-command-port.js';
 
@@ -77,7 +79,7 @@ class FakeEm {
   }
 }
 
-function harness(options: { personal?: boolean } = {}) {
+function harness(options: { personal?: boolean; buyerSelfServiceActions?: readonly string[] } = {}) {
   const em = new FakeEm();
   const entries: RecordAuditInput[] = [];
   const handAudits: RecordAuditInput[] = [];
@@ -106,8 +108,16 @@ function harness(options: { personal?: boolean } = {}) {
     },
     emit: () => undefined,
   };
-  const commandBus = new CommandBus({ em } as never, audit as never, events as never);
-  const provisioned: Array<{ em: unknown; customerAccountId: string }> = [];
+  // `specs/193-admin-form-extensions/` D-300.10 — the bus admits `buyerSelfService`
+  // only on an action a manifest lists; the module's own list by default.
+  const hooks = sealedCommandHookRegistry({
+    hookableActions: [],
+    moduleDependencies: {},
+    hooks: [],
+    buyerSelfServiceActions: (options.buyerSelfServiceActions ?? manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: 'customer_accounts', action })),
+  });
+  const commandBus = new CommandBus({ em } as never, audit as never, events as never, { hooks });
+  const provisioned: Array<{ em: unknown; customerAccountId: string; ran: boolean }> = [];
   const port = new CustomerAccountCommandService({
     commandBus,
     emFactory: () => em as never,
@@ -118,8 +128,15 @@ function harness(options: { personal?: boolean } = {}) {
     },
     isPersonal: async () => options.personal === true,
     personalOrganizations: {
-      provisionFor: async (tem, input) => {
-        provisioned.push({ em: tem, customerAccountId: input.customerAccountId });
+      // D-300.31 — the provisioning runs as the caller's child Command, through its `run`.
+      provisionFor: async ({ em: tem, run }, input) => {
+        const ran = await run({
+          action: 'organization.personal.provision',
+          objectType: 'organization',
+          objectId: input.customerAccountId,
+          run: async () => ({ result: true, skipAudit: true }),
+        });
+        provisioned.push({ em: tem, customerAccountId: input.customerAccountId, ran });
         return { id: ORG, administratorRoleId: ADMINISTRATOR };
       },
     },
@@ -370,7 +387,7 @@ describe('customer_account.register_standalone', () => {
       h.port.createStandalone({ email: 'Ada@Example.TEST', password: 'pw', firstName: 'Ada', lastName: 'L', preferredLanguage: 'pl-PL' }),
     );
 
-    expect(h.provisioned).toEqual([{ em: h.em, customerAccountId: record.id }]);
+    expect(h.provisioned).toEqual([{ em: h.em, customerAccountId: record.id, ran: true }]);
     expect(record).toMatchObject({ email: 'ada@example.test', organizationId: ORG, organizationRoleId: ADMINISTRATOR });
     expect(h.em.accounts[0]).toMatchObject({ passwordHash: 'hashed:pw', preferredLanguage: 'pl-PL' });
     expect(h.entries).toHaveLength(1);
@@ -382,6 +399,24 @@ describe('customer_account.register_standalone', () => {
       stateAfter: { organizationRoleId: ADMINISTRATOR, emailVerified: false },
     });
     expect(JSON.stringify(h.entries)).not.toContain('ada@example.test');
+  });
+
+  it('puts a caller’s buyerSelfService on the Command, which the manifest lists (D-300.10 as amended)', async () => {
+    expect(manifest.buyerSelfServiceActions).toContain('customer_account.register_standalone');
+    const h = harness();
+    const record = await asWorker(() =>
+      h.port.createStandalone({ email: 'buyer@example.test', password: 'pw', firstName: 'B', lastName: 'Y' }, { buyerSelfService: true }),
+    );
+    expect(record.organizationId).toBe(ORG);
+    // Refused outright where no manifest lists the action: the flag did reach the Command.
+    const undeclared = harness({ buyerSelfServiceActions: [] });
+    await expect(
+      asWorker(() => undeclared.port.createStandalone({ email: 'buyer2@example.test', password: 'pw', firstName: 'B', lastName: 'Y' }, { buyerSelfService: true })),
+    ).rejects.toMatchObject({ name: 'UndeclaredBuyerSelfServiceActionError' });
+    // Without the option the Command carries no flag, so a system caller is bound.
+    const bare = harness({ buyerSelfServiceActions: [] });
+    await asWorker(() => bare.port.createStandalone({ email: 'system@example.test', password: 'pw', firstName: 'S', lastName: 'Y' }));
+    expect(bare.provisioned).toHaveLength(1);
   });
 
   it('refuses an address already registered, provisioning nothing', async () => {

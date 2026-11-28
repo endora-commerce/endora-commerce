@@ -161,6 +161,85 @@ export function effectiveFieldChoices(
   return out;
 }
 
+/**
+ * The survivor's order-confirmation e-mails after a merge: both lists, the
+ * survivor's first, each address once (case-insensitive), blanks dropped. Never
+ * a choice (192 `contracts/organization-merge.md`).
+ */
+export function unionEmails(a: readonly string[], b: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const email of [...a, ...b]) {
+    const key = email.trim().toLowerCase();
+    if (key.length === 0 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(email.trim());
+  }
+  return out;
+}
+
+/** The organization field-set keys a merge writes on the survivor (`specs/193-admin-form-extensions/` D-300.28). */
+export const MERGE_FIELD_SET_WRITES = [
+  'name',
+  'taxId',
+  'vatStatus',
+  'registeredAddress',
+  'fulfilmentStrategy',
+  'fulfilmentStrategyWarehouseOrder',
+  'orderConfirmationEmails',
+] as const;
+
+/** What a merge does to the survivor's fields: the choices it applies, the e-mail union, and the outcome over the field set. */
+export interface MergedSurvivorFields {
+  readonly choices: Partial<Record<OrganizationMergeFieldCode, RecordMergeChoice>>;
+  readonly emails: string[];
+  /** The survivor's field-set values after the merge, keyed by field-set key. */
+  readonly after: Readonly<Record<(typeof MERGE_FIELD_SET_WRITES)[number], unknown>>;
+  /** The field-set keys whose value the merge changes, sorted. */
+  readonly changed: readonly string[];
+}
+
+/**
+ * The one computation of a merge's outcome on the survivor
+ * (`specs/193-admin-form-extensions/` D-300.28): `organization.merge.start`
+ * hands it to the field-rule check as the outcome it fixes, and
+ * `organization.merge.finalize` applies its choices and its union. Both read
+ * the same function, so what start held is what finalize writes.
+ */
+export function mergedSurvivorFields(
+  survivor: MergeableOrganization,
+  loser: MergeableOrganization,
+  chosen: Readonly<Partial<Record<string, RecordMergeChoice>>>,
+): MergedSurvivorFields {
+  const choices = effectiveFieldChoices(survivor, loser, chosen);
+  const pick = <T>(code: OrganizationMergeFieldCode, own: T, other: T): T => (choices[code] === 'loser' ? other : own);
+  const emails = unionEmails(survivor.orderConfirmationEmails ?? [], loser.orderConfirmationEmails ?? []);
+  const before = {
+    name: survivor.name,
+    taxId: survivor.taxId ?? null,
+    vatStatus: survivor.vatStatus,
+    registeredAddress: { ...survivor.registeredAddress },
+    fulfilmentStrategy: survivor.fulfilmentStrategy ?? null,
+    fulfilmentStrategyWarehouseOrder: survivor.fulfilmentStrategyWarehouseOrder ?? null,
+    orderConfirmationEmails: [...(survivor.orderConfirmationEmails ?? [])],
+  };
+  const after = {
+    name: pick('name', survivor.name, loser.name),
+    taxId: pick('taxId', survivor.taxId ?? null, loser.taxId ?? null),
+    vatStatus: pick('vatStatus', survivor.vatStatus, loser.vatStatus),
+    registeredAddress: pick('registeredAddress', { ...survivor.registeredAddress }, { ...loser.registeredAddress }),
+    fulfilmentStrategy: pick('fulfilmentStrategy', survivor.fulfilmentStrategy ?? null, loser.fulfilmentStrategy ?? null),
+    fulfilmentStrategyWarehouseOrder: pick(
+      'fulfilmentStrategy',
+      survivor.fulfilmentStrategyWarehouseOrder ?? null,
+      loser.fulfilmentStrategyWarehouseOrder ?? null,
+    ),
+    orderConfirmationEmails: emails,
+  };
+  const changed = MERGE_FIELD_SET_WRITES.filter((key) => !isDeepStrictEqual(before[key], after[key])).sort();
+  return { choices, emails, after, changed };
+}
+
 /** The custom-field keys whose values differ, with the same default rule (FR-031). */
 export function customFieldDifferences(
   survivor: MergeableOrganization,

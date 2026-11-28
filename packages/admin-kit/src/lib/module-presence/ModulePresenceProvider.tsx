@@ -123,6 +123,15 @@ export function ModulePresenceProvider(props: ModulePresenceProviderProps): Reac
   );
 }
 
+/**
+ * The provider's value, or `null` when none is mounted — for a kit primitive
+ * that must render without one and fail closed (no module present). Internal
+ * to the kit; a screen calls {@link useModulePresence}, which refuses.
+ */
+export function useOptionalModulePresence(): ModulePresenceContextValue | null {
+  return useContext(ModulePresenceContext);
+}
+
 export function useModulePresence(): ModulePresenceContextValue {
   const ctx = useContext(ModulePresenceContext);
   if (!ctx) {

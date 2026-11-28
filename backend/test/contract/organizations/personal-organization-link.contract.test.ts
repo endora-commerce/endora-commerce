@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PersonalOrganizationPort } from '@endora-commerce/contracts';
+import type { Command } from '@endora-commerce/platform/commands';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
 import {
   setupBackendServer,
@@ -33,13 +36,29 @@ describe('personal organizations — provisioning by the account link', () => {
     );
   }
 
+  /**
+   * `specs/193-admin-form-extensions/` D-300.31 — the provisioning runs as a
+   * child of its caller's Command, on that Command's transaction, as
+   * `customer_accounts`' registrations run it.
+   */
+  function inCallerCommand<T>(work: (ctx: { em: EntityManager; run: <R>(command: Command<R>) => Promise<R> }) => Promise<T>): Promise<T> {
+    const caller: Command<T> = {
+      action: 'test.personal_organization.caller',
+      objectType: 'customer_account',
+      objectId: randomUUID(),
+      run: async ({ em, run }) => ({ result: await work({ em: em as EntityManager, run: run! }), skipAudit: true }),
+    };
+    return withSystemScope('test: provision a personal organization', () =>
+      h.container.resolve<{ run<R>(command: Command<R>): Promise<R> }>('commandBus').run(caller),
+    );
+  }
+
   /** A customer account in a fresh personal organization, provisioned the way `customer_accounts` does it. */
   async function personalAccount(): Promise<{ accountId: string; organizationId: string }> {
     const api = h.container.resolve<PersonalOrganizationProvisionApi>('personalOrganizationProvisionApi');
     const accountId = randomUUID();
-    const em = h.em().fork();
-    const organizationId = await em.transactional(async (tx) => {
-      const provisioned = await api.provisionFor(tx, {
+    const organizationId = await inCallerCommand(async ({ em: tx, run }) => {
+      const provisioned = await api.provisionFor({ em: tx, run }, {
         customerAccountId: accountId,
         email: `${accountId.slice(0, 8)}@link.example`,
         firstName: 'Link',
@@ -111,16 +130,13 @@ describe('personal organizations — provisioning by the account link', () => {
     const api = h.container.resolve<PersonalOrganizationProvisionApi>('personalOrganizationProvisionApi');
     const accountId = randomUUID();
     const attempt = () =>
-      h
-        .em()
-        .fork()
-        .transactional((tx) =>
-          api.provisionFor(tx, {
-            customerAccountId: accountId,
-            email: `${accountId.slice(0, 8)}@race.example`,
-            salesChannelId: null,
-          }),
-        );
+      inCallerCommand((context) =>
+        api.provisionFor(context, {
+          customerAccountId: accountId,
+          email: `${accountId.slice(0, 8)}@race.example`,
+          salesChannelId: null,
+        }),
+      );
 
     const outcomes = await Promise.allSettled([attempt(), attempt()]);
     const won = outcomes.filter((o): o is PromiseFulfilledResult<{ id: string; administratorRoleId: string }> => o.status === 'fulfilled');

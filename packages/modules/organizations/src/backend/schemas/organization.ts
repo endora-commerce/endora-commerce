@@ -82,7 +82,8 @@ export type TriggerVatValidationInput = z.infer<typeof triggerVatValidationSchem
 const registeredAddressSchema = registerOrganizationRequestSchema.shape.organization.shape.registeredAddress;
 const legalNameSchema = z.string().min(1).max(255).nullable();
 
-export const organizationWriteCreateInputSchema = AdminOrganizationCreateBodySchema.extend({
+// The port carries extension input as `options.extensions`, never in the record.
+export const organizationWriteCreateInputSchema = AdminOrganizationCreateBodySchema.omit({ extensions: true }).extend({
   legalName: legalNameSchema.optional(),
   status: z.enum(['active', 'pending_verification']),
 });

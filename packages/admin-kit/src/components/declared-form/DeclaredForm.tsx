@@ -33,7 +33,7 @@
  * // on save: if (!declared.validate()) return;
  * //          const { core, extensions } = declared.submission();
  * //          try { await save({ ...core, ...(extensions ? { extensions } : {}) }) } catch (e) { if (!declared.applyError(e)) throw e }
- * <DeclaredFormProvider declared={declared}>
+ * <DeclaredFormProvider form={ORGANIZATION_FORMS.edit} declared={declared}>
  *   <DeclaredFormNotices />
  *   <EditorSection title={t('sections.identity')}><DeclaredFormSection section="identity" /></EditorSection>
  * </DeclaredFormProvider>
@@ -78,8 +78,8 @@ import { mapDeclaredFormError } from '../../lib/forms/errors.js';
 import { declaredFormLayout } from '../../lib/forms/layout.js';
 import { clientFieldViolations, fieldValueChanged, isEffectivelyRequired } from '../../lib/forms/rules.js';
 import { declaredFormSubmission, type DeclaredFormSubmission } from '../../lib/forms/submission.js';
-import { useModulePresence } from '../../lib/module-presence/ModulePresenceProvider.js';
-import { useSurfaceVisibility } from '../../lib/surface-visibility.js';
+import { useOptionalModulePresence } from '../../lib/module-presence/ModulePresenceProvider.js';
+import { isSurfaceVisible, type GatedSurface } from '../../lib/surface-visibility.js';
 import { cn } from '../../lib/utils.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { FormField, type FormFieldControlProps } from '../../ui/form-field.js';
@@ -194,6 +194,13 @@ export interface DeclaredFormController {
   submission(): DeclaredFormSubmission;
   /** Run the client rules; show and return whether the submission passes them. */
   validate(): boolean;
+  /**
+   * Run the client rules and show them, as {@link validate} does, and return
+   * what they found, field key or slot wire key → message — for a host that
+   * reports them through its save session (`SavePart.validate`'s `fields`),
+   * whose summary names them and focuses the first. Empty when the form passes.
+   */
+  check(): Readonly<Record<string, string>>;
   /** Map a refused save onto the fields. `false` when the error is not one the form can place. */
   applyError(error: unknown): boolean;
   clearErrors(): void;
@@ -253,6 +260,9 @@ function loadBehaviour(load: AdminComponentFactory): Promise<FieldBehaviourModul
 // The hook
 // ---------------------------------------------------------------------------
 
+const NO_MODULE_PRESENT = (): boolean => false;
+const NOTHING_TO_REFRESH = (): Promise<void> => Promise.resolve();
+
 const own = (values: Readonly<Record<string, unknown>> | null | undefined, key: string): unknown =>
   values != null && Object.prototype.hasOwnProperty.call(values, key) ? values[key] : undefined;
 
@@ -296,9 +306,14 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
   const mode = form.mode;
   const { form: effective } = useEffectiveForm(form.id);
   const contributions = useAdminFormContributions();
-  const isVisible = useSurfaceVisibility();
   const { hasPermission } = useAuth();
-  const { isPresent, refresh: refreshPresence } = useModulePresence();
+  // Without a presence provider no module is present: no slot, no module
+  // control, no behaviour — the declaration alone, as with no effective forms
+  // (`EffectiveFormsProvider`'s header). A host screen renders either way.
+  const presence = useOptionalModulePresence();
+  const isPresent = presence?.isPresent ?? NO_MODULE_PRESENT;
+  const refreshPresence = presence?.refresh ?? NOTHING_TO_REFRESH;
+  const isVisible = (surface: GatedSurface): boolean => isSurfaceVisible(surface, { hasPermission, isModulePresent: isPresent });
   const { t, language } = useTranslationContext();
 
   const firstValues = useRef(options.values);
@@ -508,7 +523,7 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
     return coreKeys.filter((key) => Object.prototype.hasOwnProperty.call(core, key) || (rendered.has(key) && !coreReadOnly(key)));
   };
 
-  const validate = (): boolean => {
+  const check = (): Readonly<Record<string, string>> => {
     const violations = clientFieldViolations({
       mode,
       fieldSet,
@@ -526,8 +541,9 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
           : t('_lifecycle', `fieldRules.${violation.code}`, params);
     }
     setErrors(next);
-    return violations.length === 0;
+    return next;
   };
+  const validate = (): boolean => Object.keys(check()).length === 0;
 
   const applyError = (error: unknown): boolean => {
     const mapped = mapDeclaredFormError(error, [...coreKeys, ...formSlots.map(wireOf)]);
@@ -618,6 +634,7 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
     notices,
     submission,
     validate,
+    check,
     applyError,
     clearErrors: () => setErrors({}),
     sections,
@@ -757,17 +774,38 @@ const DeclaredFormContext = createContext<DeclaredFormController | null>(null);
 
 export interface DeclaredFormProviderProps {
   readonly declared: DeclaredFormController;
+  /**
+   * The form `declared` was built for, named where the form renders
+   * (`contracts/field-slots.md` §3). `check:admin-forms` and `endora generate`
+   * read it here to know which forms a host renders (`unrendered-form`,
+   * `undeclared-form`). Required (D-300.29), so the type checker reports a
+   * host that forgot it before the check does. It must be the form handed to
+   * {@link useDeclaredForm}; a different one throws on the first render.
+   */
+  readonly form: Pick<AdminFormDeclaration, 'id'>;
   readonly children: ReactNode;
 }
 
-export function DeclaredFormProvider({ declared, children }: DeclaredFormProviderProps): ReactNode {
+export function DeclaredFormProvider({ declared, form, children }: DeclaredFormProviderProps): ReactNode {
+  if (form.id !== declared.formId) {
+    const mismatch = new Error(
+      `[declared-form] <DeclaredFormProvider form={…}> names '${form.id}', and its controller was built for '${declared.formId}'. ` +
+        'Hand the provider the form useDeclaredForm was given.',
+    );
+    // `check:admin-forms` reads the provider's `form` but not the hook's, so it
+    // cannot see a mismatch: the first render in development and in every test
+    // throws (D-300.29). A production screen keeps working on the controller's
+    // form — the one its fields, rules and submission come from — and says so.
+    if (import.meta.env.DEV) throw mismatch;
+    console.error(mismatch);
+  }
   return <DeclaredFormContext.Provider value={declared}>{children}</DeclaredFormContext.Provider>;
 }
 
 function useDeclaredFormContext(): DeclaredFormController {
   const declared = useContext(DeclaredFormContext);
   if (declared === null) {
-    throw new Error('[declared-form] DeclaredFormSection was rendered outside <DeclaredFormProvider declared={useDeclaredForm(…)}>.');
+    throw new Error('[declared-form] DeclaredFormSection was rendered outside <DeclaredFormProvider form={…} declared={useDeclaredForm(…)}>.');
   }
   return declared;
 }

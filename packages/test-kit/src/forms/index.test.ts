@@ -99,6 +99,15 @@ describe('expectFieldSetMatchesSchemas (193 T017, FR-003)', () => {
     );
   });
 
+  it('reads a key the schema refuses (`z.never()`) as not carried, so a field it refuses is held to the other schema', () => {
+    // An update that refuses a field the create writes, as a status the PATCH refuses.
+    const refusing = update.extend({ kind: z.never().optional() });
+    expect(() => expectFieldSetMatchesSchemas(SET, { create, update: refusing })).not.toThrow();
+    expect(failure(() => expectFieldSetMatchesSchemas(SET, { update: update.omit({ kind: true }).extend({ kind: z.never().optional() }) }))).toMatch(
+      /'kind'.*no write schema/,
+    );
+  });
+
   it('does not hold the update schema to required-ness', () => {
     expect(() => expectFieldSetMatchesSchemas(SET, { update: create })).not.toThrow();
   });

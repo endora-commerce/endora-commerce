@@ -99,13 +99,19 @@ export class CustomerRegistrationService {
     // that second unit of work is exactly what left a committed account with no
     // organization whenever it failed: the visitor had no session to retry from
     // and nothing anywhere re-ran the provisioning.
-    const customerAccount = await this.deps.accounts.createStandalone({
-      email: input.email,
-      password: input.password,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      preferredLanguage: input.preferredLanguage ?? null,
-    });
+    // `specs/193-admin-form-extensions/` D-300.10 as amended by D-300.31 — the
+    // storefront's own registration is a buyer's write: a deployment's tightened
+    // field rule does not refuse the visitor (D-300.3). Only this caller says so.
+    const customerAccount = await this.deps.accounts.createStandalone(
+      {
+        email: input.email,
+        password: input.password,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        preferredLanguage: input.preferredLanguage ?? null,
+      },
+      { buyerSelfService: true },
+    );
 
     const session = await this.deps.sessionService.createSession({
       kind: 'customer',

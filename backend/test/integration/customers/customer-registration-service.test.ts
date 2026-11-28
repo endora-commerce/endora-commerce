@@ -180,8 +180,8 @@ describe('CustomerRegistrationService.registerStandalone', () => {
 
     const svc = new CustomerRegistrationService({
       accounts: customerAccountLifecycleWriteFor(() => em, audit, undefined, {
-        provisionFor: async (tem, input) => {
-          const real = await personalOrganizationProvisionFor(() => em).provisionFor(tem, input);
+        provisionFor: async (context, input) => {
+          const real = await personalOrganizationProvisionFor(() => em).provisionFor(context, input);
           throw Object.assign(new Error('account write blew up'), { provisioned: real.id });
         },
       }),

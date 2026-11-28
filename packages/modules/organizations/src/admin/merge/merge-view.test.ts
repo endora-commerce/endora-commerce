@@ -13,8 +13,7 @@ import {
   participantCounts,
   shownInPreview,
   totalMoving,
-  type Translate,
-} from './merge-view.js';
+  type Translate, mergeFieldRefusals } from './merge-view.js';
 
 /** `specs/192-organization-merge/` T074 — the merge screens' rules, without a DOM. */
 
@@ -194,5 +193,46 @@ describe('which participants the preview lists', () => {
     expect(shownInPreview({ ...row, counts: { 'Order.organizationId': 2 }, deletedCounts: { 'Order.organizationId': 2 } })).toBe(true);
     expect(shownInPreview({ ...row, warnings: [{ code: 'W' }] })).toBe(true);
     expect(shownInPreview({ ...row, conflicts: [{ code: 'C', resolution: 'survivor' }] })).toBe(true);
+  });
+});
+
+describe('mergeFieldRefusals (193 D-300.28)', () => {
+  it('maps a rule refusal onto its row, the warehouse order onto the fulfilment row, and the union apart', () => {
+    expect(
+      mergeFieldRefusals(
+        {
+          code: 'FIELD_RULE_VIOLATION',
+          details: [
+            { path: 'name', code: 'too_long', message: 'Too long.' },
+            { path: 'fulfilmentStrategyWarehouseOrder', code: 'required', message: 'Pick one.' },
+            { path: 'orderConfirmationEmails', code: 'pattern', message: 'Use the company domain.' },
+          ],
+        },
+        'Forbidden.',
+      ),
+    ).toEqual({
+      fields: { name: 'Too long.', fulfilmentStrategy: 'Pick one.' },
+      union: { message: 'Use the company domain.', permission: null },
+    });
+  });
+
+  it('says a forbidden field in the screen’s own words, and names the permission a union needs', () => {
+    expect(
+      mergeFieldRefusals(
+        {
+          code: 'FIELD_WRITE_FORBIDDEN',
+          details: [
+            { path: 'vatStatus', permission: 'a:b', message: 'raw' },
+            { path: 'orderConfirmationEmails', permission: 'acme:recipients', message: 'raw' },
+          ],
+        },
+        'You may not change this.',
+      ),
+    ).toEqual({ fields: { vatStatus: 'You may not change this.' }, union: { message: 'You may not change this.', permission: 'acme:recipients' } });
+  });
+
+  it('is not a field refusal for any other error', () => {
+    expect(mergeFieldRefusals({ code: 'ORGANIZATION_MERGED', details: [] }, 'x')).toBeNull();
+    expect(mergeFieldRefusals({ code: 'FIELD_RULE_VIOLATION' }, 'x')).toBeNull();
   });
 });

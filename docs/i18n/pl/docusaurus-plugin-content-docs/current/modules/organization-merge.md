@@ -58,6 +58,22 @@ zapisane:
 | Inne scalanie obejmuje już jeden z rekordów | Poczekaj na jego zakończenie albo wznów je, jeśli wymaga uwagi. |
 | **Scalanie nie jest jeszcze dostępne** | Zobacz niżej. |
 
+### Gdy wartość zostaje odrzucona {#when-a-value-is-refused}
+
+Twoje wdrożenie może obowiązywać pola organizacji własnymi regułami: maksymalną długością nazwy,
+statusami VAT, z którymi handluje, tym, kto może zmienić pole. Scalanie podlega im w organizacji,
+która zostaje. Jeśli wartość wybrana z duplikatu łamie którąś z nich, rozpoczęcie zostaje
+odrzucone, nic się nie zmienia, a Ty wracasz do kroku wartości z oznaczoną wartością:
+
+- wiersz mówi, czego wymaga reguła albo że nie masz uprawnień do zmiany pola, i proponuje
+  **Zachowaj wartość organizacji, która zostaje**; wybierz ją albo inną wartość i rozpocznij
+  ponownie;
+- e-maile potwierdzeń zamówień nigdy nie są wyborem: organizacja, która zostaje, dostaje obie
+  listy. Odrzucenie połączonej listy jest pokazane w wierszu tylko do odczytu **E-maile
+  potwierdzeń zamówień (połączone)**. Popraw listę odbiorców na stronie tej organizacji albo —
+  gdy scalanie dodaje odbiorców, których nie możesz zmienić — poproś administratora z
+  uprawnieniem, które wiersz wymienia, o rozpoczęcie scalania.
+
 **Scalanie nie jest jeszcze dostępne** wymienia obszary platformy, które nie potrafią jeszcze
 przenieść swoich rekordów do organizacji, która zostaje. Dopóki każdy obszar przechowujący
 rekordy organizacji tego nie umożliwi, podgląd działa, a rozpoczęcie scalania jest odrzucane.
@@ -83,7 +99,9 @@ Obszar wyłączony w chwili, gdy scalanie do niego dotrze, jest pomijany i oznac
 ## Gdy scalanie wymaga uwagi {#when-a-merge-needs-attention}
 
 Krok, który stale się nie udaje, jest ponawiany, a potem scalanie zatrzymuje się w stanie
-**Wymaga uwagi**. Każdy administrator, który może scalać i ma dostęp do obu organizacji,
+**Wymaga uwagi**. Może się tak zatrzymać również wtedy, gdy wdrożenie dodało regułę w trakcie
+scalania, a odrzucana przez nią wartość jest zapisywana na końcu; wznów je, gdy reguła dopuści
+tę wartość. Każdy administrator, który może scalać i ma dostęp do obu organizacji,
 otrzymuje powiadomienie z odnośnikiem do scalania. Otwórz **Scalenia organizacji** (⌘K →
 *Scalenia organizacji*) — na początku listy są scalenia wymagające uwagi — i wybierz **Wznów**.
 Ukończone kroki nie są powtarzane.

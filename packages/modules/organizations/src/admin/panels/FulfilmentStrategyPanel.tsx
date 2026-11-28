@@ -6,6 +6,7 @@ import {
   type FulfilmentStrategyValue,
   type FulfilmentWarehouseOption,
 } from '@endora-commerce/admin-kit/components';
+import { DeclaredFieldError, describedBy } from '../components/declared-field-notes.js';
 
 /**
  * Organization-level fulfilment-strategy override (precedence: Product →
@@ -23,6 +24,15 @@ export interface FulfilmentStrategyPanelProps {
   warehouses: FulfilmentWarehouseOption[];
   /** While the page's Save runs. */
   disabled?: boolean;
+  /**
+   * `specs/193-admin-form-extensions/` WP-E1 — the declared field's effective
+   * label and help (`fulfilmentStrategy` on `organization.edit`): the section's
+   * title and description. Absent, the section's own title and none.
+   */
+  title?: ReactNode;
+  description?: ReactNode;
+  /** A refused save's or a client rule's message for the strategy, tied to its select. */
+  error?: string | undefined;
 }
 
 export function FulfilmentStrategyPanel({
@@ -30,11 +40,14 @@ export function FulfilmentStrategyPanel({
   onChange,
   warehouses,
   disabled = false,
+  title,
+  description,
+  error,
 }: FulfilmentStrategyPanelProps): ReactNode {
   const t = useTranslation('core');
   return (
     // Issue #1515 — a section of the Commerce tab's card, not a card of its own.
-    <EditorSection title={t('fulfilment.orgTitle')}>
+    <EditorSection title={title ?? t('fulfilment.orgTitle')} {...(description === undefined ? {} : { description })}>
       <FulfilmentStrategyPicker
         value={value}
         onChange={onChange}
@@ -42,7 +55,10 @@ export function FulfilmentStrategyPanel({
         allowInherit
         disabled={disabled}
         idPrefix="org-fulfilment"
+        describedBy={describedBy('org-fulfilment', error)}
+        invalid={error !== undefined}
       />
+      <DeclaredFieldError id="org-fulfilment" error={error} />
     </EditorSection>
   );
 }

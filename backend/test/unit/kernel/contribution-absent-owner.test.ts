@@ -22,6 +22,7 @@ vi.mock(
 );
 
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import { generatedListForms } from '../../helpers/generated-list-forms.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { registerModule as registerCatalog } from '../../../../packages/modules/catalog/src/backend/index.js';
 import { registerModule as registerInventory } from '../../../../packages/modules/inventory/src/backend/index.js';
@@ -177,12 +178,17 @@ function compose(
     // mechanism correctly leaves a registered name alone.
     ...(withOwner ? Object.fromEntries(ownerNames.map((name) => [name, sink])) : {}),
   });
+  // `specs/193-admin-form-extensions/` WP-E1 — `organizations` registers its field set's writers,
+  // which a root with no form registry refuses; sealed against the composed module's declarations.
+  const forms = generatedListForms([moduleId]);
   const composed = composeModules(
     [{ id: moduleId, version: '1.0.0', registerModule: registerModule as never }],
     {
       container,
       eventBus: new EventBus(),
       log: { info: () => {}, warn: () => {}, error: () => {} },
+      formRegistry: forms.registry,
+      forms: forms.data,
     },
   );
   return { runBootHooks: () => composed.runBootHooks(), contributed: () => contributed };

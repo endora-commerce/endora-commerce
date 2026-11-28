@@ -62,6 +62,9 @@ function build(options: { em?: EntityManager; account?: Partial<CustomerAccountR
       bindToDefaultIfEmpty: vi.fn(async () => ({ changed: true })),
       replaceChannelsForEntity: vi.fn(async () => ({ changed: true })),
     },
+    // `specs/193-admin-form-extensions/` D-300.31 — the detach runs
+    // `organization.personal.provision`; a stand-in bus runs it on this case's em.
+    { run: async (command) => (await command.run({ em: options.em } as never)).result },
   );
   return service;
 }

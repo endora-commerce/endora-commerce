@@ -291,7 +291,7 @@ function Host({
   });
   controller = declared;
   return (
-    <DeclaredFormProvider declared={declared}>
+    <DeclaredFormProvider form={mode === 'create' ? FORMS.create : FORMS.edit} declared={declared}>
       <DeclaredFormNotices />
       <section aria-label="identity">
         <DeclaredFormSection section="identity" />
@@ -832,7 +832,7 @@ describe('field-family behaviours', () => {
         },
       });
       return (
-        <DeclaredFormProvider declared={declared}>
+        <DeclaredFormProvider form={form} declared={declared}>
           <DeclaredFormSection section="main" />
         </DeclaredFormProvider>
       );
@@ -886,7 +886,7 @@ describe('platform controls keep FormField’s wiring', () => {
       });
       probe = declared;
       return (
-        <DeclaredFormProvider declared={declared}>
+        <DeclaredFormProvider form={form} declared={declared}>
           <DeclaredFormSection section="main" />
         </DeclaredFormProvider>
       );
@@ -915,5 +915,63 @@ describe('platform controls keep FormField’s wiring', () => {
     expect(group).toHaveAccessibleDescription('This field is required.');
     expect(within(group).getByRole('button', { name: /^Customer tags/u })).toBe(trigger);
     expect(trigger).toHaveAttribute('aria-labelledby');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WP-E1: a host screen with no presence provider, and the provider's `form`
+// ---------------------------------------------------------------------------
+
+describe('a declared form with no module-presence provider (193 WP-E1)', () => {
+  it('lays out the declaration and renders no slot: no module is present', async () => {
+    render(
+      <TranslationProvider language="en" initialBundle={bundleFor('en')}>
+        <AuthProvider initial={adminSession({ permissions: ['*'] })}>
+          <AdminContributionsProvider entries={CONTRIBUTIONS}>
+            <Host mode="create" initial={CREATE_VALUES} />
+          </AdminContributionsProvider>
+        </AuthProvider>
+      </TranslationProvider>,
+    );
+    expect(await screen.findByLabelText(/^Tax ID/u)).toBeInTheDocument();
+    expect(screen.getByLabelText('Website')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/ERP code/u)).toBeNull();
+    expect(declaredController().extensionModules).toEqual([]);
+  });
+});
+
+describe('DeclaredFormProvider’s form (193 WP-E1, check:admin-forms)', () => {
+  function Named({ form }: { form: { id: string } }): ReactNode {
+    const declared = useDeclaredForm({
+      form: FORMS.create,
+      fieldSet: FIELD_SET,
+      values: CREATE_VALUES,
+      onChange: () => undefined,
+      render: renderers(),
+    });
+    return (
+      <DeclaredFormProvider form={form} declared={declared}>
+        <DeclaredFormSection section="identity" />
+      </DeclaredFormProvider>
+    );
+  }
+
+  it('renders when it names the controller’s form', async () => {
+    mount(<Named form={FORMS.create} />, { forms: { forms: [] } });
+    expect(await screen.findByLabelText(/^Tax ID/u)).toBeInTheDocument();
+  });
+
+  it('requires the form, so a host that forgets it is a type error (D-300.29)', () => {
+    function Forgotten({ declared }: { declared: DeclaredFormController }): ReactNode {
+      // @ts-expect-error — `form` is required: check:admin-forms reads it to know what a host renders.
+      return <DeclaredFormProvider declared={declared}>{null}</DeclaredFormProvider>;
+    }
+    expect(Forgotten).toBeTypeOf('function');
+  });
+
+  it('refuses a form that is not the controller’s', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    onTestFinished(() => error.mockRestore());
+    expect(() => mount(<Named form={FORMS.edit} />, { forms: { forms: [] } })).toThrow(/organization\.edit.*organization\.create/u);
   });
 });

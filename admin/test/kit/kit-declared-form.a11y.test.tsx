@@ -135,7 +135,7 @@ function Host(): ReactNode {
     <main>
       <h1>New organization</h1>
       <form aria-label="New organization">
-        <DeclaredFormProvider declared={declared}>
+        <DeclaredFormProvider form={FORM} declared={declared}>
           <DeclaredFormNotices />
           <DeclaredFormSection section="identity" />
         </DeclaredFormProvider>

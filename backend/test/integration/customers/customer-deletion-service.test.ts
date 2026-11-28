@@ -54,6 +54,8 @@ import { AUDIT_ERASED_MARKER } from '@endora-commerce/contracts';
 import { CustomerAddress, EmailDelivery } from '../../helpers/package-entities.js';
 import { ANONYMIZED_EMAIL_RECIPIENT } from '@endora-commerce/contracts';
 import { EmailDeliveryAnonymizationService } from '../../../../packages/modules/email/src/backend/services/email-delivery-anonymization-service.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { transactionBoundCommandBus } from '../../helpers/sales-channels-service.js';
 
 /** Step 3 (issue #844) as a no-op, for the cases about the other steps. */
 const NO_HISTORY: AnonymizedHistoryDeps = {
@@ -166,10 +168,13 @@ describe('CustomerDeletionService', () => {
     sessions = new SessionService(() => em, redis);
     audit = new AuditLogService(() => em);
     addresses = createAddressServicePort(() => new AddressService(() => em, undefined, audit));
+    // `specs/193-admin-form-extensions/` D-300.31 — the repair and the detach run `organization.personal.provision` on the bus.
     personalOrgs = new PersonalOrganizationService(
       () => em,
       customerAccountPortsFor(() => em),
       audit,
+      undefined,
+      transactionBoundCommandBus(() => em, audit, new EventBus()),
     );
     organizationRoles = { predefinedRoleId: (organizationId: string, kind: 'administrator' | 'member') => predefinedRoleIdOf(em, organizationId, kind) };
     accounts = new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer'), organizationRoles);
