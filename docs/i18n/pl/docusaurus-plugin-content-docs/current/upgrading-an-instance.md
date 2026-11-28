@@ -5830,12 +5830,12 @@ Sama aktualizacja:
    wykonuje CLI z `0.112.0`: przenosi każdy pakiet wydania na `0.113.0` i uruchamia `setup`. Drugie
    wykonuje zainstalowane przez nie CLI z `0.113.0`, które przepisuje okablowanie instancji do nowej
    postaci ([Moduły nakładkowe](#after-0-113-0-overlays)) i ponownie uruchamia `setup`. Od `0.113.0`
-   jedno uruchomienie robi jedno i drugie. Jeśli pierwsze uruchomienie zatrzyma się w `setup`,
-   uruchom polecenie jeszcze raz: drugie podejmie pracę od tego miejsca.
-   <!-- TODO(release): the end-to-end 0.112.0 → 0.113.0 upgrade is untried. Read from the code, the
-   first run's `build` should stop on the 0.112.0 `backend/src/migrate.ts`, which imports
-   `refuseOverlaySchema` (removed in this release), while `.changeset/1848-overlay-build.md` says the
-   instance keeps starting on its old wiring. Confirm on the release branch and correct this step. -->
+   jedno uruchomienie robi jedno i drugie. Pierwsze uruchomienie wykonuje `setup` jeszcze na
+   okablowaniu z `0.112.0`, którego `backend/src/migrate.ts` importuje `refuseOverlaySchema`: to
+   wydanie zachowuje tę funkcję jako przestarzałą i niewykonującą niczego, więc ten plik nadal się
+   wczytuje. Drugie uruchomienie usuwa import i wywołanie z nieedytowanego pliku; jeśli go edytowałeś,
+   usuń je sam przed `0.114.0`, które tę funkcję usuwa.
+   <!-- TODO(release): run the 0.112.0 → 0.113.0 upgrade end to end on the release branch once. -->
    `setup` stosuje migracje moduł po module, w kolejności zależności modułów, a migracje każdego
    modułu w kolejności ich znaczników czasu:
 

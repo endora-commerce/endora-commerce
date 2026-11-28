@@ -5583,11 +5583,11 @@ The upgrade itself:
    `0.112.0` CLI: it moves every release package to `0.113.0` and runs `setup`. The second is made by
    the `0.113.0` CLI it installed, which rewrites the instance's wiring to the new rendering
    ([Overlay modules](#after-0-113-0-overlays)) and runs `setup` again. From `0.113.0` on, one run does
-   both. If the first run stops in `setup`, run the command again: the second run picks up from there.
-   <!-- TODO(release): the end-to-end 0.112.0 → 0.113.0 upgrade is untried. Read from the code, the
-   first run's `build` should stop on the 0.112.0 `backend/src/migrate.ts`, which imports
-   `refuseOverlaySchema` (removed in this release), while `.changeset/1848-overlay-build.md` says the
-   instance keeps starting on its old wiring. Confirm on the release branch and correct this step. -->
+   both. The first run's `setup` still runs on the `0.112.0` wiring, whose `backend/src/migrate.ts`
+   imports `refuseOverlaySchema`: this release keeps it as a deprecated function that does nothing, so
+   that file still loads. The second run deletes the import and the call from an unedited file; if you
+   edited it, delete them yourself before `0.114.0`, which removes the function.
+   <!-- TODO(release): run the 0.112.0 → 0.113.0 upgrade end to end on the release branch once. -->
    `setup` applies the migrations module by module, in the order of the modules' dependencies, and
    each module's own in the order of their stamps:
 
