@@ -132,6 +132,7 @@ export {
 } from './schema-extension-verifier.js';
 export {
   activeSchemaExtensionContext,
+  recordedSchemaExtensions,
   type SchemaExtensionContext,
 } from '../kernel/schema-extensions/registry.js';
 export {

@@ -87,6 +87,26 @@ export function activeSchemaExtensions(): readonly ColumnExtension[] {
   return active.declarations;
 }
 
+/**
+ * {@link activeSchemaExtensions}, refusing to answer before any ORM
+ * configuration of this process recorded them (`specs/193-admin-form-extensions/`
+ * D-300.23). It is the column reader the composition roots hand the side-table
+ * loader registry: `loader-and-columns-on-one-host` acts on "nothing declared"
+ * by admitting the loader, so a composition that registered modules before
+ * configuring its ORM would otherwise skip the rule silently. The registry asks
+ * it only for an `adminReads` loader.
+ */
+export function recordedSchemaExtensions(): readonly ColumnExtension[] {
+  if (!recorded) {
+    throw new Error(
+      '[schema-extensions] the column declarations were read before any ORM configuration of this process ' +
+        'recorded them, so loader-and-columns-on-one-host cannot be judged; configure the ORM ' +
+        '(mikroOrmConfigFrom) before modules register',
+    );
+  }
+  return active.declarations;
+}
+
 /** The declarations plus the host and ownership facts the verifier reads. */
 export function activeSchemaExtensionContext(): SchemaExtensionContext {
   return active;

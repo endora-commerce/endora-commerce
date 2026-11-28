@@ -36,6 +36,17 @@ describe('ExtensionAttributesSchema', () => {
     expect(ExtensionAttributesSchema.parse(value)).toEqual(value);
   });
 
+  it('admits null for a served module with no value (193 D-300.25)', () => {
+    const value = { acme_links: null, acme_erp: { erpCode: 'ERP-1' } };
+    expect(ExtensionAttributesSchema.parse(value)).toEqual(value);
+  });
+
+  it('refuses a module value that is neither an object keyed by field nor null (193 D-300.24)', () => {
+    for (const value of [['a', 'b'], 'plain', 42, true]) {
+      expect(ExtensionAttributesSchema.safeParse({ acme_links: value }).success).toBe(false);
+    }
+  });
+
   it('refuses a key that is not a module id', () => {
     expect(ExtensionAttributesSchema.safeParse({ 'Not-A-Module': {} }).success).toBe(false);
   });

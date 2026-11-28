@@ -119,6 +119,7 @@ import { createRecordMergeRuntime } from '../kernel/merge/runtime.js';
 import {
   activeSchemaExtensionContext,
   activeSchemaExtensions,
+  recordedSchemaExtensions,
 } from '../kernel/schema-extensions/registry.js';
 import { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
 import { verifySchemaExtensions } from '../db/schema-extension-verifier.js';
@@ -757,8 +758,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // `specs/187-side-table-extensions/` B1 — the side-table loader registry,
   // judged against every composed manifest's `extends` (L1) as each module
   // registers, sealed by `composeModules` below; `entityExtensionReads` reads it.
+  // 193 FR-015 — and against the ORM's column declarations, so a module cannot
+  // serve one host's `extensions.<moduleId>` from both (L4). The reader refuses
+  // before the ORM configuration recorded them (D-300.23).
   const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
     declarations: entityExtensionDeclarationsFrom(resolvedRegistry.map((entry) => entry.manifest)),
+    columnExtensions: recordedSchemaExtensions,
   });
   // `specs/193-admin-form-extensions/` WP-B — the form registry: every module
   // context registers its field sets' writers and its formats into it,
@@ -892,6 +897,9 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     schemaExtensionReads: createSchemaExtensionReads({
       declarations: activeSchemaExtensions,
       state: effectiveState,
+      // `specs/193-admin-form-extensions/` FR-015 — and the side-table loaders
+      // that opt into admin reads.
+      loaders: entityExtensionLoaderRegistry,
     }),
     // `specs/187-side-table-extensions/` FR-054 — side-table values on the
     // extensible hosts' read ports, over the loaders the modules registered and

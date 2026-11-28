@@ -23,6 +23,17 @@ export interface EntityExtensionLoaderEntry<T> {
   readonly host: string;
   /** Every value `load` returns is parsed with it; a refusal is a 500 naming the module. */
   readonly schema: z.ZodType<T>;
+  /**
+   * Also serve the value on the host's admin detail read, under
+   * `?extensions=<moduleId>` (`specs/193-admin-form-extensions/` FR-015,
+   * D-300.1; opt-in, as D2's `adminReads` is). Absent: the read ports alone
+   * see it, and `T` may be anything. With it, every value `load` answers must
+   * parse to an object keyed by field, or `null` — a slot is read by key — and
+   * anything else fails the admin read as `EntityExtensionLoaderOutputError`
+   * (D-300.24). Refused as `loader-and-columns-on-one-host` when this module also
+   * serves `adminReads` columns on the host's table — one key holds one value.
+   */
+  readonly adminReads?: boolean;
   load(ids: readonly string[], ctx: { readonly em: EntityManager }): Promise<ReadonlyMap<string, T>>;
 }
 
@@ -31,4 +42,6 @@ export interface RegisteredEntityExtensionLoader extends EntityExtensionLoaderEn
   readonly moduleId: string;
   /** The declared side table the loader reads. */
   readonly table: string;
+  /** The entry's `adminReads`, `false` when it named none. */
+  readonly adminReads: boolean;
 }
