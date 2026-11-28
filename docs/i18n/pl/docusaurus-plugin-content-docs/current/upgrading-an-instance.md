@@ -5789,7 +5789,480 @@ podstawie zestawów zmian wydania porównanych z jego migracjami i manifestami. 
 cyklu nie dopisał na tej stronie własnego wpisu. W chwili jej pisania żadna instancja nie była
 aktualizowana przez `pnpm run upgrade 0.112.0`; kolejność kroków nie jest sprawdzona.
 
-### CLI MikroORM nie jest obsługiwane {#mikro-orm-cli-removed}
+### Po aktualizacji do wydania 0.113.0 {#after-0-113-0}
+
+`pnpm run upgrade 0.113.0` przenosi pakiety wydania z `0.112.0` i stosuje jego migracje — pięć,
+dla scalania rekordów i pól niestandardowych w notatkach. **Żadna migracja nie odmawia działania na
+istniejących danych i żadna nie przepisuje tabeli.** To wydanie dotyczy przede wszystkim kodu, który
+instancja pisze sama, a trzy jego zmiany dotykają każdej instancji, która taki kod ma: platforma i
+wszystkie moduły działają na **MikroORM 7**, więc własne zakresy `@mikro-orm/*` instancji trzeba
+zmienić ręcznie przed aktualizacją; **moduły nakładkowe (overlay) są kompilowane i sprawdzane pod
+względem typów**, więc instancja aktualizowana z `0.112.0` wymaga **dwóch uruchomień**
+`pnpm run upgrade`; a wąskie porty zapisu dziewięciu agregatów są **wycofane** i zostaną usunięte w
+`0.114.0`. Poza tym moduł nakładkowy może mieć własne encje, migracje, porty i ekran panelu, tabele
+poboczne są deklarowane i weryfikowane, obok hooków poleceń pojawia się middleware poleceń, operatorzy
+mogą scalać zduplikowane organizacje i projekty, a notatki szans sprzedaży i projektów mają pola
+niestandardowe. Storefront nie zmienia się w tym wydaniu: aktualizacja przenosi jego pakiety i nie ma
+nic do przeniesienia ręcznie. Kroki poniżej mówią, co zrobić i w jakiej kolejności; każdy wpis po nich
+jest samodzielny, więc przeczytaj te, które dotyczą używanych przez Ciebie części platformy.
+
+#### Co zrobić i w jakiej kolejności {#after-0-113-0-steps}
+
+Przed aktualizacją:
+
+1. **Przenieś własne pakiety MikroORM instancji na wersję 7.** W `backend/package.json` ustaw
+   `@mikro-orm/core`, `@mikro-orm/postgresql` i `@mikro-orm/migrations` na `^7.2.11`, dodaj
+   `@mikro-orm/decorators` w wersji `^7.2.11` i `reflect-metadata` w wersji `^0.2.2`, a usuń
+   `@mikro-orm/cli`, jeśli instancja je dodała. `pnpm run upgrade` nie zmienia tych zakresów
+   ([MikroORM 7](#mikro-orm-7)).
+2. **Dostosuj własny kod do MikroORM 7 i do budowania nakładek**, jeśli instancja go ma: moduł
+   nakładkowy, encję, migrację, skrypt. Dekoratory pochodzą z `@mikro-orm/decorators/legacy`, a kod
+   nakładki nie może używać `enum`, `namespace` ani właściwości parametru konstruktora
+   ([MikroORM 7](#mikro-orm-7), [Moduły nakładkowe](#after-0-113-0-overlays)). Obie zmiany kompilują
+   się także na `0.112.0`, więc można je zatwierdzić wcześniej.
+3. **Na instancji z dużym dziennikiem audytu zarezerwuj czas na jeden indeks.** Migracja `core` tworzy
+   `audit_log_entries_merge_id_idx` bez `concurrently`, więc zapisy do `audit_log_entries` czekają, aż
+   indeks powstanie. Gdy API i jego workery są zatrzymane, nic nie zapisuje.
+
+Sama aktualizacja:
+
+4. **Uruchom `pnpm run upgrade 0.113.0`, a z `0.112.0` uruchom je dwa razy.** Pierwsze uruchomienie
+   wykonuje CLI z `0.112.0`: przenosi każdy pakiet wydania na `0.113.0` i uruchamia `setup`. Drugie
+   wykonuje zainstalowane przez nie CLI z `0.113.0`, które przepisuje okablowanie instancji do nowej
+   postaci ([Moduły nakładkowe](#after-0-113-0-overlays)) i ponownie uruchamia `setup`. Od `0.113.0`
+   jedno uruchomienie robi jedno i drugie. Jeśli pierwsze uruchomienie zatrzyma się w `setup`,
+   uruchom polecenie jeszcze raz: drugie podejmie pracę od tego miejsca.
+   <!-- TODO(release): the end-to-end 0.112.0 → 0.113.0 upgrade is untried. Read from the code, the
+   first run's `build` should stop on the 0.112.0 `backend/src/migrate.ts`, which imports
+   `refuseOverlaySchema` (removed in this release), while `.changeset/1848-overlay-build.md` says the
+   instance keeps starting on its old wiring. Confirm on the release branch and correct this step. -->
+   `setup` stosuje migracje moduł po module, w kolejności zależności modułów, a migracje każdego
+   modułu w kolejności ich znaczników czasu:
+
+   | Migracja | Moduł | Co robi |
+   | --- | --- | --- |
+   | `Migration20261125T082017CoreRecordMerges` | `core` | Tabele `record_merges`, `record_merge_steps` i `record_merge_locks`, puste, oraz indeks częściowy na `audit_log_entries ((state_after ->> 'mergeId'))` — zob. krok 3 |
+   | `Migration20261125T082019OrganizationsMergePointer` | `organizations` | Kolumny `merged_into_organization_id`, `merged_at` i `merge_id` dopuszczające pustą wartość; scalony wiersz musi być zarchiwizowany; warunek obecności NIP-u firmy jest złagodzony tylko dla scalonych wierszy |
+   | `Migration20261125T124200ProjectsMergePointer` | `projects` | Kolumny `merged_into_project_id`, `merged_at` i `merge_id` dopuszczające pustą wartość |
+   | `Migration20261127T091628ProjectsCommentCustomFieldValues` | `projects` | `project_comments.custom_field_values`, `jsonb not null default '{}'` |
+   | `Migration20261127T091624CrmOpportunityCommentCustomFieldValues` | `crm` | `crm_opportunity_comments.custom_field_values`, `jsonb not null default '{}'` |
+
+5. **Nanieś ponownie swoje zmiany na pliki okablowania, które zgłosi drugie uruchomienie.** Plik
+   okablowania jest przepisywany tylko wtedy, gdy jest dokładnie taki, jaki zapisało `0.112.0`; plik,
+   który zmieniłeś, jest wymieniany z nazwy i zostawiany bez zmian. Nanieś zmianę na nową postać, którą
+   pokazuje `endora new instance`, a potem uruchom `pnpm run build`.
+6. **Jeśli `setup` zatrzyma się w `generate`, uzupełnij nowe wpisy rozbieżności.** `pnpm run generate`
+   generuje na nowo `divergence.generated.md` i `.json`, a po ich zapisaniu kończy się kodem `1`,
+   dopóki któryś wpis nie ma uzasadnienia. To wydanie zapisuje trzy nowe rodzaje wpisów —
+   `column-extension`, `command-middleware` i `form-override` — i nie zapisuje już portu, który jeden
+   moduł nakładkowy pobiera od drugiego. Dodaj zdanie w `reasons` w `apps/<deployment>/divergence.ts`
+   dla każdego nowego wpisu, usuń każde uzasadnienie `port-consumed:<module>:<port>`, które raport
+   oznacza jako nieopisujące niczego, zatwierdź oba wygenerowane pliki i uruchom `pnpm run setup`.
+
+Po aktualizacji, zanim instancja znów przyjmie ruch:
+
+7. **Buduj obraz panelu dla wdrożenia.** W swojej kopii `deploy/Dockerfile.admin` dodaj
+   `ARG DEPLOYMENT=<deployment>` i `ENV DEPLOYMENT=$DEPLOYMENT` przed `RUN pnpm run build:admin` i
+   przekaż `--build-arg DEPLOYMENT=<deployment>`. Bez nich obraz jest czystym rdzeniem i nie zawiera
+   żadnego ekranu nakładek wdrożenia.
+8. **Uruchom ponownie API, jego workery i podgląd panelu.** Scalanie organizacji i projektów działa na
+   kolejce BullMQ `platform.record-merge`, którą obsługuje tylko proces uruchamiający workery. Od teraz
+   po każdej zmianie w `apps/` uruchom `pnpm run build` przed startem: proces odmawia startu na
+   zbudowanych nakładkach, które nie odpowiadają już źródłom.
+9. **Przejrzyj log startu pod kątem dwóch ostrzeżeń**, które w `0.114.0` staną się odmowami:
+   `undeclared-entity-extension` (tabela poboczna do zadeklarowania, zob.
+   [Tabele poboczne](#after-0-113-0-authors)) i `kernel.decoration.deprecated` (dekoracja punktu
+   zabezpieczeń do zastąpienia, zob. [Middleware poleceń](#after-0-113-0-authors)).
+
+W dowolnym momencie, ale przed `0.114.0`:
+
+10. **Nadaj `organizations:merge`**, a także `projects:merge`, na ekranie ról (`/admin-roles`)
+    administratorom, którzy mają scalać duplikaty ([Dla operatorów](#after-0-113-0-operators)).
+11. **Przenieś własny kod z wycofanych portów** ([Wycofane porty](#after-0-113-0-deprecations)).
+    Zostaną usunięte w `0.114.0`.
+12. **Zaktualizuj filtry dziennika audytu, raporty i integracje**, które wybierają wpisy newslettera
+    lub edycji masowej po akcji ([Dla klientów API i integratorów](#after-0-113-0-api)).
+
+#### Dla operatorów {#after-0-113-0-operators}
+
+**Scalanie zduplikowanych organizacji i projektów** (`specs/192-organization-merge/`). *More → Merge a
+duplicate into this organization…* na stronie organizacji firmowej albo **Merge organizations** w
+⌘K / CTRL+K scala duplikat z organizacją, która zostaje: jej członkowie, adresy, koszyki, zamówienia,
+zapytania ofertowe, faktury, zwroty i rekordy każdego innego modułu przechodzą do niej, a duplikat
+jest archiwizowany ze wskazaniem na nią. Scalenia nie da się cofnąć. Lista scaleń
+(`/organizations/merges`) pokazuje najpierw te, które wymagają uwagi, z przyciskiem **Resume**.
+Scalanie wymaga nowego uprawnienia `organizations:merge`, którego nie ma predefiniowana rola
+przedstawiciela handlowego, a administrator musi mieć dostęp do obu organizacji. Projekty scala się
+tak samo z ekranu projektu, z uprawnieniem `projects:merge`, którego nie ma żadna predefiniowana rola.
+W trakcie scalania zapis wskazujący duplikat jest odrzucany; scalenie nie może się zacząć, dopóki
+duplikat ma nierozliczone złożenie zamówienia lub płatność bramki wciąż u dostawcy. Zobacz stronę
+modułu `organizations` *Scalanie zduplikowanych organizacji*.
+
+**Potwierdzenie adresu e-mail pierwszego użytkownika nie aktywuje już organizacji** (zgłoszenie
+#1893). Przy `organizations.moderation.mode` równym `manual` organizacja zarejestrowana samodzielnie
+czeka, aż operator ją zatwierdzi, a link weryfikacyjny nie przywraca już organizacji odrzuconej lub
+zablokowanej przez operatora. `auto` nadal zatwierdza przy rejestracji.
+
+**Automatyzacje newslettera zapisują subskrybentów** (zgłoszenie #1833). Dotąd aktywna automatyzacja
+nigdy się nie uruchamiała. Zapis na newsletter lub potwierdzenie podwójnej zgody zapisuje teraz
+subskrybenta do każdej aktywnej automatyzacji, do której właśnie zaczął pasować. Aktywacja
+automatyzacji nie zapisuje subskrybentów, którzy już do niej pasują, a subskrybenci automatyzacji
+aktywowanej przed tym wydaniem nie są zapisywani teraz: wyślij im tę sekwencję jako kampanię.
+
+**Pola niestandardowe organizacji i klientów mogą być filtrami list** (zgłoszenie #1903): *Use as list
+filter* w definicji pola obu typów, a listy organizacji i klientów pokazują pole w *More filters*
+administratorowi z uprawnieniem `custom_fields:read`.
+
+**Notatki szans sprzedaży i projektów mają pola niestandardowe** (zgłoszenie #2005). Ekran **Custom
+fields** oferuje dwa nowe typy rekordów, *Opportunity note* i *Project note*; zakładka *Notes* szansy
+sprzedaży lub projektu pokazuje pola przy pisaniu i edycji notatki oraz wartości każdej notatki. Pole
+oznaczone tam jako wymagane jest wymagane w każdej nowej notatce, także przez API.
+
+**PDF zapytania ofertowego** drukuje nazwy produktów w języku układu, odczytywane z katalogu w chwili
+tworzenia PDF-a, a kolumna tabeli pozycji może **Print as a link** do strony produktu w storefroncie
+kanału (zgłoszenie #1904). Istniejące szablony drukują się jak dotąd, dopóki kolumna nie zostanie
+zaznaczona; tam, gdzie katalog nie podaje nazwy, drukowana jest nazwa zapisana w pozycji.
+
+**Wpis audytu może podawać inną akcję lub innego wykonawcę niż dotąd:**
+
+- każda akcja subskrybenta i blokady newslettera ma nową nazwę, `newsletter_subscribe` →
+  `newsletter_subscriber.subscribe` itd. ([Dla klientów API](#after-0-113-0-api));
+- zapisy produktów w edycji masowej to `product.bulk_update.item` zamiast `product.update`;
+- progi stanów magazynowych kategorii to `category.inventory_thresholds.set` modułu `catalog`, a
+  `low_stock_threshold.update` modułu `inventory` nie zawiera już `perCategoryCount`;
+- zastąpienie kanałów sprzedaży organizacji zapisuje jeszcze jeden wpis `organization` z
+  identyfikatorami kanałów przed i po;
+- samodzielne anulowanie zamówienia przez kupującego wskazuje klienta działającego we własnym imieniu
+  (`actorCustomerAccountId`) zamiast wypełniać kolumnę impersonacji;
+- zapis, który integracja po stronie serwera wykonuje przez port agregatu, wskazuje aktora
+  systemowego i kod `source` integracji.
+
+Wpisy zapisane przed aktualizacją nie są przepisywane.
+
+#### Dla klientów API i integratorów {#after-0-113-0-api}
+
+- **Akcje audytu newslettera mają nowe nazwy** (zgłoszenie #1843), bez aliasu: `newsletter_subscribe`,
+  `newsletter_resubscribe`, `newsletter_confirm`, `newsletter_unsubscribe`, `newsletter_deactivate`
+  i `newsletter_delete` stają się `newsletter_subscriber.subscribe`, `.resubscribe`, `.confirm`,
+  `.unsubscribe`, `.deactivate` i `.delete`; `newsletter_bounce` i `newsletter_complaint` stają się
+  `newsletter_suppression.bounce` i `.complaint`. Zapytanie o dziennik audytu po akcji pyta o obie
+  nazwy, aby objąć wpisy sprzed i po aktualizacji.
+- **Produkty w edycji masowej są audytowane jako `product.bulk_update.item`**; filtr, który liczył je
+  w `product.update`, czyta nową akcję.
+- **`POST /api/v1/admin/quote-requests/:id/assign` odrzuca nieuprawnionego przypisanego** z kodem
+  `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` (zgłoszenie #1906): administrator musi być aktywny, mieć
+  `rfqs:handle` i dostęp do organizacji zapytania. Wyczyszczenie przez `null` jest dozwolone.
+  `adminUserId` w `rfq.created_by_admin.v1` może być `null` dla oferty utworzonej przez workera.
+- **Scalony rekord odpowiada inaczej** (`specs/192-organization-merge/`). Zapis wskazujący scaloną
+  organizację jest odrzucany z kodem `409 ORGANIZATION_MERGED`, z organizacją docelową w
+  `details.survivorId`, a scalony projekt z kodem `409 PROJECT_MERGED`; zapis wskazujący duplikat
+  trwającego scalenia jest odrzucany z kodem `409 RECORD_MERGE_IN_PROGRESS`. Szczegóły scalonej
+  organizacji lub projektu zawierają `mergedIntoOrganizationId` / `mergedIntoProjectId`, `mergedAt` i
+  `mergeId`. Dostępne są dwa nowe typy zdarzeń webhooków: `organization.merged.v1` i
+  `project.merged.v1`.
+- **Pola niestandardowe notatek** (zgłoszenie #2005): `POST` i `PATCH` dla
+  `/api/v1/admin/crm/opportunities/:id/comments…` i `/api/v1/admin/projects/:id/comments…`
+  przyjmują `customFieldValues`, sprawdzane regułami administratora
+  (`422 CUSTOM_FIELD_VALUE_INVALID`), a listy komentarzy je zwracają (`{}` dla wiadomości). Wiadomość
+  z niepustym `customFieldValues` jest odrzucana z kodem `422 VALIDATION_FAILED`. Klient, który tworzy
+  notatki, kończy się błędem na polu oznaczonym przez operatora jako wymagane, dopóki go nie wyśle.
+- **Filtry pól niestandardowych** w `GET /api/v1/admin/organizations` i `GET /api/v1/admin/customers`
+  (`customFieldFilters`), z oferowanymi polami pod `…/organizations/custom-field-filters` i
+  `…/customers/custom-field-filters`; pole, którego lista nie oferuje, jest odrzucane z kodem
+  `400 CUSTOM_FIELD_FILTER_UNAVAILABLE`.
+- **Nowe odmowy, których żaden zapis rdzenia jeszcze nie zgłasza**: `422 FIELD_RULE_VIOLATION`,
+  `403 FIELD_WRITE_FORBIDDEN` i `422 FIELD_SLOT_INPUT_INVALID` (rozszerzenia formularzy panelu) oraz
+  `503 COMMAND_ADMISSION_TIMEOUT` / `COMMAND_ADMISSION_FAILED` (middleware poleceń). Dotrą do klienta
+  dopiero wtedy, gdy wdrożenie zadeklaruje regułę pola lub middleware `admit`.
+
+#### Dla autorów modułów i nakładek {#after-0-113-0-authors}
+
+**MikroORM 7.** Każda zależność równorzędna `@mikro-orm/*` to `^7.2.11`, a dekoratory encji importuje
+się z `@mikro-orm/decorators/legacy`; [MikroORM 7](#mikro-orm-7) poniżej podaje stare i nowe wywołanie
+dla każdego API, którego może używać kod instancji. Migracja pakietu nie ma już dostępu do surowych
+uchwytów bazy danych (zgłoszenie #1889): jej instrukcje uruchamia się przez
+`this.execute(sql, params)` lub `addSql`, nigdy przez `getKnex().raw(…)`, obiekt transakcji, `client`
+połączenia ani `loadFile()`.
+
+**Każda utrwalana encja ma dokładnie jedną klasyfikację tenanta** (zgłoszenie #1849): `@OrgScoped`,
+`@CustomerScoped`, `@TransitivelyScoped`, `@RuleScoped` lub `@GlobalEntity`. Encja bez klasyfikacji
+albo z dwiema zatrzymuje każdy proces konfigurujący ORM błędem `UnclassifiedEntityError`, który
+wymienia klasę oraz pakiet lub nakładkę, z której pochodzi.
+
+**Kod, który implementuje opublikowany typ lub buduje jego wartości, nie skompiluje się, dopóki nie ma
+nowych wymaganych elementów** — fałszywy port w teście, własna implementacja nakładki:
+
+| Gdzie | Nowy wymagany element |
+| --- | --- |
+| `ModuleContext` (`@endora-commerce/platform/kernel`) | `merge`, `commandMiddleware`, `entityExtensionLoaders`, `fieldSets` i `fieldFormats` — kontekst budowany ręcznie w teście dodaje wszystkie pięć |
+| `CustomFieldHostBinding` | `entityClassName` i `aggregatePort` |
+| `OrderReadPort` | `isTerminal(orderId)` |
+| `ProjectRecord` | `customFieldValues`, `version`, `configurationVersion`, `mergedIntoProjectId`, `mergedAt`, `mergeId` |
+| `ProjectReadPort` | `listNotes`, `previewMerge`, `resolveMerged`, `getMerge` |
+| `OpportunityReadPort` | `listNotes` |
+| `OrganizationDetailsPort` | `previewMerge`, `resolveMerged`, `getMerge` |
+| `TaskRecord` | `customFieldValues` |
+| `OpportunityComment`, `ProjectComment`, `OpportunityNoteRecord`, `ProjectNoteRecord` | `customFieldValues` (wystarczy `{}`) |
+| `SearchReindexPort` | `reindexProducts(productIds)` |
+
+Wiersze bez nazwy pakietu dotyczą `@endora-commerce/contracts`. Wyczerpujący `switch` lub `Record`
+po `SupportedEntityType` dodaje `opportunity_note` i `project_note`; po `DivergenceKind` — dodaje
+`column-extension`, `command-middleware`, `form-override` i `form-override-grant`. Manifest nie może
+już zawierać klucza `origin`. Kod, który buduje usługi modułu ręcznie, uwzględnia zmiany konstruktorów
+wymienione w `CHANGELOG.md` każdego modułu dla 0.113.0. Kod, który wywołuje
+`salesChannelMembershipPort` z `em` pochodzącym ze zwykłego `em.transactional(…)`, poza poleceniem,
+opakowuje tę transakcję w `eventBus.run(…)`; w przeciwnym razie usunięcie pamięci podręcznej dostępu
+organizacji następuje przed zatwierdzeniem (zgłoszenie #1926).
+
+**Zapisy idą przez port agregatu** (`specs/186-aggregate-ports/`). Organizacja, konto klienta,
+zamówienie, zapytanie ofertowe, produkt, kategoria, szansa sprzedaży, projekt i zadanie publikują
+każde jeden `<aggregate>CommandPort`, który uruchamia to samo polecenie co endpoint panelu, z tymi
+samymi odmowami, zdarzeniami i wpisem audytu. Worker wywołuje go w `withSystemScope` i przedstawia się
+przez `options.source`; notatka, wiadomość lub projekt wymaga administratora za wywołaniem
+(`withSystemScopeActingFor`). Porty, które zastępuje, wymienia sekcja
+[Wycofane porty](#after-0-113-0-deprecations).
+
+**Tabele poboczne są deklarowane** (`specs/187-side-table-extensions/`). Własna tabela, której
+jednokolumnowy klucz główny jest kaskadowym kluczem obcym do klucza głównego hosta pól
+niestandardowych, jest tabelą poboczną, a moduł, do którego należy, deklaruje ją w manifeście:
+
+```ts
+extends: [{ entity: 'organizations.Organization', table: 'example_erp_keys_organization_keys' }],
+```
+
+Platforma weryfikuje każdą zadeklarowaną tabelę podczas `migrate` i przy starcie — klucz obcy, jego
+`on delete cascade`, klasyfikację tenanta encji — i przy niezgodności zatrzymuje się błędem
+`EntityExtensionDriftError`. **Niezadeklarowana tabela jest w 0.113.0 zgłaszana w logu na poziomie
+`warn`** (`undeclared-entity-extension`, z wpisem do dodania), **a od następnego wydania jest
+odrzucana podczas `migrate` i przy starcie.** `pnpm run module:schema-extensions list` wypisuje każdą
+tabelę poboczną z jej stanem (`verified`, `violation:<rule>`, `undeclared`, `unowned`). Moduł, który ją
+deklaruje, może zarejestrować zbiorczy loader przez `ctx.entityExtensionLoaders(…)`; każdy moduł
+odczytuje wtedy jej wartości przez port odczytu hosta z `include: ['extensions.<moduleId>']`,
+dołączane jako `extensions.<moduleId>` do rekordów, które wywołujący może zobaczyć. `include`, którego
+nie obsługuje żaden loader, jest odrzucane z kodem `422 ENTITY_EXTENSION_UNCLAIMED`. Bez `include`
+każdy port odczytu odpowiada jak dotąd.
+<!-- TODO(release): #2033 (admin reads via side-table loaders) is open at drafting time. If it
+merges before the release, say here which admin reads attach side-table values; until then
+admin HTTP responses carry none (OR-10). -->
+
+**Middleware poleceń i punkty zabezpieczeń** (`specs/189-command-middleware/`). Moduł może
+zadeklarować `commandMiddleware` w manifeście i zarejestrować je przez `ctx.commandMiddleware(…)`:
+`admit` działa przed każdym pasującym poleceniem i może je tylko przepuścić albo odrzucić z kodem
+zadeklarowanym przez swój moduł, a `observe` dostaje po wykonaniu wynik zawierający tylko nazwy.
+Zainstalowany pakiet może dostarczać tylko `observe`. **`ctx.di.decorate` nakładki dla `commandBus`,
+`auditLogService`, `eventBus` lub `emFactory` jest wycofane**: w 0.113.0 nadal się składa, raz zapisuje
+w logu `kernel.decoration.deprecated` i jest ostrzeżeniem `deprecated-decoration` w raporcie
+rozbieżności, a **od 0.114.0 kompozycja je odrzuca** błędem `GuardSeamDecorationError`. Zastąp je:
+
+| Opakowana nazwa | Zastępnik |
+| --- | --- |
+| `commandBus` | middleware poleceń: `admit`, by odrzucać, `observe`, by mierzyć; hook polecenia dla jednej zadeklarowanej akcji |
+| `auditLogService` | middleware `observe` dla dodatkowego ujścia albo odczyt `audit_log_entries` dla trwałego; samego zapisu audytu nie da się zastąpić |
+| `eventBus` | `ctx.subscribe` dla reakcji; hook `afterCommit` dla trwałego dostarczenia |
+| `emFactory` | brak. Zawężania do tenanta nie da się nadpisać (zasada XI). Poproś moduł właściciela o port |
+
+Każdą inną rejestrację dostarczaną przez composition root nadal można dekorować. Zobacz
+[Przeniesienie wrappera szyny na middleware poleceń](./architecture/overlay-pattern.md#moving-a-bus-wrap-to-command-middleware).
+Command Bus, który punkt wejścia operatora buduje sam, poza `composeApp` — dziś polecenia
+`module:schema-extensions` — **nie uruchamia middleware poleceń ani hooków poleceń**, tak jak
+dotąd; jego polecenia są nadal audytowane. Nie polegaj na regule `admit`, by zatrzymać polecenie
+serwisowe.
+
+**Więcej akcji ma hooki.** Moduł, który wymienia właściciela w `dependencies`, może zarejestrować hook
+`beforeCommit` lub handler `afterCommit` dla `PROMOTION_HOOKABLE_ACTIONS`, `PROJECT_HOOKABLE_ACTIONS`,
+`NEWSLETTER_HOOKABLE_ACTIONS`, `QUOTE_REQUEST_HOOKABLE_ACTIONS` (`create`, `resubmit`),
+`CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS`, `OPPORTUNITY_HOOKABLE_ACTIONS`, `PRODUCT_HOOKABLE_ACTIONS` i
+`ORGANIZATION_HOOKABLE_ACTIONS.mergeStart`. Masowa edycja produktów nie ma hooków: nasłuchuj
+`product.updated.v1`.
+
+**Udział w scalaniu organizacji** (`specs/192-organization-merge/`). Każdy moduł, którego encje
+przechowują odwołanie do organizacji lub projektu — właściwość `organizationId`, `*OrganizationId(s)`,
+`projectId` lub `*ProjectId` — deklaruje w `merge.participates` w manifeście, co scalenie z nim robi,
+i rejestruje uczestnika przez `ctx.merge.participate(…)`, gdy dyspozycja przenosi rekordy. Dopóki
+każdy obecny moduł nie pokryje swoich odwołań, każde rozpoczęcie scalania organizacji jest odrzucane z
+kodem `409 RECORD_MERGE_PARTICIPATION_INCOMPLETE`, który wymienia moduł. Nakładka z tabelą kluczowaną
+organizacją deklaruje ją; referencyjny moduł nakładkowy
+`backend/src/apps/example/modules/example_erp_keys/` robi to w `manifest.ts` i `merge.ts`:
+
+```ts
+merge: {
+  participates: [
+    {
+      host: 'organization',
+      key: 'erp-keys',
+      phase: 'configuration',
+      references: [
+        { entity: 'ExampleErpOrganizationKey', property: 'organizationId', disposition: 'survivor_wins_fill_gaps' },
+      ],
+    },
+  ],
+},
+```
+
+`endora check` sprawdza tę regułę w pakiecie modułu (`check:merge-participation`), a moduł, który
+ustawia odwołanie także w SQL lub w natywnym wywołaniu ORM, deklaruje `freeze: 'guarded'` i przed
+każdym takim zapisem wywołuje `assertMergeWritable`.
+
+**Rozszerzenia formularzy panelu: tylko kontrakty i część serwerowa**
+(`specs/193-admin-form-extensions/`). W tym wydaniu: `defineFieldSet` i `defineAdminForm` oraz pola
+manifestu `fieldSets`, `adminForms`, `formOverrides` i `inputControls`; `ctx.fieldSets(…)` i
+`ctx.fieldFormats(…)`; kontrola reguł pól w Command Bus (`422 FIELD_RULE_VIOLATION`,
+`403 FIELD_WRITE_FORBIDDEN`); `GET /api/v1/admin/effective-forms`; analiza formularzy panelu w
+`endora generate`; oraz zapisy z hookami dla kont klientów, szans sprzedaży CRM i produktów katalogu.
+**W 0.113.0 żaden formularz panelu w rdzeniu nie deklaruje swoich pól ani nie renderuje
+zadeklarowanego formularza**, więc wdrożenie nie może jeszcze dodać pola do formularza rdzenia ani go
+dostosować i na ekranach nie ma czego szukać. Polecenie, które ustawia `buyerSelfService: true`, co
+pomija kontrolę reguł pól dla własnego zapisu kupującego, musi mieć swoją akcję wymienioną w
+`buyerSelfServiceActions` w manifeście swojego modułu; każde inne szyna odrzuca błędem
+`UndeclaredBuyerSelfServiceActionError`, zanim cokolwiek zostanie zapisane.
+<!-- TODO(release): #2032 (admin-kit declared forms) is open at drafting time. If it merges before
+the release, describe what the admin kit renders and correct "No core admin form" above. -->
+<!-- TODO(release): #2034 changes spec text only; confirm at release that it needs no line here. -->
+
+**Konstytucja 4.3.0 → 4.6.0.** Zasada XV mówi teraz, że moduł nakładkowy jest pełnym modułem — encje,
+migracje, porty i warstwa panelu — pod tymi samymi zabezpieczeniami co pakiet: jego migracje
+przechodzą przez zabezpieczenie obcego schematu bez wyjątku dla wdrożenia, każda zarejestrowana przez
+niego encja jest sklasyfikowana, a jeden build na poziomie wdrożenia go kompiluje i sprawdza pod
+względem typów. Żaden moduł nie dekoruje punktu zabezpieczeń; zachowanie przekrojowe w poleceniach to
+zadeklarowane middleware poleceń; formularz rdzenia rozszerza się tylko tam, gdzie deklaruje to jego
+właściciel.
+
+#### Moduły nakładkowe są kompilowane i mogą mieć własny schemat {#after-0-113-0-overlays}
+
+Moduły nakładkowe w `apps/<deployment>/modules/` były ładowane przez usuwanie typów w Node i nic ich
+nie sprawdzało (`specs/190-overlay-full-modules/`). Teraz są kompilowane i sprawdzane pod względem
+typów jak reszta backendu:
+
+- **Sprawdzanie typów.** `backend/tsconfig.apps.json` obejmuje `apps/*/modules/**/*.ts` i
+  `apps/*/*.ts` z `erasableSyntaxOnly`, a `typecheck` uruchamia go po własnym programie backendu;
+  `setup` uruchamia `typecheck` między `build` a `migrate` (zgłoszenie #1847). `enum`, `namespace` lub
+  właściwość parametru konstruktora są zgłaszane jako `TS1294`. Zastąp `enum` unią literałów
+  tekstowych, a właściwość parametru polem przypisywanym w konstruktorze:
+
+  ```ts
+  // before
+  constructor(private readonly emFactory: () => EntityManager) {}
+  // after
+  readonly #emFactory: () => EntityManager;
+  constructor(emFactory: () => EntityManager) {
+    this.#emFactory = emFactory;
+  }
+  ```
+
+  Ta opcja przychodzi z budowaniem nakładek, nie z MikroORM 7, i dotyczy tylko kodu nakładek.
+- **Budowanie** (zgłoszenie #1848). `endora build overlays` kompiluje `apps/` do `backend/dist/apps`
+  i kopiuje `i18n/` każdego modułu; `build` backendu je uruchamia, a `dev` uruchamia je z `--watch`.
+  Przed zaimportowaniem kodu nakładki proces porównuje każdą skompilowaną jednostkę z jej źródłem i
+  odrzuca jednostkę `stale`, `unbuilt` lub `orphan`, podając obie ścieżki i
+  `Rebuild: pnpm run build`. Moduł nakładkowy jest płaski i nie jest pakietem: `manifest.ts` poniżej
+  jego katalogu głównego albo `package.json`, `tsconfig*.json`, konfiguracja bundlera lub testów w jego
+  wnętrzu są odrzucane.
+- **Co przepisuje drugie uruchomienie aktualizacji**, o ile każdy z plików jest dokładnie taki, jaki
+  wygenerowało `0.112.0`: `backend/src/index.ts`, `worker.ts`, `cli.ts`,
+  `module-commands/runtime.ts`, `migrate.ts` i `mikro-orm.config.ts`; `backend/tsconfig.apps.json`
+  (zapisywany, jeśli go brak); skrypty `build`, `dev` i `typecheck` backendu, główny `typecheck` i
+  `setup`; a przy członku panelu także `admin/src/main.tsx`, `admin/vite.config.ts` i
+  `admin/tsconfig.json` oraz wiersz `admin/src/deployments/*.generated.ts` w `.gitignore`. Jeśli
+  zmieniłeś `migrate.ts` lub `mikro-orm.config.ts`, usuń import i wywołanie `refuseOverlaySchema` i
+  przekaż `deploymentRoot: fileURLToPath(new URL('.', import.meta.url))` do `configuredEntitiesFrom`
+  oraz jako trzeci argument `discoverConfiguredMigrations`; bez tego migracje nakładek nie są
+  stosowane.
+- **Schemat** (zgłoszenie #1850). Moduł nakładkowy może mieć własne tabele: `backend.ts` eksportuje
+  `entities`, tablicę klas, każdą z jedną klasyfikacją tenanta i dekoratorami z
+  `@mikro-orm/decorators/legacy`; jego `migrations/` zawiera jedną klasę na plik, nazwany
+  `<YYYYMMDDTHHmmss>_<module>_<slug>.ts`, bez pliku zbiorczego. Działają pod zabezpieczeniem obcego
+  schematu bez wyjątku, a `module:uninstall --hard` je cofa. `endora new module --entities` i
+  `endora new migration <moduleId> --name <slug>` tworzą ich szkielet, a
+  `pnpm run module:status <id>` wypisuje migracje modułu i to, czy każda jest zastosowana.
+- **Porty i warstwa panelu** (zgłoszenia #1854, #1855). Moduł nakładkowy może publikować typy portów
+  dla sąsiedniego modułu w `ports.ts`; sąsiad importuje je przez `import type`, tylko z `ports.ts` i
+  tylko wtedy, gdy jego manifest zależy od dostawcy — w przeciwnym razie `endora generate` zgłasza
+  `[overlay-boundary]`. Może też zawierać `admin/index.tsx`; `endora generate` zapisuje jeden rejestr
+  panelu na wdrożenie, build panelu wybiera go według `DEPLOYMENT`, a każda strona panelu z nakładki
+  potrzebuje własnej akcji w palecie poleceń.
+
+Istniejący moduł nakładkowy bez tabeli wymaga tylko powyższych poprawek typów. Przeczytaj
+[Wzorzec nakładki](./architecture/overlay-pattern.md#an-overlay-module-owns-its-schema) i skopiuj
+`backend/src/apps/example/modules/example_erp_keys/`, referencyjny moduł nakładkowy, który używa
+każdego punktu rozszerzenia raz: zadeklarowanej tabeli pobocznej, hooka `beforeCommit` na
+`organization.create`, loadera tabeli pobocznej, opublikowanego portu, ekranu panelu z uprawnieniem i
+akcją w palecie, kontroli aktywacji oraz udziału w scalaniu.
+
+#### Wycofane porty: stare i nowe wywołanie {#after-0-113-0-deprecations}
+
+Każdy wąski port zapisu dziewięciu agregatów jest wycofany w 0.113.0 i **zostanie usunięty w
+0.114.0** (`specs/186-aggregate-ports/` OD-4). W 0.113.0 każda wycofana metoda deleguje do swojego
+zastępnika, zapisuje te same wpisy audytu i uruchamia te same hooki, więc wywołanie można przenieść w
+dowolnym momencie. Tam, gdzie krawędź zależności w manifeście wskazuje stary port, wskaż nowy. Wpis
+audytu wskazuje teraz bieżącego aktora — administratora żądania albo aktora systemowego w
+`withSystemScope` — i `source` wywołującego; `actor` lub `actorAdminUserId` przekazany do wycofanej
+metody jest ignorowany.
+
+| Wycofane wywołanie | Zamiast tego |
+| --- | --- |
+| `organizationWritePort.findByTaxId(taxId)` | `organizationDetailsPort.findByTaxId(taxId)` |
+| `organizationWritePort.create(input)` | `organizationCommandPort.create(input)` |
+| `organizationWritePort.update(id, patch, { expectedVersion })` | `organizationCommandPort.update(id, patch, { expectedVersion })` |
+| `organizationCustomFieldWritePort.setCustomFieldValues(id, merge, { extensions })` | `organizationCommandPort.setCustomFieldValues(id, merge, { extensions })` |
+| `customerAccountLifecycleWritePort.createStandalone(input)` | `customerAccountCommandPort.createStandalone(input)` |
+| `customerAccountLifecycleWritePort.block(id, { actorAdminUserId, reason, audit })` | `customerAccountCommandPort.block(id, { reason })` |
+| `customerAccountLifecycleWritePort.unblock(id, { actorAdminUserId, audit })` | `customerAccountCommandPort.unblock(id)` |
+| `customerAccountLifecycleWritePort.softDelete(id, { actorAdminUserId })` | `customerAccountCommandPort.softDelete(id)` |
+| `customerAccountLifecycleWritePort.restore(id, { actorAdminUserId })` | `customerAccountCommandPort.restore(id)` |
+| `customerAccountLifecycleWritePort.setCustomerGroup(id, groupId, { actorAdminUserId })` | `customerAccountCommandPort.setCustomerGroup(id, { customerGroupId: groupId })` |
+| `customerAccountLifecycleWritePort.setCustomFieldValues(id, merge)` | `customerAccountCommandPort.setCustomFieldValues(id, merge)` |
+| `customerAccountLifecycleWritePort.anonymize(id)` | `customerAccountCommandPort.anonymize(id)` |
+| `customerAccountLifecycleWritePort.listDueForAnonymization(cutoff)` | `customerAccountReadPort.listDueForAnonymization(cutoff)` |
+| `customerAccountLifecycleWritePort.hasDueForAnonymization(cutoff)` | `customerAccountReadPort.hasDueForAnonymization(cutoff)` |
+| `customerAccountMemberWritePort.create(input)` | `customerAccountCommandPort.create(input)` |
+| `customerAccountMemberWritePort.updateProfile(id, patch)` | `customerAccountCommandPort.updateProfile(id, patch)` |
+| `customerAccountMemberWritePort.setSubtreeRollup(id, enabled)` | `customerAccountCommandPort.setSubtreeRollup(id, { enabled })` |
+| `customerAccountMemberWritePort.promoteToOrganizationAdmin(id)` | `customerAccountCommandPort.promoteToOrganizationAdmin(id)` |
+| `customerAccountMemberWritePort.markEmailVerified(id, verifiedAt)` | `customerAccountCommandPort.markEmailVerified(id, { verifiedAt })` |
+| `orderTransitionPort.applyStatus({ orderId, to, actor, reason })` | `orderCommandPort.applyStatus(orderId, { to, reason }, { source })` |
+| `orderTransitionPort.isTerminal(orderId)` | `orderReadPort.isTerminal(orderId)` |
+| `orderExternalReferencePort.set(orderId, system, value)` | `orderCommandPort.setExternalReference(orderId, system, value)` |
+| `catalogProductWritePort.createProduct(req, auditCtx)` | `catalogProductCommandPort.create(req)` |
+| `catalogProductWritePort.updateProduct(id, { …patch, version })` | `catalogProductCommandPort.update(id, patch, { expectedVersion: Number(version) })` |
+| `catalogProductWritePort.createVariant` / `updateVariant` / `deleteVariant` | `catalogProductCommandPort.createVariant` / `updateVariant` / `deleteVariant` |
+| `catalogProductWritePort.listAttributes()` | `catalogAttributeReadPort.listAll()` |
+| `catalogProductWritePort.listAttributesByFlag(flag)` | `catalogAttributeReadPort.listByFlag(flag)`; dla `isRequired` i `isMassEditable` filtruj `listAll()` |
+| `catalogProductWritePort.createAttribute(req)` | `catalogAttributeCommandPort.create(req)` |
+| `catalogProductWritePort.updateAttributeByIdOrKey(idOrKey, req)` | `catalogAttributeCommandPort.update(idOrKey, req)` |
+| `catalogProductWritePort.addAttributeOption` / `patchAttributeOption` | `catalogAttributeCommandPort.addOption` / `updateOption` |
+| `catalogProductScopeWritePort.applyScopes(id, input, { source })` | `catalogProductCommandPort.applyScopedValues(id, input, { source })` |
+| `catalogCategoryWritePort.listAll()` | `catalogCategoryReadPort.listAll({ liveOnly: true })` |
+| `catalogCategoryWritePort.create(input)` | `catalogCategoryCommandPort.create(input, options?)` |
+| `catalogCategoryWritePort.update(id, input)` | `catalogCategoryCommandPort.update(id, input, options?)` |
+| `catalogCategoryWritePort.setInventoryThresholds(id, patch)` | `catalogCategoryCommandPort.setInventoryThresholds(id, patch, options?)` |
+| `opportunityTransitionPort.applyStatus({ opportunityId, to, actor, reason })` | `opportunityCommandPort.transition(opportunityId, { to, reason }, { source })` |
+| `taskWritePort.createMany({ context, tasks })` | `taskCommandPort.createMany({ context, tasks })` |
+| `taskWritePort.deleteInContext({ contextType, contextId })` | `taskCommandPort.deleteInContext({ contextType, contextId })` |
+
+Przy przenoszeniu spodziewaj się trzech różnic. Nowe `catalogCategoryCommandPort.create` i `update`
+sprawdzają dane wejściowe schematem endpointu panelu (`422 VALIDATION_FAILED`), podczas gdy wycofane
+przyjmowały więcej. `organizationWritePort.update` sprawdza opcje przed zmianami. A
+`catalogProductCommandPort.applyScopedValues` przyjmuje dowolny kod `source`, nie tylko identyfikator
+zarejestrowanego modułu.
+
+**Niewycofane w tym wydaniu:** `customerAccountLifecycleWritePort.setOrganization` i
+`detachToPersonalOrganization`, `customerAccountMemberWritePort.attachToOrganization` (przejdą do
+`membershipPort` ze `specs/191-membership-join-requests/`) oraz `orderPlacementPort.placeOrder` (jego
+zastępnik, `orderCommandPort.place`, nie został jeszcze dostarczony). `orderPaymentStatusApplyPort`,
+odczyty `orderExternalReferencePort`, `customerAccountPreferencePort`,
+`customerAccountRoleCommandPort`, `customerAccountMemberCommandPort` i `catalogBulkImportPort`
+zostają. Blok dokumentacji każdego wycofanego elementu brzmi `@deprecated since 0.113.0; use …
+instead`, więc edytor przekreśla każde wywołanie; aby je wypisać, przeszukaj kod pod kątem jedenastu
+nazw portów z lewej kolumny. Zobacz [Powierzchnia kontraktu](./architecture/contract-surface.md).
+
+Ta sekcja została napisana 28 listopada 2026 r. na `master` w `cd124eff0`, przed utworzeniem gałęzi
+wydania, na podstawie changesetów wydania porównanych z jego migracjami, manifestami i kodem; wpisy
+*CLI MikroORM nie jest obsługiwane* i *MikroORM 7* napisały wcześniej pull requesty, które wprowadziły
+każdą zmianę. W chwili jej pisania żadna instancja nie była aktualizowana przez
+`pnpm run upgrade 0.113.0`; kolejność kroków, łącznie z dwoma uruchomieniami z `0.112.0`, nie jest
+sprawdzona.
+
+#### CLI MikroORM nie jest obsługiwane {#mikro-orm-cli-removed}
 
 Platforma nie instaluje już `@mikro-orm/cli`, a jej `backend/package.json` nie zawiera już bloku
 `mikro-orm`, który wskazywał CLI plik konfiguracji (zgłoszenie #1865). Instancja utworzona przez
@@ -5807,9 +6280,7 @@ konfiguracja ORM należy do platformy (`mikroOrmConfigFrom` w `@endora-commerce/
 nie uruchamiaj `mikro-orm schema:update` ani `schema:create` na bazie danych instancji: zmieniają
 schemat poza migracjami, które przestają go wtedy opisywać.
 
-Ten wpis napisał pull request, który wprowadził zmianę, przed wydaniem, które ją zawiera.
-
-### MikroORM 7 {#mikro-orm-7}
+#### MikroORM 7 {#mikro-orm-7}
 
 Platforma i wszystkie pakiety modułów działają teraz na **MikroORM 7.2.11** (zgłoszenie #1866, część
 #1073), a ich zależności równorzędne `@mikro-orm/*` to `^7.2.11`. To zmiana łamiąca zgodność dla
@@ -5859,8 +6330,6 @@ MikroORM 6 wysyłał `in ()` i kończył się błędem.
 menedżerze encji migracji pakietu, a `Migration` z MikroORM 7 nie oferuje własnego konstruktora
 zapytań; instrukcję dla `addSql` zbuduj jako tekst albo jako `raw(sql, params)`, które strażnik ocenia
 w postaci wyrenderowanej.
-
-Ten wpis napisał pull request, który wprowadził zmianę, przed wydaniem, które ją zawiera.
 
 ## Instancja niespójna od początku
 

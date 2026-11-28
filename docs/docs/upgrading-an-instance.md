@@ -5542,7 +5542,467 @@ the changesets of the release against its migrations and manifests. No pull requ
 an entry of its own on this page. No instance had been upgraded with `pnpm run upgrade 0.112.0` when it
 was written; the order of the steps is untried.
 
-### The MikroORM CLI is not supported {#mikro-orm-cli-removed}
+### After upgrading to 0.113.0 {#after-0-113-0}
+
+`pnpm run upgrade 0.113.0` moves the packages of the release from `0.112.0` and applies its
+migrations — five, for the record merge and for custom fields on notes. **No migration refuses on
+existing data and none rewrites a table.** This release is mostly about the code an instance writes
+itself, and three of its changes reach every instance that has any: the platform and every module run
+on **MikroORM 7**, so the instance's own `@mikro-orm/*` ranges have to move by hand before the upgrade;
+**overlay modules are compiled and type-checked**, so an instance upgraded from `0.112.0` needs **two
+runs** of `pnpm run upgrade`; and the narrow write ports of nine aggregates are **deprecated**, to be
+removed in `0.114.0`. Beside them an overlay module may own entities, migrations, ports and an admin
+screen, side tables are declared and verified, command middleware joins command hooks, operators can
+merge duplicate Organizations and Projects, and Opportunity and Project notes carry custom fields. The
+storefront has no change in this release: the upgrade moves its packages and there is nothing to bring
+over. The steps below say what to do, in order; each entry after them stands on its own, so read the
+ones for the parts of the platform you use.
+
+#### What to do, in order {#after-0-113-0-steps}
+
+Before the upgrade:
+
+1. **Move the instance's own MikroORM packages to 7.** In `backend/package.json`, set
+   `@mikro-orm/core`, `@mikro-orm/postgresql` and `@mikro-orm/migrations` to `^7.2.11`, add
+   `@mikro-orm/decorators` at `^7.2.11` and `reflect-metadata` at `^0.2.2`, and remove
+   `@mikro-orm/cli` if the instance added it. `pnpm run upgrade` does not touch these ranges
+   ([MikroORM 7](#mikro-orm-7)).
+2. **Bring code of your own to MikroORM 7 and to the overlay build**, if the instance has any: an
+   overlay module, an entity, a migration, a script. Decorators come from
+   `@mikro-orm/decorators/legacy`, and overlay code may not use an `enum`, a `namespace` or a
+   constructor parameter property ([MikroORM 7](#mikro-orm-7),
+   [Overlay modules](#after-0-113-0-overlays)). Both rewrites compile on `0.112.0` too, so they can be
+   committed first.
+3. **On an instance with a large audit log, allow time for one index.** The `core` migration creates
+   `audit_log_entries_merge_id_idx` without `concurrently`, so writes to `audit_log_entries` wait until
+   it is built. Nothing writes while the API and its workers are stopped.
+
+The upgrade itself:
+
+4. **Run `pnpm run upgrade 0.113.0`, and from `0.112.0` run it twice.** The first run is made by the
+   `0.112.0` CLI: it moves every release package to `0.113.0` and runs `setup`. The second is made by
+   the `0.113.0` CLI it installed, which rewrites the instance's wiring to the new rendering
+   ([Overlay modules](#after-0-113-0-overlays)) and runs `setup` again. From `0.113.0` on, one run does
+   both. If the first run stops in `setup`, run the command again: the second run picks up from there.
+   <!-- TODO(release): the end-to-end 0.112.0 → 0.113.0 upgrade is untried. Read from the code, the
+   first run's `build` should stop on the 0.112.0 `backend/src/migrate.ts`, which imports
+   `refuseOverlaySchema` (removed in this release), while `.changeset/1848-overlay-build.md` says the
+   instance keeps starting on its old wiring. Confirm on the release branch and correct this step. -->
+   `setup` applies the migrations module by module, in the order of the modules' dependencies, and
+   each module's own in the order of their stamps:
+
+   | Migration | Module | What it does |
+   | --- | --- | --- |
+   | `Migration20261125T082017CoreRecordMerges` | `core` | Tables `record_merges`, `record_merge_steps` and `record_merge_locks`, empty, and a partial index on `audit_log_entries ((state_after ->> 'mergeId'))` — see step 3 |
+   | `Migration20261125T082019OrganizationsMergePointer` | `organizations` | Nullable `merged_into_organization_id`, `merged_at` and `merge_id`; a merged row must be archived; the company tax-ID presence check is relaxed for merged rows only |
+   | `Migration20261125T124200ProjectsMergePointer` | `projects` | Nullable `merged_into_project_id`, `merged_at` and `merge_id` |
+   | `Migration20261127T091628ProjectsCommentCustomFieldValues` | `projects` | `project_comments.custom_field_values`, `jsonb not null default '{}'` |
+   | `Migration20261127T091624CrmOpportunityCommentCustomFieldValues` | `crm` | `crm_opportunity_comments.custom_field_values`, `jsonb not null default '{}'` |
+
+5. **Re-apply your edits to the wiring files the second run reports.** A wiring file is rewritten only
+   while it is exactly what `0.112.0` wrote; one you edited is named and left alone. Re-apply the edit
+   to the new rendering, which `endora new instance` shows, then run `pnpm run build`.
+
+6. **If `setup` stops in `generate`, answer the new divergence entries.** `pnpm run generate`
+   re-renders `divergence.generated.md` and `.json` and exits `1`, after writing them, while an entry
+   has no reason. This release records three new kinds — `column-extension`, `command-middleware` and
+   `form-override` — and no longer records a port one overlay module consumes from another. Add a
+   sentence in `apps/<deployment>/divergence.ts` `reasons` for each new entry, delete each
+   `port-consumed:<module>:<port>` reason the report flags as describing nothing, commit both
+   renderings and run `pnpm run setup`.
+
+After the upgrade, before the instance takes traffic again:
+
+7. **Build the admin image for the deployment.** Add `ARG DEPLOYMENT=<deployment>` and
+   `ENV DEPLOYMENT=$DEPLOYMENT` before `RUN pnpm run build:admin` in your copy of
+   `deploy/Dockerfile.admin`, and pass `--build-arg DEPLOYMENT=<deployment>`. Without them the image is
+   bare core and carries none of the deployment's overlay screens.
+8. **Restart the API, its workers and the admin preview.** Organization and Project merges run on the
+   BullMQ queue `platform.record-merge`, which only a process that runs workers consumes. From now on,
+   after any edit under `apps/`, run `pnpm run build` before starting: a process refuses to start on
+   an overlay build that no longer matches its sources.
+9. **Read the boot log for two warnings**, which become refusals in `0.114.0`:
+   `undeclared-entity-extension` (a side table to declare, see [Side tables](#after-0-113-0-authors))
+   and `kernel.decoration.deprecated` (a guard-seam decoration to replace, see
+   [Command middleware](#after-0-113-0-authors)).
+
+Whenever it suits you, and before `0.114.0`:
+
+10. **Grant `organizations:merge`**, and `projects:merge`, on the role screen (`/admin-roles`) to the administrators
+    who should merge duplicates ([For operators](#after-0-113-0-operators)).
+11. **Move code of your own off the deprecated ports** ([Deprecated
+    ports](#after-0-113-0-deprecations)). They are removed in `0.114.0`.
+12. **Update audit-log filters, reports and integrations** that select the newsletter's or a bulk
+    edit's entries by action ([For API clients and integrators](#after-0-113-0-api)).
+
+#### For operators {#after-0-113-0-operators}
+
+**Merging duplicate Organizations and Projects** (`specs/192-organization-merge/`). *More → Merge a
+duplicate into this organization…* on a company Organization's page, or **Merge organizations** in
+⌘K / CTRL+K, merges a duplicate into the Organization that stays: its members, addresses, carts,
+orders, quote requests, invoices, returns and every other module's records follow it, and the
+duplicate is archived with a pointer to it. A merge cannot be undone. The merges list
+(`/organizations/merges`) shows those needing attention first, with **Resume**. It needs the new
+permission `organizations:merge`, which the predefined sales-representative role does not hold, and
+the administrator must reach both Organizations. Projects merge the same way from the Project screen,
+under `projects:merge`, which no predefined role holds. While a merge runs, a write naming the
+duplicate is refused; a merge may not start while the duplicate has an unsettled order placement or a
+gateway payment still at the provider. See the `organizations` module's page *Merging duplicate
+organizations*.
+
+**Verifying the first user's e-mail address no longer activates the Organization** (issue #1893).
+Under `organizations.moderation.mode` `manual`, a self-registered Organization stays pending until an
+operator approves it, and a verification link can no longer revive one the operator rejected or
+blocked. `auto` still approves on registration.
+
+**Newsletter automations enrol subscribers** (issue #1833). Until now an active automation never
+started. A subscribe or a double opt-in confirmation now enrols the subscriber into each active
+automation it newly matches. Activating an automation does not enrol the subscribers who already
+match it, and those of an automation activated before this release are not enrolled now: send them
+the sequence as a campaign.
+
+**Organization and Customer custom fields can be list filters** (issue #1903): *Use as list filter* on
+a definition of either type, and the Organizations and Customers lists show the field under *More
+filters* to an administrator holding `custom_fields:read`.
+
+**Opportunity and Project notes carry custom fields** (issue #2005). The **Custom fields** screen
+offers two new record types, *Opportunity note* and *Project note*; the *Notes* tab of an Opportunity
+or a Project offers the fields when writing or editing a note and shows each note's values. A field
+marked required there is required on every new note, from the API too.
+
+**The quote request PDF** prints product names in the layout's language, read from the catalogue
+when the PDF is produced, and a Line items table column can **Print as a link** to the product's
+page on the channel's storefront (issue #1904). Existing templates print as before until a column is
+ticked; the stored name is printed where the catalogue offers none.
+
+**An audit entry may name a different action or actor than before:**
+
+- every newsletter subscriber and suppression action is renamed, `newsletter_subscribe` →
+  `newsletter_subscriber.subscribe` and so on ([For API clients](#after-0-113-0-api));
+- a bulk edit's product writes are `product.bulk_update.item` instead of `product.update`;
+- a category's inventory thresholds are `catalog`'s `category.inventory_thresholds.set`, and
+  `inventory`'s `low_stock_threshold.update` no longer carries `perCategoryCount`;
+- replacing an Organization's sales channels records one more `organization` entry with the channel
+  ids before and after;
+- a buyer's own order cancellation names the customer as acting for themselves
+  (`actorCustomerAccountId`) instead of filling the impersonation column;
+- a write a server-side integration makes through an aggregate port names the system actor and the
+  integration's `source` code.
+
+Entries recorded before the upgrade are not rewritten.
+
+#### For API clients and integrators {#after-0-113-0-api}
+
+- **Newsletter audit actions are renamed** (issue #1843), with no alias: `newsletter_subscribe`,
+  `newsletter_resubscribe`, `newsletter_confirm`, `newsletter_unsubscribe`, `newsletter_deactivate`
+  and `newsletter_delete` become `newsletter_subscriber.subscribe`, `.resubscribe`, `.confirm`,
+  `.unsubscribe`, `.deactivate` and `.delete`; `newsletter_bounce` and `newsletter_complaint` become
+  `newsletter_suppression.bounce` and `.complaint`. A query of the audit log by action asks for both
+  names to cover entries on either side of the upgrade.
+- **A bulk edit's products are audited as `product.bulk_update.item`**; a filter that counted them
+  under `product.update` reads the new action.
+- **`POST /api/v1/admin/quote-requests/:id/assign` refuses an ineligible assignee** with
+  `422 RFQ_ASSIGNEE_NOT_ELIGIBLE` (issue #1906): the administrator must be active, hold
+  `rfqs:handle` and reach the request's Organization. Clearing with `null` is allowed.
+  `rfq.created_by_admin.v1`'s `adminUserId` may be `null` for a quote a worker created.
+- **A merged record answers differently** (`specs/192-organization-merge/`). A write naming a merged
+  Organization is refused `409 ORGANIZATION_MERGED`, with the survivor in `details.survivorId`, and a
+  merged Project `409 PROJECT_MERGED`; a write naming the duplicate of a running merge is refused
+  `409 RECORD_MERGE_IN_PROGRESS`. A merged Organization's or Project's detail carries
+  `mergedIntoOrganizationId` / `mergedIntoProjectId`, `mergedAt` and `mergeId`. Two webhook event types
+  are offered: `organization.merged.v1` and `project.merged.v1`.
+- **Note custom fields** (issue #2005): `POST` and `PATCH` of
+  `/api/v1/admin/crm/opportunities/:id/comments…` and `/api/v1/admin/projects/:id/comments…` take
+  `customFieldValues`, checked with the administrator's rules (`422 CUSTOM_FIELD_VALUE_INVALID`), and
+  the comment lists answer it (`{}` on a message). A message with a non-empty `customFieldValues` is
+  refused `422 VALIDATION_FAILED`. A client that creates notes fails on a field an operator marks
+  required until it sends it.
+- **Custom-field list filters** on `GET /api/v1/admin/organizations` and `GET /api/v1/admin/customers`
+  (`customFieldFilters`), with the offered fields at `…/organizations/custom-field-filters` and
+  `…/customers/custom-field-filters`; a field the list does not offer is refused
+  `400 CUSTOM_FIELD_FILTER_UNAVAILABLE`.
+- **New refusals that no core write raises yet**: `422 FIELD_RULE_VIOLATION`,
+  `403 FIELD_WRITE_FORBIDDEN` and `422 FIELD_SLOT_INPUT_INVALID` (admin form extensions), and
+  `503 COMMAND_ADMISSION_TIMEOUT` / `COMMAND_ADMISSION_FAILED` (command middleware). They reach a client
+  only once a deployment declares a field rule or an `admit` middleware.
+
+#### For module and overlay authors {#after-0-113-0-authors}
+
+**MikroORM 7.** Every `@mikro-orm/*` peer is `^7.2.11`, and entity decorators are imported from
+`@mikro-orm/decorators/legacy`; [MikroORM 7](#mikro-orm-7) below has the old call and the new one for
+each API an instance's code may use. A package migration can no longer reach the raw database handles
+(issue #1889): run its statements through `this.execute(sql, params)` or `addSql`, never through
+`getKnex().raw(…)`, a transaction object, the connection's `client` or `loadFile()`.
+
+**Every persisted entity carries exactly one tenancy classification** (issue #1849): `@OrgScoped`,
+`@CustomerScoped`, `@TransitivelyScoped`, `@RuleScoped` or `@GlobalEntity`. An entity with none, or two,
+stops every process that configures the ORM with `UnclassifiedEntityError`, naming the class and the
+package or overlay that contributed it.
+
+**Code that implements a published type, or builds one of its values, does not compile until it has the
+new required members** — a fake port in a test, an overlay's own implementation:
+
+| Where | New required member |
+| --- | --- |
+| `ModuleContext` (`@endora-commerce/platform/kernel`) | `merge`, `commandMiddleware`, `entityExtensionLoaders`, `fieldSets` and `fieldFormats` — a hand-built context in a test adds all five |
+| `CustomFieldHostBinding` | `entityClassName` and `aggregatePort` |
+| `OrderReadPort` | `isTerminal(orderId)` |
+| `ProjectRecord` | `customFieldValues`, `version`, `configurationVersion`, `mergedIntoProjectId`, `mergedAt`, `mergeId` |
+| `ProjectReadPort` | `listNotes`, `previewMerge`, `resolveMerged`, `getMerge` |
+| `OpportunityReadPort` | `listNotes` |
+| `OrganizationDetailsPort` | `previewMerge`, `resolveMerged`, `getMerge` |
+| `TaskRecord` | `customFieldValues` |
+| `OpportunityComment`, `ProjectComment`, `OpportunityNoteRecord`, `ProjectNoteRecord` | `customFieldValues` (`{}` will do) |
+| `SearchReindexPort` | `reindexProducts(productIds)` |
+
+The rows that name no package are in `@endora-commerce/contracts`. An exhaustive `switch` or
+`Record` over `SupportedEntityType` adds `opportunity_note` and `project_note`; one over
+`DivergenceKind` adds `column-extension`, `command-middleware`, `form-override` and
+`form-override-grant`. A manifest may no longer carry an `origin` key. Code that builds a module's
+services by hand follows the constructor changes each module's `CHANGELOG.md` for 0.113.0 names.
+Code that calls `salesChannelMembershipPort` with an `em` from a plain `em.transactional(…)`, outside
+a Command, wraps that transaction in `eventBus.run(…)`; otherwise the Organization access-cache drop
+runs before the commit (issue #1926).
+
+**Writes go through the aggregate's port** (`specs/186-aggregate-ports/`). Organization,
+CustomerAccount, Order, QuoteRequest, Product, Category, Opportunity, Project and Task each publish one
+`<aggregate>CommandPort` that runs the Command its admin endpoint runs, with the same refusals, events
+and audit entry. A worker calls it under `withSystemScope` and names itself with `options.source`; a
+note, a message or a Project needs an administrator behind the call (`withSystemScopeActingFor`). The
+ports they supersede are listed under [Deprecated ports](#after-0-113-0-deprecations).
+
+**Side tables are declared** (`specs/187-side-table-extensions/`). A table of your own whose
+single-column primary key is a cascading foreign key to a custom-field host's primary key is a side
+table, and the module that owns it declares it in its manifest:
+
+```ts
+extends: [{ entity: 'organizations.Organization', table: 'example_erp_keys_organization_keys' }],
+```
+
+The platform verifies each declared table at `migrate` and at boot — the foreign key, its
+`on delete cascade`, the entity's tenancy — and stops with `EntityExtensionDriftError` on a finding.
+**An undeclared one is logged at `warn` in 0.113.0** (`undeclared-entity-extension`, naming the entry
+to add) **and refused at `migrate` and at boot from the next release.** `pnpm run
+module:schema-extensions list` prints every side table with its status (`verified`,
+`violation:<rule>`, `undeclared`, `unowned`). A module that declares one may register a bulk loader
+with `ctx.entityExtensionLoaders(…)`; any module then reads its values through the host's read port
+with `include: ['extensions.<moduleId>']`, attached as `extensions.<moduleId>` to the records the
+caller may see. An `include` no loader serves is refused `422 ENTITY_EXTENSION_UNCLAIMED`. Without
+`include` every read port answers as before.
+<!-- TODO(release): #2033 (admin reads via side-table loaders) is open at drafting time. If it
+merges before the release, say here which admin reads attach side-table values; until then
+admin HTTP responses carry none (OR-10). -->
+
+**Command middleware, and the guard seams** (`specs/189-command-middleware/`). A module may declare
+`commandMiddleware` in its manifest and register it with `ctx.commandMiddleware(…)`: an `admit` runs
+before every matching Command and may only pass or refuse it with a code its module declares, and an
+`observe` receives a names-only outcome after the run. An installed package may contribute `observe`
+only. **An overlay's `ctx.di.decorate` of `commandBus`, `auditLogService`, `eventBus` or `emFactory` is
+deprecated**: it still composes in 0.113.0, logs `kernel.decoration.deprecated` once and is a
+`deprecated-decoration` warning in the divergence report, and **from 0.114.0 composition refuses it**
+with `GuardSeamDecorationError`. Replace it:
+
+| Wrapped name | Replacement |
+| --- | --- |
+| `commandBus` | command middleware: `admit` to refuse, `observe` to measure; a command hook for one declared action |
+| `auditLogService` | `observe` middleware for an extra sink, or a read of `audit_log_entries` for a durable one; the audit writer itself is not replaceable |
+| `eventBus` | `ctx.subscribe` for a reaction; an `afterCommit` hook for durable delivery |
+| `emFactory` | none. Tenant scoping is not overridable (Principle XI). Ask the owning module for a port |
+
+Every other registration a composition root supplies stays decoratable. See
+[Moving a bus wrap to command middleware](./architecture/overlay-pattern.md#moving-a-bus-wrap-to-command-middleware).
+A Command Bus an operator entry point builds for itself, outside `composeApp` — today the
+`module:schema-extensions` commands — runs **no command middleware and no command hooks**, as before;
+its Commands are still audited. Do not rely on an `admit` rule to stop a maintenance command.
+
+**More actions are hookable.** A module that lists the owner in its `dependencies` can register a
+`beforeCommit` hook or an `afterCommit` handler against `PROMOTION_HOOKABLE_ACTIONS`,
+`PROJECT_HOOKABLE_ACTIONS`, `NEWSLETTER_HOOKABLE_ACTIONS`, `QUOTE_REQUEST_HOOKABLE_ACTIONS`
+(`create`, `resubmit`), `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS`, `OPPORTUNITY_HOOKABLE_ACTIONS`,
+`PRODUCT_HOOKABLE_ACTIONS` and `ORGANIZATION_HOOKABLE_ACTIONS.mergeStart`. A bulk product edit is not
+hookable: listen to `product.updated.v1`.
+
+**Organization merge participation** (`specs/192-organization-merge/`). Every module whose entities hold
+an Organization or a Project reference — an `organizationId`, `*OrganizationId(s)`, `projectId` or
+`*ProjectId` property — declares what a merge does with it in its manifest's `merge.participates`, and
+registers a participant with `ctx.merge.participate(…)` when the disposition moves records. Until
+every present module covers its references, every Organization merge start is refused
+`409 RECORD_MERGE_PARTICIPATION_INCOMPLETE`, naming the module. An overlay with a table keyed by an
+Organization declares it; the reference overlay module
+`backend/src/apps/example/modules/example_erp_keys/` does, in `manifest.ts` and `merge.ts`:
+
+```ts
+merge: {
+  participates: [
+    {
+      host: 'organization',
+      key: 'erp-keys',
+      phase: 'configuration',
+      references: [
+        { entity: 'ExampleErpOrganizationKey', property: 'organizationId', disposition: 'survivor_wins_fill_gaps' },
+      ],
+    },
+  ],
+},
+```
+
+`endora check` holds a module package to the rule (`check:merge-participation`), and a module that
+also sets a reference in SQL or a native ORM call declares `freeze: 'guarded'` and calls
+`assertMergeWritable` before each such write.
+
+**Admin form extensions: the contracts and the server half only** (`specs/193-admin-form-extensions/`).
+In this release: `defineFieldSet` and `defineAdminForm` and the manifest's `fieldSets`, `adminForms`,
+`formOverrides` and `inputControls`; `ctx.fieldSets(…)` and `ctx.fieldFormats(…)`; the Command Bus's
+field-rule check (`422 FIELD_RULE_VIOLATION`, `403 FIELD_WRITE_FORBIDDEN`);
+`GET /api/v1/admin/effective-forms`; `endora generate`'s admin-forms analysis; and the hookable writes
+on customer accounts, CRM opportunities and catalog products. **No core admin form declares its fields
+or renders a declared form in 0.113.0**, so a deployment cannot yet add a field to a core form or adjust
+one, and there is nothing to look for on the screens. A Command that sets `buyerSelfService: true`,
+which skips the field-rule check for a buyer's own write, must have its action listed in its module's
+manifest `buyerSelfServiceActions`; the bus refuses any other with
+`UndeclaredBuyerSelfServiceActionError` before anything is written.
+<!-- TODO(release): #2032 (admin-kit declared forms) is open at drafting time. If it merges before
+the release, describe what the admin kit renders and correct "No core admin form" above. -->
+<!-- TODO(release): #2034 changes spec text only; confirm at release that it needs no line here. -->
+
+**Constitution 4.3.0 → 4.6.0.** Principle XV now says an overlay module is a full module — entities,
+migrations, ports and an admin layer — under the same guards as a package: its migrations pass the
+foreign-schema guard with no deployment exemption, every entity it registers is classified, and one
+deployment-level build compiles and type-checks it. No module decorates a guard seam; cross-cutting
+behaviour on Commands is declared command middleware; a core form is extended only where its owner
+declares it.
+
+#### Overlay modules are compiled, and may own schema {#after-0-113-0-overlays}
+
+Overlay modules under `apps/<deployment>/modules/` were loaded by Node's type stripping and checked by
+nothing (`specs/190-overlay-full-modules/`). They are now compiled and type-checked like the rest of the
+backend:
+
+- **The type-check.** `backend/tsconfig.apps.json` covers `apps/*/modules/**/*.ts` and `apps/*/*.ts`
+  with `erasableSyntaxOnly`, and `typecheck` runs it after the backend's own program; `setup` runs
+  `typecheck` between `build` and `migrate` (issue #1847). An `enum`, a `namespace` or a constructor
+  parameter property is reported as `TS1294`. Replace an `enum` with a union of string literals, and a
+  parameter property with a field assigned in the constructor:
+
+  ```ts
+  // before
+  constructor(private readonly emFactory: () => EntityManager) {}
+  // after
+  readonly #emFactory: () => EntityManager;
+  constructor(emFactory: () => EntityManager) {
+    this.#emFactory = emFactory;
+  }
+  ```
+
+  The option comes with the overlay build, not with MikroORM 7, and it applies to overlay code only.
+- **The build** (issue #1848). `endora build overlays` compiles `apps/` into `backend/dist/apps` and
+  copies each module's `i18n/`; the backend's `build` runs it and `dev` runs it with `--watch`. Before
+  importing overlay code, a process compares each compiled unit with its source and refuses a `stale`,
+  `unbuilt` or `orphan` one, naming both paths and `Rebuild: pnpm run build`. An overlay module is flat
+  and is not a package: a `manifest.ts` below its root, or a `package.json`, `tsconfig*.json`, bundler or
+  test configuration inside it, is refused.
+- **What the second upgrade run rewrites**, while each is exactly what `0.112.0` rendered:
+  `backend/src/index.ts`, `worker.ts`, `cli.ts`, `module-commands/runtime.ts`, `migrate.ts` and
+  `mikro-orm.config.ts`; `backend/tsconfig.apps.json` (written if absent); the backend's `build`, `dev`
+  and `typecheck` scripts, the root `typecheck` and `setup`; and, with an admin member,
+  `admin/src/main.tsx`, `admin/vite.config.ts` and `admin/tsconfig.json`, plus an
+  `admin/src/deployments/*.generated.ts` line in `.gitignore`. If you edited `migrate.ts` or
+  `mikro-orm.config.ts`, delete the `refuseOverlaySchema` import and call, and pass
+  `deploymentRoot: fileURLToPath(new URL('.', import.meta.url))` to `configuredEntitiesFrom` and as
+  the third argument of `discoverConfiguredMigrations`; without it overlay migrations are not applied.
+- **Schema** (issue #1850). An overlay module may own tables: `backend.ts` exports `entities`, an array
+  of classes, each with one tenancy classification and decorators from
+  `@mikro-orm/decorators/legacy`; its `migrations/` holds one class per file, named
+  `<YYYYMMDDTHHmmss>_<module>_<slug>.ts`, with no barrel. They run under the foreign-schema guard with
+  no exemption, and `module:uninstall --hard` reverts them. `endora new module --entities` and
+  `endora new migration <moduleId> --name <slug>` scaffold them, and `pnpm run module:status <id>`
+  lists a module's migrations and whether each is applied.
+- **Ports and an admin layer** (issues #1854, #1855). An overlay module may publish port types to a
+  sibling in `ports.ts`; the sibling imports them with `import type`, only from `ports.ts`, and only
+  when its manifest depends on the provider, or `endora generate` reports `[overlay-boundary]`. It may
+  ship `admin/index.tsx`; `endora generate` writes one admin registry per deployment, the admin build
+  selects it by `DEPLOYMENT`, and each overlay admin page needs a command-palette action of its own.
+
+An existing overlay module without a table needs only the type-check fixes above. Read
+[Overlay pattern](./architecture/overlay-pattern.md#an-overlay-module-owns-its-schema), and copy
+`backend/src/apps/example/modules/example_erp_keys/`, the reference overlay module that uses every
+seam once: a declared side table, a `beforeCommit` hook on `organization.create`, a side-table loader,
+a published port, a gated admin screen with its palette action, an activation control and its merge
+participation.
+
+#### Deprecated ports: the old call and the new one {#after-0-113-0-deprecations}
+
+Each narrow write port of the nine aggregates is deprecated in 0.113.0 and **removed in 0.114.0**
+(`specs/186-aggregate-ports/` OD-4). In 0.113.0 each deprecated method delegates to its replacement
+and writes the same audit entries and runs the same hooks, so a call can move at any time. Where a
+manifest dependency edge names the old port, name the new one. The audit entry now names the ambient
+actor — the administrator of the request, or the system actor under `withSystemScope` — and the
+caller's `source`; an `actor` or `actorAdminUserId` passed to a deprecated method is ignored.
+
+| Deprecated call | Use instead |
+| --- | --- |
+| `organizationWritePort.findByTaxId(taxId)` | `organizationDetailsPort.findByTaxId(taxId)` |
+| `organizationWritePort.create(input)` | `organizationCommandPort.create(input)` |
+| `organizationWritePort.update(id, patch, { expectedVersion })` | `organizationCommandPort.update(id, patch, { expectedVersion })` |
+| `organizationCustomFieldWritePort.setCustomFieldValues(id, merge, { extensions })` | `organizationCommandPort.setCustomFieldValues(id, merge, { extensions })` |
+| `customerAccountLifecycleWritePort.createStandalone(input)` | `customerAccountCommandPort.createStandalone(input)` |
+| `customerAccountLifecycleWritePort.block(id, { actorAdminUserId, reason, audit })` | `customerAccountCommandPort.block(id, { reason })` |
+| `customerAccountLifecycleWritePort.unblock(id, { actorAdminUserId, audit })` | `customerAccountCommandPort.unblock(id)` |
+| `customerAccountLifecycleWritePort.softDelete(id, { actorAdminUserId })` | `customerAccountCommandPort.softDelete(id)` |
+| `customerAccountLifecycleWritePort.restore(id, { actorAdminUserId })` | `customerAccountCommandPort.restore(id)` |
+| `customerAccountLifecycleWritePort.setCustomerGroup(id, groupId, { actorAdminUserId })` | `customerAccountCommandPort.setCustomerGroup(id, { customerGroupId: groupId })` |
+| `customerAccountLifecycleWritePort.setCustomFieldValues(id, merge)` | `customerAccountCommandPort.setCustomFieldValues(id, merge)` |
+| `customerAccountLifecycleWritePort.anonymize(id)` | `customerAccountCommandPort.anonymize(id)` |
+| `customerAccountLifecycleWritePort.listDueForAnonymization(cutoff)` | `customerAccountReadPort.listDueForAnonymization(cutoff)` |
+| `customerAccountLifecycleWritePort.hasDueForAnonymization(cutoff)` | `customerAccountReadPort.hasDueForAnonymization(cutoff)` |
+| `customerAccountMemberWritePort.create(input)` | `customerAccountCommandPort.create(input)` |
+| `customerAccountMemberWritePort.updateProfile(id, patch)` | `customerAccountCommandPort.updateProfile(id, patch)` |
+| `customerAccountMemberWritePort.setSubtreeRollup(id, enabled)` | `customerAccountCommandPort.setSubtreeRollup(id, { enabled })` |
+| `customerAccountMemberWritePort.promoteToOrganizationAdmin(id)` | `customerAccountCommandPort.promoteToOrganizationAdmin(id)` |
+| `customerAccountMemberWritePort.markEmailVerified(id, verifiedAt)` | `customerAccountCommandPort.markEmailVerified(id, { verifiedAt })` |
+| `orderTransitionPort.applyStatus({ orderId, to, actor, reason })` | `orderCommandPort.applyStatus(orderId, { to, reason }, { source })` |
+| `orderTransitionPort.isTerminal(orderId)` | `orderReadPort.isTerminal(orderId)` |
+| `orderExternalReferencePort.set(orderId, system, value)` | `orderCommandPort.setExternalReference(orderId, system, value)` |
+| `catalogProductWritePort.createProduct(req, auditCtx)` | `catalogProductCommandPort.create(req)` |
+| `catalogProductWritePort.updateProduct(id, { …patch, version })` | `catalogProductCommandPort.update(id, patch, { expectedVersion: Number(version) })` |
+| `catalogProductWritePort.createVariant` / `updateVariant` / `deleteVariant` | `catalogProductCommandPort.createVariant` / `updateVariant` / `deleteVariant` |
+| `catalogProductWritePort.listAttributes()` | `catalogAttributeReadPort.listAll()` |
+| `catalogProductWritePort.listAttributesByFlag(flag)` | `catalogAttributeReadPort.listByFlag(flag)`; for `isRequired` and `isMassEditable`, filter `listAll()` |
+| `catalogProductWritePort.createAttribute(req)` | `catalogAttributeCommandPort.create(req)` |
+| `catalogProductWritePort.updateAttributeByIdOrKey(idOrKey, req)` | `catalogAttributeCommandPort.update(idOrKey, req)` |
+| `catalogProductWritePort.addAttributeOption` / `patchAttributeOption` | `catalogAttributeCommandPort.addOption` / `updateOption` |
+| `catalogProductScopeWritePort.applyScopes(id, input, { source })` | `catalogProductCommandPort.applyScopedValues(id, input, { source })` |
+| `catalogCategoryWritePort.listAll()` | `catalogCategoryReadPort.listAll({ liveOnly: true })` |
+| `catalogCategoryWritePort.create(input)` | `catalogCategoryCommandPort.create(input, options?)` |
+| `catalogCategoryWritePort.update(id, input)` | `catalogCategoryCommandPort.update(id, input, options?)` |
+| `catalogCategoryWritePort.setInventoryThresholds(id, patch)` | `catalogCategoryCommandPort.setInventoryThresholds(id, patch, options?)` |
+| `opportunityTransitionPort.applyStatus({ opportunityId, to, actor, reason })` | `opportunityCommandPort.transition(opportunityId, { to, reason }, { source })` |
+| `taskWritePort.createMany({ context, tasks })` | `taskCommandPort.createMany({ context, tasks })` |
+| `taskWritePort.deleteInContext({ contextType, contextId })` | `taskCommandPort.deleteInContext({ contextType, contextId })` |
+
+Three differences to expect when you move. The new `catalogCategoryCommandPort.create` and `update`
+check their input against the admin endpoint's schema (`422 VALIDATION_FAILED`), where the deprecated
+ones accepted more. `organizationWritePort.update` checks its options before the patch. And
+`catalogProductCommandPort.applyScopedValues` accepts any `source` code, not only a registered module
+id.
+
+**Not deprecated in this release:** `customerAccountLifecycleWritePort.setOrganization` and
+`detachToPersonalOrganization`, `customerAccountMemberWritePort.attachToOrganization` (they move to
+`membershipPort` with `specs/191-membership-join-requests/`), and `orderPlacementPort.placeOrder` (its
+replacement, `orderCommandPort.place`, has not shipped). `orderPaymentStatusApplyPort`,
+`orderExternalReferencePort`'s reads, `customerAccountPreferencePort`,
+`customerAccountRoleCommandPort`, `customerAccountMemberCommandPort` and `catalogBulkImportPort` are
+kept. The doc block of each deprecated member reads `@deprecated since 0.113.0; use … instead`, so
+your editor strikes each call through; to list them, search your code for the eleven port names in the
+left column. See [The contract surface](./architecture/contract-surface.md).
+
+This section was written on 2026-11-28 against `master` at `cd124eff0`, before the release branch was
+cut, read from the changesets of the release against its migrations, manifests and code; the entries
+*The MikroORM CLI is not supported* and *MikroORM 7* were written earlier, by the pull requests that
+made each change. No instance had been upgraded with `pnpm run upgrade 0.113.0` when it was written;
+the order of the steps, the two runs from `0.112.0` included, is untried.
+
+#### The MikroORM CLI is not supported {#mikro-orm-cli-removed}
 
 The platform no longer installs `@mikro-orm/cli`, and its `backend/package.json` no longer carries
 the `mikro-orm` block that pointed the CLI at a configuration file (issue #1865). An instance created
@@ -5560,10 +6020,7 @@ platform's (`mikroOrmConfigFrom` in `@endora-commerce/platform/db`). Never run `
 schema:update` or `schema:create` against an instance's database: they change the schema outside the
 migrations, which then no longer describe it.
 
-This entry was written by the pull request that made the change, ahead of the release that carries
-it.
-
-### MikroORM 7 {#mikro-orm-7}
+#### MikroORM 7 {#mikro-orm-7}
 
 The platform and every module package now run on **MikroORM 7.2.11** (issue #1866, part of #1073),
 and their `@mikro-orm/*` peers are `^7.2.11`. This is a breaking change for an instance: `pnpm run
@@ -5610,9 +6067,6 @@ list. The tenant filters answer an empty organization set with an always-false c
 package migration's entity manager, and MikroORM 7's `Migration` offers no query builder of its own;
 build the statement for `addSql` as text or as `raw(sql, params)`, which the guard judges as it is
 rendered.
-
-This entry was written by the pull request that made the change, ahead of the release that carries
-it.
 
 ## An instance that is mixed from the start
 
