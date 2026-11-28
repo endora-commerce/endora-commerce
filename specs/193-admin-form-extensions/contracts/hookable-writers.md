@@ -24,7 +24,8 @@ export const CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS = {
 For those runs the field-rule check skips the buyer actor (D-300.3). The registration runs
 anonymously under a `system` actor, so the root Command declares `buyerSelfService: true`, and the
 child inherits it through the bus's lineage (D-300.10). The roots are `organization.register`,
-`customer_account.register_standalone`, and the invitation acceptance's `customer_account.create`.
+`customer_account.register_standalone`, `customer_account.register_social` (the federated
+sign-in, D-300.33), and the invitation acceptance's `customer_account.create`.
 That last one is run through `CustomerAccountMemberWritePort.create`, whose input gains an optional
 `buyerSelfService?: true` for it. The same applies to the standalone registration, which is a
 `customerAccountCommandPort.createStandalone` call: its options gain `buyerSelfService?: true`, and

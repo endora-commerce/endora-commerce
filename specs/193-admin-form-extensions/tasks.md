@@ -165,6 +165,7 @@ the merge request that changes their inputs.
 - [ ] T072 [T] 4-path parity integration test: form, admin API, import row and port, for each fixture rule on organization and one rule on `product.update` and `product.scoped_values.save`.
 - [ ] T073 [T] Off-state integration test on the deployment database (template `overlay-notes-fixture-off-state.test.ts`): responses and audit rows byte-identical to bare core; switching back on restores everything.
 - [ ] T074 [T] Replacement-pattern test: the core field is hidden, the slot sits in its place, and a projection mismatch is refused.
+- [ ] T109 [T] (WP-G, moved from WP-E1's T100) Merge lifecycle on the database, over `form_extension_fixture`'s organization tightening: a refused choice at start leaves nothing recorded, frozen or enqueued; a tightening that comes into force between start and finalize (the fixture switched on mid-merge) leaves the merge *needs attention*, and *resume* completes it once the fixture is off or the value is admitted (D-300.28, R-26.8).
 - [ ] T075 Add `backend/src/apps/example/modules/form_extension_fixture/` with its manifest, side table (migration via `migration:new`), `fieldSlotHook`, overrides, `divergence.ts` reasons, admin layer and bundles.
 
 ## Phase 7: Documentation and closure (WP-DOC; FR-073)
