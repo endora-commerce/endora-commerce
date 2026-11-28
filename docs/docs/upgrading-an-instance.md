@@ -5789,9 +5789,15 @@ with `ctx.entityExtensionLoaders(…)`; any module then reads its values through
 with `include: ['extensions.<moduleId>']`, attached as `extensions.<moduleId>` to the records the
 caller may see. An `include` no loader serves is refused `422 ENTITY_EXTENSION_UNCLAIMED`. Without
 `include` every read port answers as before.
-<!-- TODO(release): #2033 (admin reads via side-table loaders) is open at drafting time. If it
-merges before the release, say here which admin reads attach side-table values; until then
-admin HTTP responses carry none (OR-10). -->
+An admin read that takes `?extensions=<moduleId>` can now serve a side table too
+(`specs/193-admin-form-extensions/` FR-015). A loader registered with `adminReads: true` is called
+once per response with every record's id, and its value is parsed with the loader's schema. A
+module's value is an object keyed by field, or `null` when the module is served but the record has
+none; a loader that answers anything else fails the read. An absent key still means the module is
+not served there. **API clients:** `extensions.<moduleId>` may now be `null`, so parse it as
+nullable. **Module authors:** a module may not serve one host from both a loader and declared
+columns that opt into `adminReads`; composition refuses the pair as
+`loader-and-columns-on-one-host`.
 
 **Command middleware, and the guard seams** (`specs/189-command-middleware/`). A module may declare
 `commandMiddleware` in its manifest and register it with `ctx.commandMiddleware(…)`: an `admit` runs
@@ -5863,7 +5869,6 @@ manifest `buyerSelfServiceActions`; the bus refuses any other with
 `UndeclaredBuyerSelfServiceActionError` before anything is written.
 <!-- TODO(release): #2032 (admin-kit declared forms) is open at drafting time. If it merges before
 the release, describe what the admin kit renders and correct "No core admin form" above. -->
-<!-- TODO(release): #2034 changes spec text only; confirm at release that it needs no line here. -->
 
 **Constitution 4.3.0 → 4.6.0.** Principle XV now says an overlay module is a full module — entities,
 migrations, ports and an admin layer — under the same guards as a package: its migrations pass the

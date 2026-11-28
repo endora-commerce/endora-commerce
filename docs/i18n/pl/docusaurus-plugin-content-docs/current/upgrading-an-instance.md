@@ -6041,9 +6041,16 @@ odczytuje wtedy jej wartości przez port odczytu hosta z `include: ['extensions.
 dołączane jako `extensions.<moduleId>` do rekordów, które wywołujący może zobaczyć. `include`, którego
 nie obsługuje żaden loader, jest odrzucane z kodem `422 ENTITY_EXTENSION_UNCLAIMED`. Bez `include`
 każdy port odczytu odpowiada jak dotąd.
-<!-- TODO(release): #2033 (admin reads via side-table loaders) is open at drafting time. If it
-merges before the release, say here which admin reads attach side-table values; until then
-admin HTTP responses carry none (OR-10). -->
+Odczyt panelu administracyjnego przyjmujący `?extensions=<moduleId>` może teraz obsługiwać także
+tabelę poboczną (`specs/193-admin-form-extensions/` FR-015). Loader zarejestrowany z
+`adminReads: true` jest wywoływany raz na odpowiedź z identyfikatorami wszystkich rekordów, a jego
+wartość jest parsowana schematem loadera. Wartość modułu to obiekt kluczowany polami albo `null`,
+gdy moduł jest obsługiwany, ale rekord nie ma wartości; loader, który zwraca cokolwiek innego,
+powoduje błąd odczytu. Brak klucza nadal oznacza, że moduł nie jest tam obsługiwany. **Klienci
+API:** `extensions.<moduleId>` może teraz mieć wartość `null`, więc parsujcie je jako pole
+dopuszczające `null`. **Autorzy modułów:** moduł nie może obsługiwać jednego hosta jednocześnie
+loaderem i zadeklarowanymi kolumnami z `adminReads`; kompozycja odrzuca taką parę jako
+`loader-and-columns-on-one-host`.
 
 **Middleware poleceń i punkty zabezpieczeń** (`specs/189-command-middleware/`). Moduł może
 zadeklarować `commandMiddleware` w manifeście i zarejestrować je przez `ctx.commandMiddleware(…)`:
@@ -6117,7 +6124,6 @@ pomija kontrolę reguł pól dla własnego zapisu kupującego, musi mieć swoją
 `UndeclaredBuyerSelfServiceActionError`, zanim cokolwiek zostanie zapisane.
 <!-- TODO(release): #2032 (admin-kit declared forms) is open at drafting time. If it merges before
 the release, describe what the admin kit renders and correct "No core admin form" above. -->
-<!-- TODO(release): #2034 changes spec text only; confirm at release that it needs no line here. -->
 
 **Konstytucja 4.3.0 → 4.6.0.** Zasada XV mówi teraz, że moduł nakładkowy jest pełnym modułem — encje,
 migracje, porty i warstwa panelu — pod tymi samymi zabezpieczeniami co pakiet: jego migracje
