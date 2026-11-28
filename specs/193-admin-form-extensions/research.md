@@ -215,7 +215,8 @@ presentation overrides only, unless the owner adds the value to the hook data.
 
 **Constitution.** The check is a declared refusal inside a declared hookable action, and it writes
 nothing, as XIII's middleware sentence requires of `admit`. On the owner's instruction (D-300.7),
-XV is amended (4.6.0, drafted on top of #2010's 4.5.0 and pending sign-off). The amendment adds
+XV is amended (4.6.0, drafted on top of #2010's 4.5.0, approved by the owner on 2026-11-27, merged
+in #2007). The amendment adds
 "declared form extensions" to the bounded surface, and adds one bullet stating what a deployment may
 and may not adjust on a core form, and that operator overrides are presentation only.
 
@@ -751,7 +752,8 @@ because they touch disjoint files.
 WP-B (platform, `packages/platform/src/kernel/forms/`) and WP-D (CLI and check,
 `packages/cli/src/lib/admin-forms.ts`, `backend/scripts/check-admin-forms.ts`) raised eight points
 before their merge requests opened. Each ruling below prefers the least machinery. None changes an
-owner answer. R-24.3 extends D-300.4's reasoning and is flagged for the owner, who may overrule it.
+owner answer. R-24.3 extends D-300.4's reasoning and was accepted
+(owner, 2026-11-27; recorded on #2026).
 
 ### R-24.1: The effective-forms path (D-300.9)
 
@@ -840,8 +842,8 @@ required, while leaving `vatId` empty, is the write that creates the violation, 
 - *`requiredWhen` held only when the target changed (WP-B as built).* That lets a write create a
   violation it never has to answer for.
 
-**Owner flag.** This extends the owner's D-300.4 from `required` to every kind. Reversing it is a
-one-line change in `field-rule-check.ts` (`touched`), so no work waits on the owner.
+**Owner decision.** This extends the owner's D-300.4 from `required` to every kind. Accepted
+(owner, 2026-11-27; recorded on #2026).
 
 ### R-24.4: Where `required-not-fillable`'s derivation exemption lives (D-300.12)
 
@@ -952,3 +954,285 @@ field that no release has shipped yet (WP-A, #2018, merged after 0.112.0).
 
 **Rejected.** *A separate contracts PR now.* It would mean a third PR and a third changeset on the
 file WP-D is already amending, for three lines.
+
+## R-25: Phase 3 rulings (D-300.17 to D-300.25, architect rulings, 2026-11-28)
+
+WP-C (admin kit, `packages/admin-kit/src/lib/forms/`, `components/declared-form/`,
+`components/controls/`, PR #2032) raised five points, and WP-B2 (admin reads,
+`packages/platform/src/kernel/schema-extensions/reads.ts`,
+`kernel/entity-extensions/registry.ts`) raised four. Each ruling below prefers the least
+machinery. None changes an owner answer.
+
+### R-25.1: Operator rows on slot keys (D-300.17)
+
+**Measured.** FR-091 and `operator-form-layout.md` §1 and §2 admit operator rows on slot keys
+(`label`, `help`, `position`, `hidden`), and R-21 § *Off-state* says how they behave when the slot's
+module is off. `effective-forms.ts` serves core fields only, and its header says that an operator
+row on a slot key "is the kit's to apply". The kit, though, receives nothing but
+`EffectiveFormsResponse`, so no WP has a path for those rows. The server does not know which slots
+exist, because slots are admin contributions (R-3). Two more facts constrain the design:
+`formLayout` (`packages/contracts/src/admin-forms.ts`) applies `hidden` to core keys only, and
+filtering a hidden slot out of its input would also drop the own-module slots anchored on it.
+
+**Decision.** Slot overrides stay in scope. The response carries the rows, and the kit applies them.
+- `EffectiveFormsResponseSchema.forms[]` gains `slots?: EffectiveSlotOverride[]`, where absent
+  means none. Each entry is `{ key, label?, help?, position?, hidden, operatorKinds }`. `key` is the
+  wire key `<moduleId>.<localKey>`. `label` and `help` are `EffectiveText` with
+  `source: 'operator'`. `position` is `{ section?, before?, after? }`. Slots have no code layer
+  (`formOverrides` targets core keys), so every value is the operator's.
+- The platform (`effective-forms.ts`) serves a row as a slot row when its key is not a core key or a
+  declared family member of the set, its prefix is an effectively present module, and the form's
+  owner is present. A row that holds a kind outside `SLOT_OPERATOR_KINDS`
+  (`['label', 'help', 'position', 'hidden']`) is `no-longer-accepted` and is not served. A
+  `before` or `after` that names no core key the form shows after code moves, or a `section` the
+  form does not declare, is dropped from the served `position` (`position-fallback`).
+- `custom_fields.form_layout.set` admits a slot key when it matches
+  `<moduleIdRe>.<slotFieldKeyRe>` with a composed module id, its kinds are in
+  `SLOT_OPERATOR_KINDS`, and its position names a core key or a section of the form. It cannot tell
+  whether the module contributes that slot. The operator screen, which reads the admin
+  contributions, lists a row on an undeclared slot as `orphaned`. The kit ignores an entry for a
+  slot it does not render.
+- The kit replaces the slot's label and help with the operator text in the reader's language, with
+  no fallback to another language (FR-092). A hidden slot goes into `formLayout`'s `hidden` by its
+  wire key. A position becomes the slot's anchor: `before` or `after` k becomes
+  `{ field: k, position }`, and `section` alone becomes `{ section, position: 'end' }`. The slot
+  keeps its `weight`. When a row sets both `section` and `before` or `after`, the `before` or
+  `after` wins, because the anchor key's section is implied. A section that disagreed with it could
+  not be honoured anyway.
+- **In the screen's detail response** (`operator-form-layout.md` §2), slot rows have their own
+  `slots` array, since the server has no core, code or accepts data for them. `status` (`active`,
+  `owner-absent`, `no-longer-accepted`) and the `position-fallback` notice are computed by the
+  server, by the same checks it applies to core rows. `orphaned` is computed by the screen, which
+  alone can see the slot contributions.
+- **A slot value is never required.** If an operator hid a slot whose write hook required its key,
+  every create of the host would fail: the kit omits the hidden key, and the hook refuses the slice
+  without it. For core fields D-300.12 refuses the equivalent. Slots get the cheaper guarantee:
+  `fieldSlotHook` refuses, during registration, a `schema` for which `safeParse({})` fails. Its
+  contract already says "every key optional (a partial write)" but did not enforce it. With that
+  refusal, `hidden` on a slot is always safe and needs no required-ness check anywhere.
+- `formLayout` honours `hidden` for a slot's wire key the way it does for a core key. It emits
+  nothing for that slot, but the slot's anchor stays, so the own-module slots anchored on it still
+  render. `FORM_LAYOUT_VECTORS` gains that case.
+
+**Where it lands.** The contracts schema, `SLOT_OPERATOR_KINDS`, the `formLayout` line and its
+vector, `effective-forms.ts`, the `fieldSlotHook` refusal, the `set` validation and the detail
+response's `slots` array all go in WP-L1. WP-L1 produces the rows and
+already depends on WP-B, and the corrected `effective-forms.ts` header goes in with it. The kit's
+application goes in WP-L2, because WP-L2 depends on WP-C, and its live preview
+(`operator-form-layout.md` §6) is a `DeclaredFormSection` that has to show the rows. WP-C changes
+nothing. Without rows its behaviour is already correct.
+
+**Rationale.** The owner's D-300.6 gives operators run-time control of how a form reads, and on a
+form where a package contributes several fields, hiding or relabelling one of them without
+switching the package off is that control's main use. The cost is one optional array, one line in
+the shared layout function and a key-shape check on write. The server stays unaware of slots, and
+because every kind involved is presentation (FR-100), a row it cannot fully verify cannot change
+what an API accepts.
+
+**Rejected.**
+- *Rule slot overrides out of scope.* That narrows FR-091 and R-21, both written under the owner's
+  D-300.6, to save a few lines, and it leaves the business asking a developer to hide a package's
+  field.
+- *Make slots manifest data so the server can validate them.* That would add a second declaration
+  of every slot (manifest and admin layer) and a reconciliation between them, to verify
+  presentation rows that the screen can already classify.
+- *A `required` flag on slot contributions, refused for operator `hidden`.* Only the screen could
+  see the flag, because slot contributions are admin data. The server's `set` would still accept
+  the row, so the instrument that has to be safe could not be. It also adds a declaration kind.
+- *Accept the risk.* A presentation setting would then be able to stop every create of a host,
+  which FR-100's "presentation only" rules out.
+- *Let the kit read the operator rows from `custom_fields`' own routes.* `custom_fields:read` gates
+  those routes, but every admin renders forms, and FR-023 gives the admin exactly one source for
+  overrides.
+
+### R-25.2: Who enforces `readOnly` (D-300.18)
+
+**Measured.** `DeclaredCoreField` passes `readOnly` to a `{ label, input }` renderer and to a
+replacing control. The platform controls (`components/controls/PlatformControl.tsx`) put
+`readOnly` on the text, number and textarea inputs, and `disabled` on the switch, select,
+multi-select, country and colour controls, where HTML has no read-only state. That split is
+correct and stays. `declaredFormSubmission` already leaves a read-only field out of
+`core`, so a host input that ignored `readOnly` cannot send its value. It can, however, show an
+edited value that the Save then silently discards, because `setCore` and `setSlot` accept the
+change.
+
+**Decision.** The host's input honours `readOnly`, as the contract says. The kit adds no
+`<fieldset disabled>`, and it drops a change made by the operator to a key it renders read-only
+(core or slot). The value stays as loaded. In development the kit warns once per key, naming the
+form and the key, so that the host renderer that ignored the prop is visible. A change made by the
+form itself (a derivation, a `default`) is unaffected, because D-300.12 relies on a derived
+read-only value.
+
+**Rationale.** Read-only and disabled are different states for assistive technology and for the
+keyboard (`.claude/skills/ux-laws/SKILL.md` §4: every interactive element keyboard-reachable, and
+4.5:1 text contrast). A read-only input stays in the tab order, keeps its value readable and
+selectable at full contrast, and is announced as read-only. `<fieldset disabled>` removes every
+native control in it from the tab order and announces them as unavailable, and browsers render them
+dimmed. A keyboard or screen-reader user would then skip the very value the field exists to show.
+It would also be incomplete enforcement. Radix pickers are `button` and `div` widgets that a
+fieldset only partly disables, and the `{ field }` renderer and the product editor's `EditorField`
+draw their own structure. Inside `FormField`'s `group` mode it would nest one fieldset in another,
+which changes how the group is announced. Dropping the change at the kit's one write path enforces
+the state for every renderer and makes the screen tell the truth about what Save will send.
+
+**Rejected.**
+- *`<fieldset disabled>` per field.* It has the accessibility cost above and does not reach custom
+  widgets.
+- *`aria-readonly` on the spread control props.* The attribute is not allowed on `button`, which
+  is how the pickers render, so axe (`aria-allowed-attr`) would fail for exactly the hosts it was
+  meant to help.
+
+### R-25.3: Client rules and the core declaration (D-300.19)
+
+**Measured.** The field-rule check (`field-rule-check.ts`, `field-rules.md` §5) checks only what
+is in force from other modules: merged tightenings, `requiredWhen`, formats and the integer format
+implied by `platform.integer`. A core `required` or core bound is the host's write schema, which
+answers `422 VALIDATION_ERROR` before any hook runs. `EffectiveField.validation` is that merged
+conjunction, not the core declaration.
+
+**Decision.** Confirmed. "The same effective rules" in `field-rules.md` §6 means the rules the
+field-rule check evaluates. The core declaration's `required` and bounds stay the host's own client
+and server validation. The kit shows the core `required` marker but does not check it. §6 now says
+so in words.
+
+**Rationale.** Parity is with the check that would refuse the write. Re-checking the core in the kit
+would duplicate each adopting host's existing validation and change its messages, timing and order
+on adoption, which D-300.5's "adopt without changing behaviour" rules out.
+
+**Rejected.** *The kit also checks core `required` and bounds.* That creates two client validators
+per field, with different message keys, that the host would have to reconcile.
+
+### R-25.4: Derivations on an edit form (D-300.20)
+
+**Measured.** The kit derives on an edit form only once a `from` field differs from its loaded value,
+which is what WP-C states. The contract's "while untouched" says nothing about edit forms, and read
+literally it would re-derive on open and rewrite a stored value that the operator never chose to
+change. One defect remains in WP-C. If the operator changes a `from` field and then changes it back,
+the derivation stops running, because no `from` field differs any more. The target keeps the value
+derived from the intermediate input, and Save sends it.
+
+**Decision.** WP-C's reading is confirmed and completed. On an edit form a derivation writes its
+target while (a) the operator has not edited the target in this session, and (b) at least one of its
+`from` fields differs from its loaded value. When (a) holds and (b) stops holding, the target returns
+to its loaded value. On a create form only (a) applies. FR-044 and `field-rules.md` §4 now say this.
+
+**Rationale.** The target is then always a function of what the operator actually changed: either
+the derivation of the current inputs, or the stored value when the net change to the inputs is
+none. A round trip of a `from` field therefore leaves the record as stored, which the form's own
+dirty tracking and the unsaved-changes prompt also expect.
+
+**Rejected.**
+- *Re-derive on open.* That rewrites stored data without any operator action.
+- *Stay armed after the first change.* A round trip would then still rewrite the target with
+  `compute(loaded inputs)`, which need not equal the stored value, for example after a manual edit
+  made before the derivation existed.
+
+### R-25.5: The provider's GET and the ETag (D-300.21)
+
+**Measured.** `registerEffectiveFormsRoutes` (`packages/platform/src/lifecycle/routes.admin.ts`)
+sends a strong `ETag` (a SHA-256 digest, quoted) and answers `304` to a matching `If-None-Match`.
+It sends no `Cache-Control`, and nothing in `http/server.ts` adds one. The kit's `apiClient` uses
+`fetch` with the default cache mode and treats any status other than 2xx as an error. With an
+`ETag`, no `Cache-Control` and no `Last-Modified`, a browser has no heuristic freshness, so it
+stores the response and revalidates it with `If-None-Match` on every request. Today that works by
+default and not by statement. A shared cache in front of a cookie-authenticated admin API is
+otherwise unconstrained.
+
+**Decision.** Accepted, with one header. The route sends `Cache-Control: private, no-cache`, which
+makes store-and-always-revalidate normative and keeps shared caches out. The kit does not set
+`If-None-Match` or a fetch `cache` mode itself. A hand-set conditional header would make a `304`
+reach `apiClient`, which would treat it as an error, and the kit would have to keep its own copy of
+the body. The header goes in WP-C's merge request, with an assertion in
+`routes.admin.forms.test.ts` and a `patch` platform changeset, because the provider depends on it.
+The same change removes the route's stale note that the path was "pending the architect's ruling"
+(D-300.9 ruled it).
+
+**Rationale.** The browser's HTTP cache is the cache that already exists (IV). One header turns
+behaviour that holds by default into behaviour the route states.
+
+**Rejected.**
+- *A manual `If-None-Match` with a body cache in the provider.* That duplicates the browser cache
+  and adds `304` handling to `apiClient`.
+- *`no-store`.* Every refresh would then download the full body, and the `ETag` would be useless.
+
+### R-25.6: When `loader-and-columns-on-one-host` fires (D-300.22)
+
+**Measured.** WP-B2's L4 refuses a module's `adminReads` loader only when the same module's D2
+columns on the host's table also carry `adminReads`. `schemaExtensionReads` serves D2 columns only
+under `adminReads` (178 OD-178-5), and a loader only under its own `adminReads`. 187 R-17 rule 1
+names the collision as "two values under one `extensions.<moduleId>` key".
+
+**Decision.** Confirmed. The refusal covers exactly the pair that would collide on the wire. A
+module may keep D2 columns that it does not serve on admin reads, for example for list filters or
+indexes, or during a move from columns to a side table, beside an `adminReads` loader. FR-015 now
+says that "serve" means opting into `adminReads`.
+
+**Rejected.** *Refuse any loader and columns pair on one host.* It forbids a legitimate layout to
+prevent a collision that cannot happen, and the module's migration path from D2 to a side table
+would then need a release in which it serves neither.
+
+### R-25.7: When L4 is judged (D-300.23)
+
+**Measured.** The registry reads `columnExtensions()` at each registration, and `composeApp` passes
+`activeSchemaExtensions`. The ORM configuration fills it through `recordActiveSchemaExtensions`,
+before `verifySchemaExtensions` and before any module registers. But
+`schemaExtensionContextRecorded()` exists because "the initial empty context is not a statement
+that nothing is declared, so a reader that would *act* on 'nothing declared' asks this first"
+(review finding 8). L4 acts on "nothing declared" by admitting the loader. If the composition roots
+were reordered, L4 would pass silently.
+
+**Decision.** L4 stays at registration. The reader that `composeApp` and `composeTestServer` pass
+as `columnExtensions` throws an internal error when `schemaExtensionContextRecorded()` is false.
+The error names the ordering: the ORM configuration must record its declarations before modules
+register. The registry calls the reader only for an `adminReads` loader, so a composition with none
+never reaches it. One test composes through `composeTestServer` with a module that declares
+`adminReads` columns and an `adminReads` loader on `organizations`, and expects the refusal.
+
+**Rationale.** A registration-time refusal is reported at the call that caused it, as L1 to L3 are.
+A post-seal check would read the same recorded context, so it gains nothing on ordering and adds a
+second refusal phase to the registry. The guard turns the one way L4 can fail, silently, into a
+loud failure.
+
+**Rejected.** *A check after sealing.* It has the same dependency on the recorded context, and its
+refusal is further from its cause.
+
+### R-25.8: The type of a per-module value (D-300.24)
+
+**Measured.** WP-B2 widens `ExtensionAttributesSchema`'s per-module value from
+`record<string, json>` to any JSON value, and `AdminOrganization['extensions']` widens with it. The
+only reader of this wire is the declared form: `flattenExtensions` in WP-C's `DeclaredForm.tsx`
+reads `extensions.<moduleId>.<key>` and skips a non-object. `field-slots.md` §2 defines a slot's
+value as `extensions.<moduleId>.<key>`. A D2 value is always an object. 187 R-17 priced the
+widening as "to admit a loader's `T | null`" and did not require any JSON value.
+
+**Decision.** Require object-valued loaders on admin reads. The per-module value becomes
+`z.record(z.string(), z.json()).nullable()`, and `ExtensionAttributeMap` follows. In
+`schemaExtensionReads`, a parsed loader value that is neither a plain object nor `null` fails the
+read with `EntityExtensionLoaderOutputError`. The detail says that an `adminReads` loader answers an
+object keyed by field, or `null`. The doc comment on `EntityExtensionLoaderEntry.adminReads` states
+the same rule. A loader that does not opt into admin reads keeps any `T` on the 187 read ports.
+
+**Rationale.** The wire exists for slot values, which are addressed by key. An array or scalar
+under a module key could never reach a slot and would be dropped silently by the kit. One shape for
+D2 and loader values keeps every typed reader at one narrowing (`null`) instead of a JSON switch.
+This is narrower than WP-B2's widening and still within R-17's priced cost.
+
+**Rejected.**
+- *Any JSON value.* It is wider than any consumer can use, and it pushes a type switch onto every
+  reader of `AdminOrganization['extensions']`.
+- *Judge the loader's schema at registration.* A Zod schema's output type cannot be read reliably
+  at run time. The parse that already happens per value is where the shape is known.
+
+### R-25.9: A missing value (D-300.25)
+
+**Decision.** Confirmed: `null`. A module that is served on the read, but has no row for a record,
+answers `null` under its key, as the 187 read ports attach it. An absent key keeps 187 R-17 rule
+2's meaning: the module is not served there (not requested, not opted in, absent or switched off).
+
+**Rationale.** The two states are different and the client can use the difference: `null` means
+"this module is here and the record has no value", absent means "this module is not here". The kit
+treats both as an empty slot, and a diagnostic or a future reader can tell them apart. It also
+matches the ports, so a module author learns one rule.
+
+**Rejected.** *Omit the key.* That merges "no value" with "module off", which XVII keeps distinct
+everywhere else on this wire.
