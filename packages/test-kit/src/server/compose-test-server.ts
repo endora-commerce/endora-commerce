@@ -447,6 +447,7 @@ export async function composeTestServer(
     // against the composed manifests' `extends`, sealed by `composeModules`.
     const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
       declarations: entityExtensionDeclarationsFrom(manifests),
+      columnExtensions: () => activeSchemaExtensionContext().declarations,
     });
     // `specs/193-admin-form-extensions/` WP-B — as `composeApp` builds it: one
     // registry, shared by every module context and `_lifecycle`'s route,
@@ -535,6 +536,8 @@ export async function composeTestServer(
       schemaExtensionReads: createSchemaExtensionReads({
         declarations: () => activeSchemaExtensionContext().declarations,
         state: effectiveState,
+        // 193 FR-015 — as `composeApp` passes it.
+        loaders: entityExtensionLoaderRegistry,
       }),
       // `specs/187-side-table-extensions/` FR-054 — as `composeApp` registers it.
       entityExtensionReads: createEntityExtensionReads({

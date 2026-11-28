@@ -1,3 +1,5 @@
+import { ENTITY_EXTENSION_HOSTS } from '../schema-extensions/extensible-hosts.js';
+import type { ColumnExtension } from '../schema-extensions/types.js';
 import { EntityExtensionInvalidError } from './errors.js';
 import type { EntityExtensionLoaderEntry, RegisteredEntityExtensionLoader } from './loaders.js';
 
@@ -16,6 +18,7 @@ import type { EntityExtensionLoaderEntry, RegisteredEntityExtensionLoader } from
  * | L1 `loader-without-extension` | the module's manifest has no `extends` entry on the host |
  * | L2 `duplicate-loader` | a second loader for the same (module, host) |
  * | L3 `registration-after-seal` | the composition has already sealed the registry |
+ * | L4 `loader-and-columns-on-one-host` | the loader opts into admin reads and the module also serves `adminReads` D2 columns on the host's table (`specs/193-admin-form-extensions/` FR-015) |
  */
 
 /** One manifest `extends` entry, attributed to the module whose manifest carries it. */
@@ -47,6 +50,12 @@ export function entityExtensionDeclarationsFrom(
 export interface EntityExtensionLoaderRegistryOptions {
   /** Every composed manifest's `extends` — {@link entityExtensionDeclarationsFrom}. Absent: nothing is declared. */
   readonly declarations?: readonly DeclaredEntityExtension[];
+  /**
+   * The D2 column declarations this platform's ORM registered — what L4 is
+   * judged against, read at each registration (the ORM is configured before any
+   * module registers). Absent: no module serves columns.
+   */
+  readonly columnExtensions?: () => readonly Pick<ColumnExtension, 'module' | 'host' | 'adminReads'>[];
 }
 
 const key = (moduleId: string, host: string): string => `${moduleId}\u0000${host}`;
@@ -54,9 +63,11 @@ const key = (moduleId: string, host: string): string => `${moduleId}\u0000${host
 export class EntityExtensionLoaderRegistry {
   readonly #declared = new Map<string, DeclaredEntityExtension>();
   readonly #loaders = new Map<string, RegisteredEntityExtensionLoader>();
+  readonly #columnExtensions: EntityExtensionLoaderRegistryOptions['columnExtensions'];
   #sealed = false;
 
   constructor(options: EntityExtensionLoaderRegistryOptions = {}) {
+    this.#columnExtensions = options.columnExtensions;
     for (const declaration of options.declarations ?? []) {
       this.#declared.set(key(declaration.moduleId, declaration.entity), declaration);
     }
@@ -99,11 +110,28 @@ export class EntityExtensionLoaderRegistry {
             'side value the module attaches to it',
         );
       }
+      const adminReads = entry.adminReads === true;
+      const hostTable = ENTITY_EXTENSION_HOSTS.get(entry.host)?.table;
+      if (
+        adminReads &&
+        hostTable !== undefined &&
+        (this.#columnExtensions?.() ?? []).some(
+          (columns) => columns.adminReads && columns.module === moduleId && columns.host === hostTable,
+        )
+      ) {
+        throw refusal(
+          'loader-and-columns-on-one-host',
+          `the module also serves adminReads columns on ${hostTable}, and both would answer ` +
+            `extensions.${moduleId} on its admin read; serve one of them there — drop adminReads from the ` +
+            'loader or from the column declaration',
+        );
+      }
       this.#loaders.set(key(moduleId, entry.host), {
         moduleId,
         table: declared.table,
         host: entry.host,
         schema: entry.schema,
+        adminReads,
         load: entry.load,
       });
     }

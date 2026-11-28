@@ -792,6 +792,11 @@ export interface ModuleContext {
    * loader for one host (`duplicate-loader`) and any call after composition
    * (`registration-after-seal`).
    *
+   * `adminReads: true` also serves the value on the host's admin
+   * `?extensions=<this module id>` read (`specs/193-admin-form-extensions/`
+   * FR-015); refused as `loader-and-columns-on-one-host` when this module
+   * serves `adminReads` columns on that host too.
+   *
    * ```ts
    * ctx.entityExtensionLoaders([
    *   { host: 'organizations.Organization', schema: OrgRefSchema,
@@ -1374,10 +1379,15 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
         );
       }
       // Rebuilt rather than spread, so nothing an entry carries besides its
-      // three fields — a `moduleId` in particular — reaches the registry.
+      // declared fields — a `moduleId` in particular — reaches the registry.
       entityExtensionLoaderRegistry.register(
         module.id,
-        entries.map((entry) => ({ host: entry.host, schema: entry.schema, load: entry.load })),
+        entries.map((entry) => ({
+          host: entry.host,
+          schema: entry.schema,
+          load: entry.load,
+          ...(entry.adminReads === undefined ? {} : { adminReads: entry.adminReads }),
+        })),
       );
     },
 

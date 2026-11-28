@@ -35,7 +35,9 @@ export type EntityExtensionRule =
   // Loader registration — Phase B1.
   | 'loader-without-extension'
   | 'duplicate-loader'
-  | 'registration-after-seal';
+  | 'registration-after-seal'
+  // Admin reads — `specs/193-admin-form-extensions/` FR-015.
+  | 'loader-and-columns-on-one-host';
 
 export interface EntityExtensionInvalidDetails {
   readonly rule: EntityExtensionRule;

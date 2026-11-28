@@ -41,12 +41,11 @@ export const ExtensionsQuerySchema = z.object({
 export type ExtensionsQuery = z.infer<typeof ExtensionsQuerySchema>;
 
 /**
- * `extensions` on a host record: per requested module, its declared keys and
- * their values. Present only when the request named the module and the module
- * exposes the host on admin reads (FR-052).
+ * `extensions` on a host record: per requested module, its declared columns'
+ * keys and their values, or the value of its side-table loader
+ * (`specs/193-admin-form-extensions/` FR-015) — `null` on a record without one.
+ * Present only when the request named the module and the module exposes the
+ * host on admin reads (FR-052).
  */
-export const ExtensionAttributesSchema = z.record(
-  extensionModuleIdSchema,
-  z.record(z.string(), z.json()),
-);
+export const ExtensionAttributesSchema = z.record(extensionModuleIdSchema, z.json());
 export type ExtensionAttributes = z.infer<typeof ExtensionAttributesSchema>;

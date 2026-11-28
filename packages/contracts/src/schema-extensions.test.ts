@@ -36,6 +36,11 @@ describe('ExtensionAttributesSchema', () => {
     expect(ExtensionAttributesSchema.parse(value)).toEqual(value);
   });
 
+  it('admits a side-table loader’s value, null on a record without one (193 FR-015)', () => {
+    const value = { acme_links: null, acme_tags: ['a', 'b'], acme_erp: { erpCode: 'ERP-1' } };
+    expect(ExtensionAttributesSchema.parse(value)).toEqual(value);
+  });
+
   it('refuses a key that is not a module id', () => {
     expect(ExtensionAttributesSchema.safeParse({ 'Not-A-Module': {} }).success).toBe(false);
   });
