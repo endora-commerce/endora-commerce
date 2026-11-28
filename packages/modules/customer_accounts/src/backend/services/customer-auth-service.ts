@@ -8,7 +8,7 @@ import {
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { hashPassword, verifyPassword, verifyPasswordOrDummy } from '@endora-commerce/platform/kernel';
+import { hashPassword, rethrowIfModuleDisabled, verifyPassword, verifyPasswordOrDummy } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelAccessPort } from '@endora-commerce/platform/kernel';
@@ -234,6 +234,10 @@ export class CustomerAuthService {
     try {
       await capture.captureIfUnset(customer.id, language);
     } catch (err) {
+      // The capture reads the account's two-factor enrolment through `mfa`'s
+      // gated port. Its reader decides presence first, so the gate cannot
+      // arrive here; were it to, it is not a capture failure to log and pass.
+      rethrowIfModuleDisabled(err);
       capture.onFailure(err, customer.id);
     }
   }
