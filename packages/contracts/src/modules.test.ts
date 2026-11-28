@@ -279,6 +279,21 @@ describe('defineModuleManifest — organization permission declarations (feature
   });
 });
 
+describe('defineModuleManifest — buyer self-service actions (193 D-300.10, #2027)', () => {
+  it('accepts a list of actions and keeps it', () => {
+    const m = manifest({ id: 'widgets', buyerSelfServiceActions: ['widget.register'] });
+    expect(m.buyerSelfServiceActions).toEqual(['widget.register']);
+  });
+
+  it('refuses a malformed action through the schema', () => {
+    expect(() => manifest({ id: 'widgets', buyerSelfServiceActions: ['register'] })).toThrow();
+  });
+
+  it('refuses one action listed twice, naming the module and the action', () => {
+    expect(() => manifest({ id: 'widgets', buyerSelfServiceActions: ['widget.register', 'widget.register'] })).toThrow(/widgets.*widget\.register/);
+  });
+});
+
 describe('defineModuleManifest — hookable actions (176 T020, FR-010)', () => {
   const declaration = { action: 'widget.create', objectType: 'widget', phases: ['beforeCommit' as const] };
 

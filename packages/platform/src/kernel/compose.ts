@@ -6,6 +6,8 @@ import type { RecordMergeRegistry } from './merge/registry.js';
 import type { MergeCompositionDeclarations } from './merge/declarations.js';
 import type { CommandMiddlewareCompositionInput, CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
 import type { EntityExtensionLoaderRegistry } from './entity-extensions/registry.js';
+import type { FormRegistry } from './forms/registry.js';
+import type { FormDeclarationsInput } from './forms/seal.js';
 import { moduleOriginOf } from '../lifecycle/services/module-origin.js';
 import { registerValues, type KernelContainer } from './container.js';
 import { effectiveState } from './lifecycle/effective-state.js';
@@ -261,6 +263,23 @@ export interface ComposeModulesOptions {
    */
   readonly entityExtensionLoaderRegistry?: EntityExtensionLoaderRegistry | undefined;
   /**
+   * The form registry (`specs/193-admin-form-extensions/` WP-B). Every
+   * module's `ctx.fieldSets` and `ctx.fieldFormats` register into it, and this
+   * call seals it after the side-table loader registry and before the boot
+   * phase — with the origin map and the installed package names, which only
+   * the composer derives — then attaches it to the command-hook registry as
+   * the field-rule check source. Absent in a root that composes no form
+   * extensions; `ctx.fieldSets` then refuses.
+   */
+  readonly formRegistry?: FormRegistry | undefined;
+  /**
+   * What the form registry is sealed against, as data the root derives
+   * (`formDeclarationsFrom(manifests)`) plus the deployment's
+   * `formOverrideGrants`. Omitted with a registry present, nothing is
+   * declared, so any registered field set refuses.
+   */
+  readonly forms?: FormDeclarationsInput | undefined;
+  /**
    * Share one ledger across several `composeModules` calls — which is what a
    * root does while modules are converted one batch at a time, so a converted
    * module still collides with a converted module composed in another call.
@@ -395,6 +414,17 @@ export interface ComposedModules {
   runBootHooks(): Promise<void>;
 }
 
+/** A composition that declares no form extensions. */
+const EMPTY_FORM_DECLARATIONS: FormDeclarationsInput = {
+  fieldSets: [],
+  adminForms: [],
+  formOverrides: [],
+  inputControls: [],
+  hookableActions: [],
+  moduleDependencies: {},
+  permissionCodes: [],
+};
+
 export function composeModules(
   entries: readonly ModuleEntry[],
   options: ComposeModulesOptions,
@@ -472,6 +502,7 @@ export function composeModules(
         ...(options.entityExtensionLoaderRegistry
           ? { entityExtensionLoaderRegistry: options.entityExtensionLoaderRegistry }
           : {}),
+        ...(options.formRegistry ? { formRegistry: options.formRegistry } : {}),
       });
 
       try {
@@ -552,13 +583,13 @@ export function composeModules(
   // `origin`, or — for an entry no loader stamped — from the two flags by the
   // same table (`contracts/module-origin.md` §2). One map, handed to every
   // registry that reads a tier, and to nothing else.
+  const origins: Record<string, ModuleOrigin> = {};
+  for (const entry of entries) {
+    origins[entry.id] =
+      entry.origin ??
+      moduleOriginOf(entry.overlay === true ? 'overlay' : entry.installedPackage === true ? 'package' : 'core', false);
+  }
   if (options.commandMiddlewareRegistry) {
-    const origins: Record<string, ModuleOrigin> = {};
-    for (const entry of entries) {
-      origins[entry.id] =
-        entry.origin ??
-        moduleOriginOf(entry.overlay === true ? 'overlay' : entry.installedPackage === true ? 'package' : 'core', false);
-    }
     options.commandMiddlewareRegistry.seal({
       declarations: options.commandMiddleware?.declarations ?? [],
       moduleDependencies: options.commandMiddleware?.moduleDependencies ?? {},
@@ -591,6 +622,34 @@ export function composeModules(
   // seal decides nothing but L3: from here on a loader registered from a
   // command's context refuses rather than appearing in a running process.
   options.entityExtensionLoaderRegistry?.seal();
+
+  // ---- Sealing the form registry (193 WP-B) --------------------------------
+  //
+  // After the hook seal, because the writers it judges are hookable actions
+  // the hook seal has already validated, and before the boot phase, so a
+  // deployment override that loosens a rule or targets a field nobody
+  // declared refuses before anything resolves. The same origin map the
+  // middleware registry reads, and the installed package names a grant is
+  // matched against (`contracts/module-origin.md` §5). Then the bus finds each
+  // writer's field-rule check through the hook registry it already has.
+  if (options.formRegistry) {
+    const installedPackageNames: Record<string, string> = {};
+    for (const entry of entries) {
+      if (entry.installedPackageName !== undefined) installedPackageNames[entry.id] = entry.installedPackageName;
+    }
+    const warnings = options.formRegistry.seal({
+      ...(options.forms ?? EMPTY_FORM_DECLARATIONS),
+      origins,
+      installedPackageNames,
+    });
+    for (const warning of warnings) {
+      options.log.warn(
+        { code: warning.code, module: warning.moduleId, fieldSet: warning.fieldSet, field: warning.field },
+        warning.message,
+      );
+    }
+    options.commandHookRegistry?.useFieldRuleCheck(options.formRegistry);
+  }
 
   // The report is emitted, not merely available: a deployment running a client
   // override should say so once at boot, in the same place the operator already
@@ -664,6 +723,7 @@ export function composeModules(
         ...(options.entityExtensionLoaderRegistry
           ? { entityExtensionLoaderRegistry: options.entityExtensionLoaderRegistry }
           : {}),
+        ...(options.formRegistry ? { formRegistry: options.formRegistry } : {}),
       });
     },
     contribute(values: Readonly<Record<string, unknown>>): void {

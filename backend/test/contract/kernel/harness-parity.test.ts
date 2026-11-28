@@ -598,6 +598,13 @@ describe('T075 — a converted module costs no test-helper edit', () => {
       expect(source, `${root} does not pass commandMiddlewareOrder`).toContain(
         'commandMiddlewareOrder: divergenceDeclaration.commandMiddlewareOrder',
       );
+      // `specs/193-admin-form-extensions/` FR-051 — the field-set override
+      // grants, for the same reason: a deployment that grants a package an
+      // override in production and not in its tests meets
+      // `PackageFormOverrideNotGrantedError` in every test.
+      expect(source, `${root} does not pass formOverrideGrants`).toContain(
+        'formOverrideGrants: divergenceDeclaration.formOverrideGrants',
+      );
       // Read once and used twice, never loaded twice: two `import()`s of one
       // file answering one question is how the omissions and the order come to
       // disagree about which declaration this deployment wrote.
@@ -621,6 +628,27 @@ describe('T075 — a converted module costs no test-helper edit', () => {
       expect(code, `${root} hands the registry to the bus`).toMatch(/middleware: commandMiddlewareRegistry,/);
       expect(code, `${root} hands the registry to composeModules`).toMatch(/\bcommandMiddlewareRegistry,\s*commandMiddleware: \{/);
       expect(code, `${root} seals it against the manifests' declarations`).toMatch(/declarations: commandMiddlewareFrom\(/);
+    }
+  });
+
+  it('both compositions wire the form registry identically (193 WP-B)', () => {
+    // One registry per composition, with the live effective state, registered
+    // for `_lifecycle`'s route and handed to `composeModules` — which seals it
+    // and attaches it to the hook registry — against the same derivation. A
+    // harness that skipped it would run every writer without its field-rule
+    // check, so a deployment's tightened rule would hold in production only.
+    for (const [root, source] of COMPOSITION_SOURCES) {
+      const code = codeOnly(source);
+      expect([...code.matchAll(/\bnew FormRegistry\s*\(/g)].length, `${root} builds the registry once`).toBe(1);
+      expect(code, `${root} asks presence of the effective state`).toMatch(
+        /new FormRegistry\(\{\s*isPresent: \(moduleId\) => effectiveState\.isPresent\(moduleId\),\s*presenceVersion: \(\) => effectiveState\.presenceVersion\(\),/,
+      );
+      // Once in `registerValues` (the route reads it from the container), once to `composeModules`.
+      expect([...code.matchAll(/\bformRegistry,/g)].length, `${root} registers it and composes with it`).toBeGreaterThanOrEqual(2);
+      expect(code, `${root} hands it to composeModules`).toMatch(/\bformRegistry,\s*forms: formDeclarationsFrom\(/);
+      // D-300.10, #2027 — the declared buyer self-service actions, without
+      // which the bus refuses every flagged Command.
+      expect(code, `${root} seals the hook registry against the buyer self-service actions`).toMatch(/buyerSelfServiceActions: buyerSelfServiceActionsFrom\(/);
     }
   });
 

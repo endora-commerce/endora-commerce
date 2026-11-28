@@ -16,5 +16,18 @@
   "actions.openCommandOutbox.keywords": "outbox, kolejka dostarczeń, dostarczenia, nieudane, ponów, ponowienie",
   "module.name": "Cykl życia modułów",
   "module.description": "Wewnętrzny podsystem platformy, który instaluje, odinstalowuje, włącza i wyłącza wszystkie moduły domenowe oraz raportuje ich stan.",
-  "module.nonDeactivatableReason": "Odpowiada za obecność modułów i za same przełączniki ich włączania; po wyłączeniu nie byłoby jak niczego z powrotem włączyć."
+  "module.nonDeactivatableReason": "Odpowiada za obecność modułów i za same przełączniki ich włączania; po wyłączeniu nie byłoby jak niczego z powrotem włączyć.",
+  "errors.FIELD_RULE_VIOLATION": "Niektóre wartości naruszają reguły tego formularza. Nic nie zostało zapisane; popraw zaznaczone pola.",
+  "errors.FIELD_WRITE_FORBIDDEN": "Nie możesz zmienić niektórych z tych pól. Nic nie zostało zapisane.",
+  "errors.FIELD_SLOT_INPUT_INVALID": "Niektóre wartości dodane do tego formularza przez rozszerzenie są nieprawidłowe. Nic nie zostało zapisane.",
+  "fieldRules.required": "To pole jest wymagane.",
+  "fieldRules.too_short": "Wpisz co najmniej {limit} znaków.",
+  "fieldRules.too_long": "Wpisz najwyżej {limit} znaków.",
+  "fieldRules.below_min": "Wpisz {limit} lub więcej.",
+  "fieldRules.above_max": "Wpisz {limit} lub mniej.",
+  "fieldRules.not_an_option": "Wybierz jedną z dozwolonych wartości.",
+  "fieldRules.pattern": "Wartość nie ma wymaganej postaci.",
+  "fieldRules.format": "Wartość nie ma wymaganego formatu.",
+  "fieldRules.writeForbidden.missingPermission": "Nie masz uprawnień do zmiany tego pola.",
+  "fieldRules.writeForbidden.apiKeyScopesUnresolved": "Klucz API nie może zmienić tego pola."
 }

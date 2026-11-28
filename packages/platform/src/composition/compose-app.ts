@@ -65,6 +65,8 @@ import type {
   Actor,
   AdminI18nTranslatePort,
   AdminUserReadPort,
+  DeploymentDivergenceDeclaration,
+  FormLayoutOverrideSource,
   ModuleSettingsManifest,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
@@ -108,6 +110,7 @@ import {
   commandMiddlewareFrom,
   hookableActionsFrom,
   moduleDependencyClosureFrom,
+  buyerSelfServiceActionsFrom,
 } from '../kernel/lifecycle/command-hook-inputs.js';
 import { platformLogger } from '../kernel/logging.js';
 import { RecordMergeRegistry } from '../kernel/merge/registry.js';
@@ -127,6 +130,8 @@ import {
   entityExtensionDeclarationsFrom,
 } from '../kernel/entity-extensions/registry.js';
 import { createRegistrationOwnership } from '../kernel/module-context.js';
+import { FormRegistry } from '../kernel/forms/registry.js';
+import { formDeclarationsFrom } from '../kernel/forms/inputs.js';
 import {
   assertPublicApiBaseUrlConfigured,
   resolvePublicApiBaseUrl,
@@ -377,6 +382,13 @@ export interface ComposeAppOptions {
    * forwarded to `composeModules`, which seals the middleware registry against it.
    */
   readonly commandMiddlewareOrder?: readonly string[] | undefined;
+  /**
+   * Which installed packages may override which field sets
+   * (`specs/193-admin-form-extensions/` FR-051, D-300.2), read from the same
+   * `divergence.ts` and forwarded to `composeModules`, which seals the form
+   * registry against it.
+   */
+  readonly formOverrideGrants?: DeploymentDivergenceDeclaration['formOverrideGrants'];
   /**
    * The modules this deployment declares it omits (D-101), from the same
    * declaration `decorationOrder` comes from.
@@ -748,6 +760,21 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   const entityExtensionLoaderRegistry = new EntityExtensionLoaderRegistry({
     declarations: entityExtensionDeclarationsFrom(resolvedRegistry.map((entry) => entry.manifest)),
   });
+  // `specs/193-admin-form-extensions/` WP-B — the form registry: every module
+  // context registers its field sets' writers and its formats into it,
+  // `composeModules` seals it after the hook registry and attaches it there as
+  // the field-rule check source, and `_lifecycle` serves the effective forms
+  // from it. Presence is the live effective state, asked per call; the
+  // operator layer is `custom_fields`' port, read only when it is registered.
+  const formRegistry = new FormRegistry({
+    isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+    presenceVersion: () => effectiveState.presenceVersion(),
+    operatorLayer: () =>
+      container.hasRegistration('formLayoutOverrideSource')
+        ? (container.cradle as unknown as { formLayoutOverrideSource: FormLayoutOverrideSource }).formLayoutOverrideSource
+        : undefined,
+    log: platformLogger(),
+  });
   const commandBus = new CommandBus(orm, auditLogService, eventBus, {
     hooks: commandHookRegistry,
     outboxWake: commandOutboxWake,
@@ -844,6 +871,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     commandBus,
     // 176 P2 — so `_lifecycle` can serve the read-only execution plan over it.
     commandHookRegistry,
+    // 193 WP-B — so `_lifecycle` can serve the effective forms from it.
+    formRegistry,
     // `specs/192-organization-merge/` — what a merge host's Commands call, and the
     // runtime `_lifecycle` starts the runner from.
     recordMergeService: recordMergeRuntime.service,
@@ -993,6 +1022,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     commandHooks: {
       hookableActions: hookableActionsFrom(resolvedRegistry.map((entry) => entry.manifest)),
       moduleDependencies: moduleDependencyClosureFrom(resolvedRegistry.map((entry) => entry.manifest)),
+      // 193 D-300.10, #2027 — the actions whose Commands may declare buyerSelfService.
+      buyerSelfServiceActions: buyerSelfServiceActionsFrom(resolvedRegistry.map((entry) => entry.manifest)),
       commandHookOrder: options.commandHookOrder,
     },
     // `specs/192-organization-merge/` — sealed at the end of the call, against
@@ -1009,6 +1040,10 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     },
     // 187 B1 — sealed after the middleware registry.
     entityExtensionLoaderRegistry,
+    // 193 WP-B — sealed after the loader registry, against the same manifest
+    // set and the deployment's grants.
+    formRegistry,
+    forms: formDeclarationsFrom(resolvedRegistry.map((entry) => entry.manifest), options.formOverrideGrants),
   });
 
   // The frozen and archived sets, before the first request can ask them, and

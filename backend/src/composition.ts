@@ -415,6 +415,9 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // from the same declaration, which the composer seals the hook registry against.
     commandHookOrder: divergenceDeclaration.commandHookOrder,
     commandMiddlewareOrder: divergenceDeclaration.commandMiddlewareOrder,
+    // `specs/193-admin-form-extensions/` FR-051 — and the field-set override
+    // grants, which the composer seals the form registry against.
+    formOverrideGrants: divergenceDeclaration.formOverrideGrants,
     // D-101 — and the omissions from the same declaration, which the presence
     // load reads. The platform may not locate the file (D115-3), so the value
     // is supplied rather than read.

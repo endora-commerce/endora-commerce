@@ -3498,6 +3498,15 @@
         }
       }
     },
+    "/api/v1/admin/effective-forms": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/export/{entity}.csv": {
       "get": {
         "responses": {

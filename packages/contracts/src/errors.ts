@@ -936,6 +936,16 @@ export const ERROR_CODES = {
    */
   ENTITY_EXTENSION_UNCLAIMED: 'ENTITY_EXTENSION_UNCLAIMED',
 
+  // Admin form extensions (`specs/193-admin-form-extensions/` WP-B,
+  // `contracts/field-rules.md` §5, `field-slots.md` §4) — the platform's
+  // field-rule check and `fieldSlotHook`, declared by `_lifecycle`.
+  /** 422 — a write breaks a declared field rule; `details: FieldRuleViolationDetail[]`. Nothing was written. */
+  FIELD_RULE_VIOLATION: 'FIELD_RULE_VIOLATION',
+  /** 403 — a write changed a field the actor may not write; `details: FieldWriteForbiddenDetail[]`. Nothing was written. */
+  FIELD_WRITE_FORBIDDEN: 'FIELD_WRITE_FORBIDDEN',
+  /** 422 — a slot field's value under `extensions.<moduleId>` is invalid; `details: FieldSlotInputInvalidDetail[]`. */
+  FIELD_SLOT_INPUT_INVALID: 'FIELD_SLOT_INPUT_INVALID',
+
   // Module Lifecycle (feature 073 — operator activation)
   /** No manifest and no registry row answer to this module id. */
   MODULE_NOT_FOUND: 'MODULE_NOT_FOUND',

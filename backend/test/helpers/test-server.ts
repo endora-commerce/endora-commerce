@@ -1446,6 +1446,9 @@ export async function setupBackendServer(
     // `specs/189-command-middleware/` FR-031 — and the `admit` middleware
     // tie-break, from the same declaration, as `composition.ts` passes it.
     commandMiddlewareOrder: divergenceDeclaration.commandMiddlewareOrder,
+    // `specs/193-admin-form-extensions/` FR-051 — and the field-set override
+    // grants, as `composition.ts` passes them.
+    formOverrideGrants: divergenceDeclaration.formOverrideGrants,
     // Feature 072 (T073) — the real subscriber client only where a test asks for
     // it. One armed subscription per composition, across ~225 files, is how this
     // harness accumulated ~1 GB of retention (task #32); the kit registers an
