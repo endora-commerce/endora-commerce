@@ -32,7 +32,10 @@ fieldSets(entries: readonly {
   readonly set: FieldSetDeclaration;
   readonly writers: readonly {
     readonly on: HookableActionRef<any>;               // must offer 'beforeCommit', unless ruleCheckOnly
-    /** FR-113: a Command that is not a declared hookable action, reversible or not (D-300.27). Admits only the field-rule check; needs hookData. */
+    /**
+     * FR-113: a Command that is not a declared hookable action, reversible or not (D-300.27).
+     * Admits only the field-rule check; needs hookData.
+     */
     readonly ruleCheckOnly?: boolean;
     /** FR-124: scoped writer — `project` returns one entry per saved scope. */
     readonly scoped?: boolean;
@@ -55,12 +58,20 @@ fieldSets(entries: readonly {
   `changedFields`), the projection derives `before` only for what it needs: the platform needs
   `changed` (for `writePermission`, D-300.4) — so `project` may instead return
   `{ after, changed: readonly string[] }`. One of `before` or `changed` is required on update.
-- **A write that is not a writer** is not held to any rule. That is right only where the write
-  cannot create a violation of its own: fixed system values written outside the Command Bus, or
-  values copied from records that already store them. `organization.merge.finalize` is the case in
-  `organizations` (D-300.28). Its own grant is the authority for the fields it copies, so
-  `writePermission` does not bind a merge. A deployment that protects a field with
-  `writePermission` should restrict the merge grant to match.
+- **Every bus write of the entity is a writer** (constitution 4.6.0 XV, D-300.3). A Command that
+  is not a declared hookable action is registered as a rule-check-only writer (D-300.27). In
+  `organizations` this covers `organization.update`, `organization.merge.finalize` and
+  `organization.personal.provision`. A write that fixes another write's outcome is also a writer of
+  that outcome: `organization.merge.start` projects the survivor's values after the choices, so a
+  merge is refused before it moves anything (D-300.28, D-300.31).
+- **The only writes held to nothing are outside the bus**, and they write only fixed values. An
+  erasure (the personal organisation's anonymisation) is one, and it must stay unrefusable.
+  Moving such a write onto the bus needs an architect ruling first (D-300.32).
+- **System values.** A field declaration MAY list `systemValues`, the fixed values its owner's
+  system paths write (`vatStatus: ['vat_exempt']` on the organization set). `FormRegistry.seal`
+  checks each against the merged tightenings, with the same `violationsOf` as §5. A tightening that
+  rejects one is refused with `rule-excludes-system-value`, naming the module, the field and the
+  value (D-300.31).
 - Test helpers (`@endora-commerce/test-kit`): `expectFieldSetMatchesSchemas(set, { create, update })`
   and `expectFieldSetWriters(set, commandsByAction)` — the latter runs each writer's Command in a
   fixture and asserts the projection covers `writes`.

@@ -122,9 +122,12 @@ export const ORGANIZATION_FORMS = {
 The exact field list is the WP-E task (it is the organization write contract's, field by field); the
 above fixes the shape, not the inventory. As shipped (D-300.26), `name` accepts `validation`: the
 conversion's hook data carries the after-state record, so every writer of `name` projects it.
-`taxId`, `registeredAddress`, `parentId` and `status` accept presentation kinds only, because a
-writer of each cannot project it (`organization.tax_id.change`) or is not hookable (hierarchy
-moves, moderation), or because a composite admits no tightening.
+`taxId`, `registeredAddress`, `parentId` and `status` accept no server-enforced kind. A writer of
+`taxId` cannot project it (`organization.tax_id.change`). `registeredAddress` is a composite, and a
+composite admits no tightening. The other writers of `parentId` and `status` (the hierarchy moves,
+moderation) are not registered yet, and registering them as rule-check-only writers is the route
+when a case asks for it (D-300.27). `vatStatus` declares `systemValues: ['vat_exempt']`
+(D-300.31).
 
 ## §5 Contract-surface rows (added to `specs/conventions/contract-surface.md` by WP-H)
 

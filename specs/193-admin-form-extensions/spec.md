@@ -5,9 +5,9 @@
 **Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
 **D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-26); the
 phase 2 rulings D-300.9 to D-300.16 (2026-11-27) and the phase 3 and 4 rulings D-300.17 to
-D-300.30 (2026-11-28) are architect rulings too, recorded below. No question is open. The constitution
-amendment this feature drafted (XV, 4.6.0) was approved by the owner on 2026-11-27 and merged in
-#2007 (Governance step 4).
+D-300.32 (2026-11-28) are architect rulings too, recorded below. No question is open. The
+constitution amendment this feature drafted (XV, 4.6.0) was approved by the owner on 2026-11-27 and
+merged in #2007 (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
 replacement". The owner approved its direction, and the issue compares the approach with Magento 2,
 Sylius and Medusa v2.
@@ -188,29 +188,42 @@ alternatives are in R-25.
   answers `null` under its key, as the 187 read ports do. An absent key still means that the module
   is not served there: not requested, not opted in, absent or switched off (R-25.9).
 
-### Phase 4 architect rulings *(D-300.26 to D-300.30, 2026-11-28, raised by WP-E1)*
+### Phase 4 architect rulings *(D-300.26 to D-300.32, 2026-11-28, raised by WP-E1)*
 
-None of these changes an owner answer, so none needs one. The reasoning and the rejected
-alternatives are in R-26.
+None of these changes an owner answer, so none needs one. D-300.28 and D-300.31 apply D-300.3 and
+constitution 4.6.0 XV ("every write the Command Bus runs for that entity") to writes WP-E1 had left
+unregistered. The reasoning and the rejected alternatives are in R-26.
 
 - **D-300.26** *(architect ruling, raised by WP-E1)*: `name` accepts `validation`, as
   `contracts/form-field-declaration.md` §4 shows. `OrganizationConvertToCompanyHookData` gains
   `organization: OrganizationRecord`, the after-state, as `OrganizationUpdateHookData` carries it.
-  The outbox data stays ids and names only. The conversion's writer then projects `name`, and
-  `name` accepts `validation`. `taxId` and `registeredAddress` stay presentation only: `taxId`
-  because `organization.tax_id.change` carries no tax ID (R-9), and `registeredAddress` because a
-  composite admits no tightening. `parentId` and `status` stay presentation only, because their
-  other writers are not hookable. This goes into WP-E1 (R-26.1).
+  This amends `specs/176-command-hooks-outbox/contracts/organization-hookable-actions.md` (#1057).
+  176 FR-031 limits only the outbox, and hook data is additive-only, so the change is additive.
+  The outbox data stays ids, codes and field names. The conversion's writer then projects `name`.
+  `taxId` and `registeredAddress` stay presentation only: `taxId` because
+  `organization.tax_id.change` carries no tax ID (R-9), and `registeredAddress` because a
+  composite admits no tightening. `parentId` and `status` stay presentation only for now, because
+  their other writers (the hierarchy moves, moderation) are not registered. Registering them as
+  rule-check-only writers (D-300.27) is the route when a case asks for it. This goes into WP-E1
+  (R-26.1).
 - **D-300.27** *(architect ruling, raised by WP-E1)*: `organization.update`, the integration
   port's write, is a rule-check-only writer, and that is correct. FR-113 is widened: a Command that
-  is not a declared hookable action may be a rule-check-only writer whether or not it is reversible
-  (R-26.2).
-- **D-300.28** *(architect ruling, raised by WP-E1)*: Three writes stay unregistered:
-  `organization.merge.finalize`, personal-organization provisioning and anonymisation. A merge
-  copies values that are already stored, so a rule on them would be retroactive (D-300.4,
-  D-300.11). Its own grant is the authority for the fields it copies, and `writePermission` does
-  not bind it. The contract and the documentation say so. Provisioning and anonymisation write
-  fixed values outside the Command Bus (R-26.3).
+  is not a declared hookable action may be a rule-check-only writer whether or not it is
+  reversible (R-26.2).
+- **D-300.28** *(architect ruling, raised by WP-E1; re-ruled after review)*: A merge is held to
+  the survivor's rules, with no exception.
+  - `organization.merge.start` becomes a writer of the outcome it fixes. Its hook data gains
+    `survivor: { after, changed }`, the survivor's field values after the operator's choices,
+    computed by the finalize's own rules. A chosen value that breaks a tightened rule is refused
+    at start with `422 FIELD_RULE_VIOLATION`, before anything moves. A changed field whose
+    `writePermission` the admin lacks is refused with `403 FIELD_WRITE_FORBIDDEN`.
+  - `organization.merge.finalize` becomes a rule-check-only writer, as the backstop.
+  - The merge screen maps a refusal's `details[].path` onto that field's choice and offers the
+    survivor's value.
+  - A system actor (`organizationCommandPort.startMerge`) is held to validation and, as FR-043
+    says, not to `writePermission`.
+  - The up-front lock of a choice the admin may not make is a later improvement, not the control.
+  This goes into WP-E1 (R-26.3).
 - **D-300.29** *(architect ruling, raised by WP-E1)*: `DeclaredFormProvider` takes a **required**
   `form` prop, the form its `declared` controller was built for, and throws when the ids differ.
   `check:admin-forms` reads that prop. `field-slots.md` §3 now shows the kit's real shape:
@@ -220,6 +233,25 @@ alternatives are in R-26.
   `FormRegistry` by default. It accepts one as an option and exposes it on the composed module, so
   that no adopter's unit test meets the "mounts no form registry" throw. This goes into WP-E1
   (R-26.5).
+- **D-300.31** *(architect ruling, raised by the review of WP-E1)*: Personal-organization
+  provisioning is held like any other write.
+  - Every provisioning path runs one `organizations` Command, `organization.personal.provision`.
+    It runs as a child of the caller's Command where there is one, and as a root Command
+    otherwise. It is a rule-check-only writer.
+  - The storefront registration and the federated sign-in are buyer self-service through their
+    root's `buyerSelfService`, so they are skipped (D-300.3, D-300.10).
+  - `customerAccountCommandPort.createStandalone`, called by a system actor, and the operator's
+    detach-to-personal are bound.
+  - A field declaration gains `systemValues`: the fixed values a system path writes (`vatStatus`
+    `'vat_exempt'`). Composition refuses a tightening that rejects one
+    (`rule-excludes-system-value`), so a deployment cannot configure a rule that every bound
+    provisioning would break.
+  This goes into WP-E1 (R-26.6).
+- **D-300.32** *(architect ruling, raised by the review of WP-E1)*: Anonymisation is an erasure.
+  It runs outside the Command Bus and is held to no rule, so XV's MUST does not reach it and erasure
+  can never be refused. A scrubbed row that breaks a later rule is tolerated, as any stored value
+  is (D-300.4). Moving it onto the bus would need an architect ruling first, which must keep
+  erasure unrefusable. No code change (R-26.7).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -638,11 +670,12 @@ they are, with the same props. The four PIM modules render their protection togg
 - **FR-022**: The tightened `validation` vocabulary MUST be: `required`, `minLength`, `maxLength`,
   `min`, `max`, `pattern`, `options` (a subset of the core enum) and `format`. Each value MUST be
   checked against the core bounds, and only a narrowing is admitted.
-- **FR-023**: `_lifecycle` MUST serve `GET /api/v1/admin/effective-forms` (D-300.9). It returns the effective overrides
-  of every declared form, filtered by presence and computed from the composition (§2 of
-  `contracts/field-overrides.md`). It is gated by an authenticated admin with no permission code, on
-  `/api/v1/admin/module-presence`'s terms. It answers an `ETag` and `Cache-Control: private,
-  no-cache` (D-300.21). The admin MUST take every override from it and MUST NOT bundle a second copy.
+- **FR-023**: `_lifecycle` MUST serve `GET /api/v1/admin/effective-forms` (D-300.9). It returns
+  the effective overrides of every declared form, filtered by presence and computed from the
+  composition (§2 of `contracts/field-overrides.md`). It is gated by an authenticated admin with no
+  permission code, on `/api/v1/admin/module-presence`'s terms. It answers an `ETag` and
+  `Cache-Control: private, no-cache` (D-300.21). The admin MUST take every override from it and
+  MUST NOT bundle a second copy.
 - **FR-024**: The admin MUST refresh the effective forms whenever it refreshes module presence, and
   after any operator-layout write. The server MUST compute them per process from the composition, the
   effective presence and the operator layer. The memo MUST be invalidated by

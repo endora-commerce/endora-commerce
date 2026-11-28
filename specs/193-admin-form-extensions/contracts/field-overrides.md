@@ -95,27 +95,31 @@ export const EffectiveFormsResponseSchema = z.object({
 });
 ```
 
-- Only forms for which the owner of the form's field set and the module that renders the form are effectively present; only overrides of **present** declaring modules (FR-052); a
-  `control` of an absent module resolves to `null`.
+- Only forms for which the owner of the form's field set and the module that renders the form are
+  effectively present; only overrides of **present** declaring modules (FR-052); a `control` of an
+  absent module resolves to `null`.
 - Computed per process from the sealed `FormRegistry`, `effectiveState` and the operator layer
   (`FormLayoutOverrideSource` port, operator-form-layout.md §4), memoised per (presence snapshot,
   operator-layer generation); the generation is bumped by `b2b:form-layout:changed` (R-18).
 - Layering per field and kind: core → deployment code / granted package → operator
   (operator-form-layout.md §3). `section` and `order` come from the contracts' `applyFieldMoves`
   (field-slots.md §5 step 1, D-300.14), over the effective `position` of each key: the operator's
-  when it set one, else the code override's. An operator move sorts as module `custom_fields`. Same body for every admin; the admin decides read-only for `writePermission` from
-  its own session permissions.
+  when it set one, else the code override's. An operator move sorts as module `custom_fields`.
+  Same body for every admin; the admin decides read-only for `writePermission` from its own session
+  permissions.
 - **Slot rows (D-300.17).** A stored operator row is a slot row when its key is neither a core key
   nor a declared family member of the set. It is served when the key's module prefix is effectively
-  present and the owner of the form's field set and the module that renders the form are effectively present. A row that holds a kind outside `SLOT_OPERATOR_KINDS` is
-  not served (`no-longer-accepted`). When a row sets both `section` and `before` or `after`, the
+  present and the owner of the form's field set and the module that renders the form are
+  effectively present. A row that holds a kind outside `SLOT_OPERATOR_KINDS` is not served
+  (`no-longer-accepted`). When a row sets both `section` and `before` or `after`, the
   `before` or `after` wins and `section` is ignored, because the anchor key's section is implied. A
   `before` or `after` that names no core key the form shows after code moves, or a `section` the
-  form does not declare, is dropped from `position` (`position-fallback`). The server does not know which slots exist. The kit ignores an entry for a
-  slot it does not render, and applies the rest: operator text replaces the slot's label and help in
-  the reader's language only (FR-092); `hidden` puts the wire key into `formLayout`'s `hidden`;
-  `before`/`after` k becomes the anchor `{ field: k, position }`, and `section` alone becomes
-  `{ section, position: 'end' }`, with the slot's `weight` kept.
+  form does not declare, is dropped from `position` (`position-fallback`). The server does not know
+  which slots exist. The kit ignores an entry for a slot it does not render, and applies the rest:
+  operator text replaces the slot's label and help in the reader's language only (FR-092);
+  `hidden` puts the wire key into `formLayout`'s `hidden`; `before`/`after` k becomes the anchor
+  `{ field: k, position }`, and `section` alone becomes `{ section, position: 'end' }`, with the
+  slot's `weight` kept.
 - **Caching (D-300.21).** `Cache-Control: private, no-cache`: the browser stores the response and
   revalidates it against the `ETag` on every request, and no shared cache stores it. The admin-kit
   provider (`packages/admin-kit/src/lib/forms/`) does a plain GET beside `getModulePresence()` and
@@ -136,6 +140,7 @@ field and remedy:
 | `override-not-accepted` | kind not in the field's `accepts` |
 | `hidden-required-field` | `hidden` on a core-required field |
 | `default-on-hidden` | `default` with `hidden` |
+| `rule-excludes-system-value` | a tightening rejects a value the field declares in `systemValues` (field-rules.md §2, D-300.31) |
 | `required-not-fillable` | field effectively required (core or tightened `required`) on a create form while `hidden` there; no exemption. The `readOnly` case is refused by `check:admin-forms` (field-slots.md §6), which can see `fieldBehaviours` (D-300.12) |
 | `override-loosens-rule` | a tightening outside core bounds / enum (field-rules.md §1) |
 | `override-contradiction` | the conjunction is unsatisfiable |
