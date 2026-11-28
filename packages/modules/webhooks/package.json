@@ -87,6 +87,7 @@
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@endora-commerce/test-kit": "workspace:*",
     "@fastify/type-provider-zod": "^1.0.0",
     "@mikro-orm/core": "^7.2.11",
     "@mikro-orm/decorators": "^7.2.11",

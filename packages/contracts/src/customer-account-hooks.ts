@@ -13,6 +13,10 @@
 
 import { hookableAction } from './command-hooks.js';
 import type { CustomerAccountRecord } from './customer-accounts.js';
+import type {
+  CustomerAccountOrganizationChangeHookData,
+  CustomerAccountOrganizationChangeOutbox,
+} from './customer-accounts.membership.js';
 
 /**
  * `customer_account.create` — an account was created. `customerAccount`
@@ -67,6 +71,17 @@ export const CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS = {
   ),
   customFieldsUpdate: hookableAction<CustomerAccountUpdateHookData, CustomerAccountOutbox>(
     'customer.custom_fields.update',
+    'customer_account',
+    ['beforeCommit', 'afterCommit'],
+  ),
+  /**
+   * The membership move (`specs/191-membership-join-requests/` §4,
+   * `specs/192-organization-merge/` T069): a deployment may veto it or follow
+   * it, and tell a merge from a move by its `mode`. Its data types live with
+   * the membership contracts.
+   */
+  changeOrganization: hookableAction<CustomerAccountOrganizationChangeHookData, CustomerAccountOrganizationChangeOutbox>(
+    'customer_account.organization.change',
     'customer_account',
     ['beforeCommit', 'afterCommit'],
   ),

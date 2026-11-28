@@ -229,6 +229,22 @@ export const manifest = defineModuleManifest({
     // command outbox, the platform's own table of afterCommit deliveries for
     // every module: an operator retried a row that is not dead (409).
     { code: 'COMMAND_OUTBOX_NOT_DEAD' },
+    // T3 by noun (11) — `specs/192-organization-merge/` data-model §6. The noun is
+    // a record merge, which the platform's merge mechanism runs for every host
+    // type: `organizations` hosts one today and `projects` will host another,
+    // so no host may own the codes. The host's own refusals
+    // (`ORGANIZATION_MERGE_*`) are the host's.
+    { code: 'RECORD_MERGE_SAME_RECORD' },
+    { code: 'RECORD_MERGE_RECORD_UNAVAILABLE' },
+    { code: 'RECORD_MERGE_ALREADY_RUNNING' },
+    { code: 'RECORD_MERGE_PARTICIPATION_INCOMPLETE' },
+    { code: 'RECORD_MERGE_PARTICIPANT_CONFLICT' },
+    { code: 'RECORD_MERGE_BUSY' },
+    { code: 'RECORD_MERGE_IN_PROGRESS' },
+    { code: 'RECORD_MERGE_NOT_CANCELLABLE' },
+    { code: 'RECORD_MERGE_NOT_RESUMABLE' },
+    { code: 'RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED' },
+    { code: 'RECORD_MERGE_RESIDUE' },
     // T3 by noun (3) — `specs/189-command-middleware/` FR-060. The noun is the
     // Command Bus's admission and middleware step, which runs for every
     // module's Commands: an admission rule that timed out or failed (503,

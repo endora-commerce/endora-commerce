@@ -22,6 +22,11 @@ import { registerCreditLimitsRoutes } from './routes.js';
 import { CreditLimit } from './entities/credit-limit.entity.js';
 import { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
 import { CreditLimitReturnTopup } from './entities/credit-limit-return-topup.entity.js';
+import {
+  CREDIT_EXPOSURE_MERGE_PARTICIPATION_KEY,
+  CREDIT_LIMIT_MERGE_PARTICIPATION_KEY,
+  CreditLimitOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `credit_limits` — an optional Command Bus on the one write that must be
@@ -219,6 +224,27 @@ export function registerModule(ctx: ModuleContext): void {
       registry.register({ ownerModuleId: 'credit_limits', eventType });
     }
   });
+  /**
+   * `specs/192-organization-merge/` T046 (OQ-8) — this module's part of an
+   * Organization merge, through `credit_limit.merge_reassign`: in
+   * `configuration` the survivor keeps its limit or takes the loser's; in
+   * `records` the loser's reservations and return top-ups follow the survivor.
+   * Registration only; the platform's runner calls them.
+   */
+  const mergeDeps = {
+    emFactory: () => ctx.cradle<CreditLimitsCradle>().emFactory(),
+    commandBus: () => ctx.cradle<CreditLimitsCradle>().commandBus,
+  };
+  ctx.merge.participate(
+    'organization',
+    CREDIT_LIMIT_MERGE_PARTICIPATION_KEY,
+    new CreditLimitOrganizationMergeParticipant('limit', mergeDeps),
+  );
+  ctx.merge.participate(
+    'organization',
+    CREDIT_EXPOSURE_MERGE_PARTICIPATION_KEY,
+    new CreditLimitOrganizationMergeParticipant('exposure', mergeDeps),
+  );
 }
 
 /**

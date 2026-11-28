@@ -241,6 +241,12 @@ function organizationsPort(
     searchIdsByName: async () => [],
     findByTaxId: async () => [],
     resolveByTaxId: async () => ({ kind: 'none' }),
+    // `specs/192-organization-merge/` — not asked here.
+    previewMerge: async () => {
+      throw new Error('not used');
+    },
+    resolveMerged: async (id: string) => id,
+    getMerge: async () => null,
   };
 }
 

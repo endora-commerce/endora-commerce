@@ -65,7 +65,7 @@ function build(mayReadOrders = false) {
     quoteRequests: { isPresent: () => false, findRecord: vi.fn(async () => null) },
     tasks: { isPresent: () => false, findByIds: vi.fn(async () => []) },
     opportunities: { findByIds: vi.fn(async () => []) },
-    projects: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+    projects: { isPresent: () => false, findByIds: vi.fn(async () => []), resolveMerged: vi.fn(async (id: string) => id) },
     mayRead: {
       orders: async () => mayReadOrders,
       products: async () => false,
@@ -175,7 +175,7 @@ describe('ReferenceService — a Quote Request and a Task (specs/163-projects-an
       quoteRequests: { isPresent: () => options.present, findRecord: find },
       tasks: { isPresent: () => options.present, findByIds: findTasks },
       opportunities: { findByIds: vi.fn(async () => []) },
-      projects: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+      projects: { isPresent: () => false, findByIds: vi.fn(async () => []), resolveMerged: vi.fn(async (id: string) => id) },
       mayRead: {
         orders: async () => false,
         products: async () => false,
@@ -233,7 +233,7 @@ describe('ReferenceService — a mentioned Product (issue #963)', () => {
         quoteRequests: { isPresent: () => false, findRecord: vi.fn(async () => null) },
         tasks: { isPresent: () => false, findByIds: vi.fn(async () => []) },
         opportunities: { findByIds: vi.fn(async () => []) },
-        projects: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+        projects: { isPresent: () => false, findByIds: vi.fn(async () => []), resolveMerged: vi.fn(async (id: string) => id) },
         mayRead: {
           orders: async () => false,
           products: async () => true,
@@ -272,7 +272,7 @@ describe('ReferenceService — a reference to an Order or a Quote Request that n
       quoteRequests: { isPresent: () => true, findRecord },
       tasks: { isPresent: () => false, findByIds: vi.fn(async () => []) },
       opportunities: { findByIds: vi.fn(async () => []) },
-      projects: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+      projects: { isPresent: () => false, findByIds: vi.fn(async () => []), resolveMerged: vi.fn(async (id: string) => id) },
       mayRead: {
         orders: async () => true,
         products: async () => false,
@@ -288,5 +288,45 @@ describe('ReferenceService — a reference to an Order or a Quote Request that n
     // Looked for, and not found: unavailable is the answer, not a refusal.
     expect(findOrders).toHaveBeenCalledWith([GONE_ORDER]);
     expect(findRecord).toHaveBeenCalled();
+  });
+});
+
+/**
+ * `specs/192-organization-merge/` US6, T086 (FR-093) — a mention of a Project
+ * merged into another one is not rewritten: it resolves to the survivor when
+ * rendered, so the chip names the survivor and leads to it.
+ */
+describe('ReferenceService — a mention of a merged Project', () => {
+  const LOSER = '00000000-0000-4000-8000-000000192e11';
+  const SURVIVOR = '00000000-0000-4000-8000-000000192e12';
+
+  it('renders the survivor’s number and leads to the survivor, under the token’s own id', async () => {
+    const findByIds = vi.fn(async (ids: readonly string[]) =>
+      ids.includes(SURVIVOR) ? [{ id: SURVIVOR, number: 'PRJ-000012' }] : [],
+    );
+    const service = new ReferenceService({
+      products: { findByIds: vi.fn(async () => []) } as never,
+      orders: { findByIds: vi.fn(async () => []) } as never,
+      adminUsers: { findByIds: vi.fn(async () => []), findById: vi.fn(async () => null) } as never,
+      quoteRequests: { isPresent: () => false, findRecord: vi.fn(async () => null) },
+      tasks: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+      opportunities: { findByIds: vi.fn(async () => []) },
+      projects: {
+        isPresent: () => true,
+        findByIds: findByIds as never,
+        resolveMerged: vi.fn(async (id: string) => (id === LOSER ? SURVIVOR : id)),
+      },
+      mayRead: {
+        orders: async () => false,
+        products: async () => false,
+        quoteRequests: async () => false,
+        tasks: async () => false,
+        projects: async () => true,
+      },
+    });
+    expect(await service.resolve(`See [[project:${LOSER}]].`)).toEqual([
+      { type: 'project', id: LOSER, available: true, label: 'PRJ-000012', url: `/projects/${SURVIVOR}` },
+    ]);
+    expect(findByIds).toHaveBeenCalledWith([SURVIVOR]);
   });
 });

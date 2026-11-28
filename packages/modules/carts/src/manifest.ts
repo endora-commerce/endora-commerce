@@ -362,6 +362,26 @@ export const manifest = defineModuleManifest({
       weight: 200,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T043 — an Organization merge re-points the
+   * loser's carts and every *Buying for* naming it to the survivor in the
+   * `records` phase; a *Buying for* of the cart's own Organization is cleared,
+   * and the carts are repriced on their next read
+   * (`contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'carts',
+        phase: 'records',
+        references: [
+          { entity: 'Cart', property: 'organizationId', disposition: 're_point' },
+          { entity: 'Cart', property: 'buyingForOrganizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });
 
 /** Legacy export retained for backward compatibility. */

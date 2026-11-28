@@ -346,3 +346,8 @@ Nic nie jest usuwane. Formularze, wersje, zgłoszenia, notatki i ustawienia zost
 ponownym włączeniu modułu wszystko wraca — wtedy wysyłane są oczekujące e-maile, a pierwsze
 uruchomienie zadania w tle stosuje okresy przechowywania i anonimizacje klientów, które nastąpiły
 w międzyczasie.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Zgłoszenia wysłane przez członków duplikatu przechodzą do organizacji, która zostaje. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

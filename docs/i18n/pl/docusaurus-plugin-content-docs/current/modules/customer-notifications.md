@@ -176,3 +176,8 @@ na konto w `components/Header.tsx`, `components/mobile/MobileTabBar.tsx` i
 `components/Megamenu/MegamenuMobileDrawer.tsx` oraz teksty w
 `lib/i18n/messages/account.ts` i `chrome.ts`. Każda z tych powierzchni jest
 renderowana tylko wtedy, gdy `customer_notifications` jest obecny.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Wpisy centrum powiadomień członków duplikatu przechodzą do organizacji, która zostaje. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

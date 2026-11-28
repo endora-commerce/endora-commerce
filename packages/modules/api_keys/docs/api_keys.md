@@ -109,3 +109,9 @@ nullable binding/expiry columns `organizationId`, `salesChannelId`,
   enforcement time.
 - **Per-key rate limit** — `api-key-service.authenticate` returns the key
   id; layer a per-key counter in the pre-handler or a downstream middleware.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+API keys bound to the duplicate are bound to the organization that stays and keep working. The
+merge preview lists them, so you can review them before you start. See *Merging duplicate
+organizations* in the Organizations documentation.

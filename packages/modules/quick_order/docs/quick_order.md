@@ -269,3 +269,8 @@ Builds on `orders` (Core ordering engine), `carts`, `quote_requests`,
 and `settings`. The `orders` module does **not** depend on `quick_order`; the
 one-click flow receives `OrderService` through a lazy getter wired in
 composition.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+The organization that stays keeps its own quick-order defaults; if it has none, it takes the
+duplicate's. See *Merging duplicate organizations* in the Organizations documentation.

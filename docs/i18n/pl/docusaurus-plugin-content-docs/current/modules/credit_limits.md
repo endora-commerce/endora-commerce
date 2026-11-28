@@ -109,3 +109,10 @@ zostały zapisane.
 - **Powody zwolnienia** — `releaseByOrder(reason)` przyjmuje dziś `'invoice_paid'`,
   `'order_cancelled'` i `'admin_revocation'`. Nowe powody (np. `'manual_override'`) dodaje się, rozszerzając wyliczenie i
   podłączając wywołanie.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Organizacja, która zostaje, zachowuje własny limit kredytowy; jeśli go nie ma, przejmuje limit
+duplikatu. Otwarte rezerwacje i zasilenia ze zwrotów przechodzą do jej zaangażowania, które może
+przekroczyć limit: podgląd scalania o tym ostrzega, ale scalanie nie jest z tego powodu
+odrzucane. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

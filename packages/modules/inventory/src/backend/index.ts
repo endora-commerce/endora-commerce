@@ -23,6 +23,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { resolveAllocations, resolveEffectiveFulfilmentStrategy } from '@endora-commerce/contracts';
 import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
+import { AvailabilityNotificationOrganizationMergeParticipant, type AvailabilityNotificationMergeParticipantDeps } from './merge/organization-merge-participant.js';
 /**
  * This module's own `EntityManager`-taking interface (feature 080, T048;
  * D-169), which cannot live beside the four above: `@endora-commerce/contracts`
@@ -153,6 +154,18 @@ export interface InventoryCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T051 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): AvailabilityNotificationMergeParticipantDeps => ctx.cradle<AvailabilityNotificationMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'availability-notifications',
+    new AvailabilityNotificationOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   ctx.di.register({
     inventory: ctx
       .asFunction(({ emFactory, eventBus, auditLogService }: InventoryCradle) =>

@@ -407,3 +407,10 @@ W instancji, która go używała:
 
 Co zrobiły migracje i które wywołania API zastąpiły usunięte, opisano na stronie
 [Ceny dla programistów](./price_lists/developer-guide.md#upgrading-from-the-old-model-migration-note).
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Cenniki, których odbiorcy obejmują duplikat, obejmują w zamian organizację, która zostaje, bez
+powtórzeń. Zachowuje ona własne ustawienie wyświetlania cen; ustawienie, które miał tylko
+duplikat, jest przejmowane. Ceny w pamięci podręcznej obu organizacji są odświeżane. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

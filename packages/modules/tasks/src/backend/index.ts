@@ -118,6 +118,7 @@ import {
   TASKS_REMINDERS_SCOPE_REASON,
   type TasksRemindersJob,
 } from './workers/tasks-reminders-worker.js';
+import { TASKS_PROJECT_MERGE_PARTICIPATION_KEY, TasksProjectMergeParticipant } from './merge/project-merge-participant.js';
 
 /**
  * `tasks` — composed by the kernel container.
@@ -910,6 +911,21 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
   // --- end of Published ports ---------------------------------------------------------
+
+  // `specs/192-organization-merge/` US6, T084 — this module's part of a Project
+  // merge: the loser's Tasks move to the survivor's context (without their
+  // Stage) and references naming the loser follow, through this module's own
+  // Command (`task.merge_move_context`). Registration only; never called while
+  // this module is off (its step is deferred and caught up), and dropped by the
+  // composition where no module hosts Project merges.
+  ctx.merge.participate(
+    'project',
+    TASKS_PROJECT_MERGE_PARTICIPATION_KEY,
+    new TasksProjectMergeParticipant({
+      emFactory: () => ctx.cradle<TasksCradle>().emFactory(),
+      commandBus: { run: (command) => ctx.cradle<TasksCradle>().commandBus.run(command) },
+    }),
+  );
 }
 
 /**

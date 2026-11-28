@@ -51,6 +51,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `credentials` | nie | contributes-to `configurationTypeRegistry` |
 | `credentials` | nie | degrades-without `credentialsService` — pobieranie danych firmy przy rejestracji nie może korzystać z GUS; polskie wyszukiwania używają wyłącznie Białej listy podatników VAT Ministerstwa Finansów |
 | `credit_limits` | nie | refuses-without `creditLimitReadPort` — wyszukiwanie w strukturze organizacji, która jednostka nadrzędna ma limit kredytowy, jest odrzucane — nie korzysta z niego żaden ekran, bo jedynym wywołującym jest usługa samego tego modułu |
+| `webhooks` | nie | contributes-to `webhookEventRegistry` |
 
 ## Uprawnienia
 
@@ -64,6 +65,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `organizations:convert-to-company` | Convert personal organizations to companies | `customers:read` |
 | `organizations:manage-roles` | Manage organization roles | `organizations:read-roles` |
 | `organizations:manage-tax-id-scope` | Manage the tax-ID scope | `customers:read` |
+| `organizations:merge` | Merge duplicate organizations | `customers:read` |
 | `organizations:read-roles` | View organization roles | — |
 
 ## Paleta poleceń
@@ -72,8 +74,10 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | --- | --- | --- |
 | `change-organization-tax-id` | `/organizations/change-tax-id` | `organizations:change-tax-id` |
 | `convert-personal-organization` | `/organizations/convert-to-company` | `organizations:convert-to-company` |
+| `merge-organizations` | `/organizations/merge` | `organizations:merge` |
 | `new-organization` | `/organizations/new` | `customers:manage` |
 | `open-organizations` | `/organizations` | `customers:read` |
+| `open-record-merges` | `/organizations/merges` | `organizations:merge` |
 | `open-registration-registry-lookup-settings` | `/settings` | `settings:read` |
 | `open-tax-id-scope` | `/organizations/tax-id-scope` | `organizations:manage-tax-id-scope` |
 

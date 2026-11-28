@@ -254,3 +254,8 @@ każdy aktywny kanał sprzedaży ma co najmniej jeden przypisany magazyn i dokł
 - `DEFAULT_WAREHOUSE_CODE` = `default`
 
 Obie są eksportowane z `packages/modules/inventory/src/backend/entities/warehouse.entity.ts`.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Prośby o powiadomienie o dostępności złożone przez członków duplikatu przechodzą do organizacji,
+która zostaje. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

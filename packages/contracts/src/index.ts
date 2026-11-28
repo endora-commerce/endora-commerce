@@ -249,6 +249,11 @@ export * from './entity-extensions.js';
 export * from './organization-hooks.js';
 // `specs/186-aggregate-ports/` — the options and the custom-field merge every aggregate write port shares.
 export * from './aggregate-ports.js';
+// `specs/192-organization-merge/` — the platform's merge vocabulary and the Organization host's shapes.
+export * from './record-merge.js';
+export * from './organizations.merge.js';
+// US6 — the Project host's shapes.
+export * from './projects.merge.js';
 // Issue #1845 — `projects`' hookable actions.
 export * from './project-hooks.js';
 // `specs/193-admin-form-extensions/` FR-110 — `customer_accounts`' account writes.
@@ -315,6 +320,7 @@ export * from './organization-registry-lookup.js';
 // contracts file of their own.
 export * from './auth.js';
 export * from './customer-accounts.js';
+export * from './customer-accounts.membership.js';
 export * from './email.js';
 export * from './languages.js';
 export * from './currencies.js';

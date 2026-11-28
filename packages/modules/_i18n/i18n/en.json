@@ -2871,5 +2871,16 @@
   "profile.tabs.security": "Security",
   "module.name": "Admin UI i18n",
   "module.description": "Per-user Admin UI language preference and module-scoped translation bundles. English is the platform-wide fallback (FR-013 / FR-016).",
-  "module.nonDeactivatableReason": "Every user-facing string on every surface is served from here, including the labels on the platform screen that holds the module switches."
+  "module.nonDeactivatableReason": "Every user-facing string on every surface is served from here, including the labels on the platform screen that holds the module switches.",
+  "errors.RECORD_MERGE_SAME_RECORD": "A record cannot be merged into itself. Pick the duplicate to merge into this one.",
+  "errors.RECORD_MERGE_RECORD_UNAVAILABLE": "One of these records can no longer take part in a merge: it was deleted, was already merged, or was rejected.",
+  "errors.RECORD_MERGE_ALREADY_RUNNING": "Another merge already involves one of these records. Wait for it to finish, or resume it if it needs attention.",
+  "errors.RECORD_MERGE_PARTICIPATION_INCOMPLETE": "This merge cannot start yet: some areas of the platform cannot move their records to the record that stays ({modules}).",
+  "errors.RECORD_MERGE_PARTICIPANT_CONFLICT": "This merge cannot start: {module} reports a conflict it cannot resolve.",
+  "errors.RECORD_MERGE_BUSY": "This merge cannot start yet: {module} has business in progress for the duplicate (for example an order being placed or a payment awaiting the provider). Try again once it has settled.",
+  "errors.RECORD_MERGE_IN_PROGRESS": "This record is being merged and cannot be changed until the merge completes.",
+  "errors.RECORD_MERGE_NOT_CANCELLABLE": "Records have already started moving, so this merge can no longer be cancelled. Resume it instead.",
+  "errors.RECORD_MERGE_NOT_RESUMABLE": "Only a merge that needs attention can be resumed.",
+  "errors.RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED": "A merge cannot be undone. Confirm that you understand this before starting it.",
+  "errors.RECORD_MERGE_RESIDUE": "Some records still pointed to the duplicate after the merge moved them, so the merge stopped. Resume it to move them."
 }

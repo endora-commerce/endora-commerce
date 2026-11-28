@@ -279,6 +279,31 @@ export const manifest = defineModuleManifest({
     { code: 'PRICE_BOOK_BASE_PRICE_REQUIRED' },
     { code: 'PRICE_BOOK_BASE_HAS_NO_CHANNELS' },
   ],
+  /**
+   * `specs/192-organization-merge/` T048 — an Organization merge unions the
+   * loser's price-book audience memberships into the survivor's and lets its
+   * Organization display-mode override fill the survivor's gap, in the
+   * `configuration` phase (`contracts/participant-dispositions.md` §A). The
+   * price-book matrix names no Organization, so it has no part in a merge.
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'price-audiences',
+        phase: 'configuration',
+        references: [
+          { entity: 'PriceListAudienceMember', property: 'organizationId', disposition: 'union' },
+          {
+            entity: 'PriceDisplayModeOverride',
+            property: 'targetId',
+            polymorphic: { discriminator: 'scope', value: 'organization' },
+            disposition: 'survivor_wins_fill_gaps',
+          },
+        ],
+      },
+    ],
+  },
 });
 
 /** Legacy export retained for backward compatibility. */

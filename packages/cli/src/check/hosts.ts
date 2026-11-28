@@ -43,6 +43,7 @@ import {
 } from '../rules/block-renderers.js';
 import { checkBundlePairing, type ModuleUnderCheck } from '../rules/bundle-pairing.js';
 import { checkExtensibleTables, publishedBindings } from '../rules/extensible-tables.js';
+import { ENTITY_HINT, checkMergeParticipation, persistedEntitiesFromSource } from '../rules/merge-participation.js';
 import {
   analyzeSource as commandCoverageAnalyse,
   collectScannedFiles,
@@ -1864,6 +1865,165 @@ const extensibleTables: PackageRuleHost = (layout) => {
   return ran(id, readSize, findings);
 };
 
+/* ------------------------------------------------------- merge-participation */
+
+/** One `merge.participates` entry, as the emitted manifest declares it in literals. */
+interface EmittedMergeParticipation {
+  readonly host: 'organization' | 'project';
+  readonly key: string;
+  readonly phase?: string;
+  readonly references: readonly {
+    readonly entity: string;
+    readonly property: string;
+    readonly polymorphic?: { readonly discriminator: string; readonly value: string };
+    readonly disposition: 're_point' | 'union' | 'survivor_wins' | 'survivor_wins_fill_gaps' | 'sum' | 'stricter' | 'kept';
+  }[];
+}
+
+/**
+ * The manifest's `merge.participates`, read as literal AST nodes from the
+ * emitted manifest — the file the platform composes — under the same currency
+ * rule as {@link readEmittedManifest}. `null` when the artefact is stale or a
+ * declaration is not written in literals: fail closed, never a guess.
+ */
+function readEmittedMergeParticipations(layout: PackageLayout): EmittedMergeParticipation[] | null {
+  const root = layout.layers.find((layer) => layer.subpath === '.');
+  if (root === undefined) return null;
+  const artefact = join(layout.packageRoot, ...root.target.replace(/^\.\//, '').split('/'));
+  try {
+    if (statSync(root.entry).mtimeMs > statSync(artefact).mtimeMs) return null;
+  } catch {
+    return null;
+  }
+  const sf = ts.createSourceFile(artefact, readFileSync(artefact, 'utf8'), ts.ScriptTarget.Latest, true);
+  const property = (object: ts.ObjectLiteralExpression, name: string): ts.Expression | undefined =>
+    object.properties.find(
+      (member): member is ts.PropertyAssignment =>
+        ts.isPropertyAssignment(member) &&
+        (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) &&
+        member.name.text === name,
+    )?.initializer;
+  const literal = (node: ts.Node | undefined): string | null =>
+    node !== undefined && ts.isStringLiteralLike(node) ? node.text : null;
+  let unreadableDeclaration = false;
+  const out: EmittedMergeParticipation[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const merge = property(node, 'merge');
+      if (merge !== undefined && ts.isObjectLiteralExpression(merge)) {
+        const participates = property(merge, 'participates');
+        if (participates !== undefined) {
+          if (!ts.isArrayLiteralExpression(participates)) {
+            unreadableDeclaration = true;
+            return;
+          }
+          for (const element of participates.elements) {
+            const references = ts.isObjectLiteralExpression(element) ? property(element, 'references') : undefined;
+            const host = ts.isObjectLiteralExpression(element) ? literal(property(element, 'host')) : null;
+            const key = ts.isObjectLiteralExpression(element) ? literal(property(element, 'key')) : null;
+            if (host === null || key === null || references === undefined || !ts.isArrayLiteralExpression(references)) {
+              unreadableDeclaration = true;
+              continue;
+            }
+            const phase = literal(property(element as ts.ObjectLiteralExpression, 'phase'));
+            const refs: EmittedMergeParticipation['references'][number][] = [];
+            for (const reference of references.elements) {
+              if (!ts.isObjectLiteralExpression(reference)) {
+                unreadableDeclaration = true;
+                continue;
+              }
+              const entity = literal(property(reference, 'entity'));
+              const prop = literal(property(reference, 'property'));
+              const disposition = literal(property(reference, 'disposition'));
+              const polymorphic = property(reference, 'polymorphic');
+              if (entity === null || prop === null || disposition === null) {
+                unreadableDeclaration = true;
+                continue;
+              }
+              let poly: { discriminator: string; value: string } | undefined;
+              if (polymorphic !== undefined) {
+                const discriminator = ts.isObjectLiteralExpression(polymorphic) ? literal(property(polymorphic, 'discriminator')) : null;
+                const value = ts.isObjectLiteralExpression(polymorphic) ? literal(property(polymorphic, 'value')) : null;
+                if (discriminator === null || value === null) {
+                  unreadableDeclaration = true;
+                  continue;
+                }
+                poly = { discriminator, value };
+              }
+              refs.push({
+                entity,
+                property: prop,
+                disposition: disposition as EmittedMergeParticipation['references'][number]['disposition'],
+                ...(poly ? { polymorphic: poly } : {}),
+              });
+            }
+            out.push({
+              host: host as EmittedMergeParticipation['host'],
+              key,
+              ...(phase !== null ? { phase } : {}),
+              references: refs,
+            });
+          }
+          return;
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return unreadableDeclaration ? null : out;
+}
+
+/**
+ * `specs/192-organization-merge/` FR-045 over one module package: every
+ * persisted reference to a mergeable record its own entities hold is declared,
+ * with a disposition, by its own manifest's `merge.participates`. The
+ * population is the package's own `@Entity()` sources; a package that persists
+ * nothing has no subject. There is no pending ledger at this scope — a
+ * reference the repository ledgers is a finding here, which is the truth
+ * about the package.
+ */
+const mergeParticipation: PackageRuleHost = (layout) => {
+  const id = 'check:merge-participation';
+  const files = walkEverything(layout.sourceRoot).filter(
+    (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file) && !file.endsWith('.d.ts'),
+  );
+  const population = files.flatMap((file) => {
+    const text = readFileSync(file, 'utf8');
+    if (!ENTITY_HINT.test(text)) return [];
+    return persistedEntitiesFromSource(text, file).map((entity) => ({ moduleId: layout.moduleId, ...entity }));
+  });
+  if (population.length === 0) {
+    return notApplicable(id, 'the package declares no persisted entity, so no row of it can reference a mergeable record');
+  }
+  const declared = readEmittedMergeParticipations(layout);
+  if (declared === null) {
+    return unreadable(
+      id,
+      "the module manifest's `merge.participates` could not be read as literals at the package's root `exports` " +
+        'target. Build the package, and write the declaration as literal objects.',
+      null,
+    );
+  }
+  const result = checkMergeParticipation({
+    population,
+    declarations: declared.map((participation) => ({ moduleId: layout.moduleId, ...participation })),
+  });
+  const readSize: ReadSizeInput = {
+    prefix: '[merge-participation]',
+    files: files.length,
+    sites: result.sites,
+    coverage: [{ source: 'entities', expected: population.length, covered: population.length }],
+  };
+  const findings: Finding[] = result.findings.map((finding) => ({
+    rule: id,
+    key: `${finding.kind}:${finding.entity}.${finding.property}`,
+    location: `${finding.entity}.${finding.property}`,
+    message: finding.message,
+  }));
+  return ran(id, readSize, findings);
+};
+
 export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   string,
   PackageRuleHost
@@ -1881,6 +2041,7 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   ['check:entry-scope', entryScope],
   ['check:extensible-tables', extensibleTables],
   ['check:kernel-boundary', kernelBoundary],
+  ['check:merge-participation', mergeParticipation],
   ['check:nul-bytes', nulBytes],
   ['check:platform-surface', platformSurface],
   ['check:port-catches', portCatches],

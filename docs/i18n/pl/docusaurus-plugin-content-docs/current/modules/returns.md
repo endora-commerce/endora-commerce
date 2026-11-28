@@ -773,3 +773,9 @@ do śledzenia. `return_case_comments` dostaje `author_guest`; `return_case_attac
 gościa, która przesłała plik, i `uploaded_by_guest`. Migracja tworzy `return_guest_verifications`:
 jeden wiersz na każdy żądany link, który po wykorzystaniu staje się sesją gościa i przechowuje tylko
 skrót tokenu sesji. Jej wycofanie jest odrzucane, dopóki istnieje sprawa gościa.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Zwroty i reklamacje duplikatu, wraz z załącznikami i oświadczeniami o odstąpieniu, przechodzą do
+organizacji, która zostaje. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu
+Organizacje.

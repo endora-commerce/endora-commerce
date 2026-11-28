@@ -58,4 +58,18 @@ export const manifest = defineModuleManifest({
     ],
   },
   activation: { settingCode: 'customer_notifications.enabled', default: true },
+  /**
+   * `specs/192-organization-merge/` T052 — in an Organization merge the loser's in-app
+   * notifications move to the survivor (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'notifications',
+        phase: 'records',
+        references: [{ entity: 'CustomerNotification', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

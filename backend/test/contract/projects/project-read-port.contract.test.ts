@@ -101,6 +101,10 @@ describe('projects (contract) — projectReadPort', () => {
       templateId: null,
       closedAt: null,
       createdAt: expect.any(Date),
+      // `specs/192-organization-merge/` FR-051 — set on an archived (merged) Project only.
+      mergedIntoProjectId: null,
+      mergedAt: null,
+      mergeId: null,
       // `specs/186-aggregate-ports/` FR-015 and R-22.3.
       customFieldValues: {},
       version: open.version,

@@ -42,6 +42,7 @@ import { Migration20261110T135941OrganizationsTaxIdScope } from './20261110T1359
 import { Migration20261110T173752OrganizationsTaxIdWriteLock } from './20261110T173752_organizations_tax_id_write_lock.js';
 import { Migration20261110T183238OrganizationsTaxIdNormalise } from './20261110T183238_organizations_tax_id_normalise.js';
 import { Migration20261117T033143OrganizationsCustomerGroupColumn } from './20261117T033143_organizations_customer_group_column.js';
+import { Migration20261125T082019OrganizationsMergePointer } from './20261125T082019_organizations_merge_pointer.js';
 
 export const migrations = [
   Migration20260424T205317OrganizationsInit,
@@ -64,6 +65,7 @@ export const migrations = [
   Migration20261110T173752OrganizationsTaxIdWriteLock,
   Migration20261110T183238OrganizationsTaxIdNormalise,
   Migration20261117T033143OrganizationsCustomerGroupColumn,
+  Migration20261125T082019OrganizationsMergePointer,
 ];
 
 export {
@@ -87,4 +89,5 @@ export {
   Migration20261110T173752OrganizationsTaxIdWriteLock,
   Migration20261110T183238OrganizationsTaxIdNormalise,
   Migration20261117T033143OrganizationsCustomerGroupColumn,
+  Migration20261125T082019OrganizationsMergePointer,
 };

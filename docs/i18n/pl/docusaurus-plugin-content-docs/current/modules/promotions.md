@@ -197,3 +197,9 @@ kuponów i liczników. W docelowej skali platformy to wystarcza; pamięć podrę
 kanału w Redis (unieważniana przez pub/sub cyklu życia modułów) to udokumentowana kolejna
 optymalizacja, gdy profilowanie wykaże duże obciążenie na każde żądanie — zgodnie z YAGNI celowo
 odłożona do tego czasu.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Promocje ograniczone do duplikatu i ich wykorzystanie przechodzą do organizacji, która zostaje.
+Liczniki wykorzystania na organizację są sumowane, więc scalanie nie zeruje limitu
+wykorzystania. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

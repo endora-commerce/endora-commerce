@@ -743,6 +743,26 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:merge-participation',
+    script: 'backend/scripts/check-merge-participation.ts',
+    scope: 'package',
+    /**
+     * `specs/192-organization-merge/` FR-045. The subject is the package's own
+     * persisted entities and its own manifest's `merge.participates`, both of
+     * which a module package holds whole: one module's references are declared
+     * by that module or by nobody. Read from the emitted manifest, as the
+     * platform composes it. The repository's pending ledger does not travel —
+     * a reference it lets stand is a finding about the package here.
+     */
+    host: 'built',
+    subjectDeclaration: {
+      kind: 'exports-subpath',
+      declaration: '`exports` subpath publishing entity classes',
+    },
+    readsArtefact: true,
+    tier: 'A',
+  },
+  {
     id: 'check:extensible-tables',
     script: 'backend/scripts/check-extensible-tables.ts',
     scope: 'package',

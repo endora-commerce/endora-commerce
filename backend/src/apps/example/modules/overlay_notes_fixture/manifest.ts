@@ -80,4 +80,17 @@ export const manifest = defineModuleManifest({
       label: 'Read the overlay notes fixture',
     },
   ],
+  // `specs/192-organization-merge/` FR-045 — its notes name an Organization, so
+  // an Organization merge re-points the loser's to the survivor, as a package's
+  // would: an overlay module's reference is held to the same coverage check.
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'notes',
+        phase: 'records',
+        references: [{ entity: 'OverlayFixtureNote', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

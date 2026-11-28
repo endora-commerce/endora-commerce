@@ -165,4 +165,18 @@ export const manifest = defineModuleManifest({
     // tokens; the base sentence is only the fallback.
     { code: 'API_KEY_SERVICE_ACCOUNT_INACTIVE', tokens: ['blocked', 'removed'] },
   ],
+  /**
+   * `specs/192-organization-merge/` T055 — in an Organization merge the loser's bound keys move to
+   * the survivor (OQ-9), and the preview lists them (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'bound-keys',
+        phase: 'records',
+        references: [{ entity: 'ApiKey', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

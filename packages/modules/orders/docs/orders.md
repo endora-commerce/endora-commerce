@@ -1277,3 +1277,10 @@ The admin's global search (the command palette, ⌘K / Ctrl+K) finds orders. Thi
 | Billing tax ID | no |
 
 A result shows the order number, the organization, the date placed, the total and the status, and opens the order. An exact order number is listed first. Orders appear for a role holding `orders:read`, and a sales representative sees only the orders of the organizations assigned to them — the orders the Orders list shows them.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Orders placed or paid by the duplicate, with their external references, move to the organization
+that stays. A merge cannot start while an order placement or a gateway payment of the duplicate
+is still in progress: it is refused as temporarily unavailable and can be retried. See *Merging
+duplicate organizations* in the Organizations documentation.

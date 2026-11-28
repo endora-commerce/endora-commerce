@@ -225,7 +225,8 @@ anonimizacja dotrze do usuniętego konta.
   mogą działać przed commitem i po nim na trzech akcjach: `customer_account.create` (`create`),
   `customer_account.update_profile` (`updateProfile`) i `customer.custom_fields.update`
   (`setCustomFieldValues`); ich referencje to `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS` w
-  `@endora-commerce/contracts`. Klucz, którego nie przejmuje żaden obecny moduł hooka na danej
+  `@endora-commerce/contracts`, gdzie jest też `changeOrganization`, czyli zmiana członkostwa:
+  akcja dostępna dla hooków, której ten port nie oferuje. Klucz, którego nie przejmuje żaden obecny moduł hooka na danej
   akcji — a na każdej innej metodzie każdy klucz — jest odrzucany z
   `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie zapisane.
 
@@ -312,3 +313,13 @@ z nią, dopóki platforma z niego nie zrezygnuje, i zostanie usunięte.
   `/api/v1/account/mfa/*`; kody odzyskiwania to tam jednorazowe wiersze. Zastąpiony szkielet, na
   który ten punkt wcześniej wskazywał (`totp-enrolment-service.ts`), usunięto 2026-08-25 — nigdy
   nie pozwalał dokończyć ani jednej rejestracji drugiego składnika.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Każdy członek duplikatu, łącznie z kontami usuniętymi i zablokowanymi, przechodzi do
+organizacji, która zostaje, jedną audytowaną zmianą członkostwa na konto
+(`customer_account.organization.change` w trybie `merge`). Role są dopasowywane po nazwie, a
+rola niestandardowa, której organizacja, która zostaje, nie ma, jest najpierw kopiowana.
+Członkowie pozostają zalogowani i od następnego żądania działają w imieniu organizacji, która
+zostaje. Dwa konta jednej osoby pozostają dwoma kontami. Zobacz *Scalanie zduplikowanych
+organizacji* w dokumentacji modułu Organizacje.

@@ -170,3 +170,8 @@ client `lib/api/customer-notifications.ts`, the count on the account entry in
 `components/Megamenu/MegamenuMobileDrawer.tsx`, and the copy in
 `lib/i18n/messages/account.ts` and `chrome.ts`. Every surface is rendered only
 while `customer_notifications` is present.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Notification-centre entries of the duplicate's members move to the organization that stays. See
+*Merging duplicate organizations* in the Organizations documentation.

@@ -58,6 +58,7 @@ import {
   ApiInterceptorRegistry,
   AuditLogService,
   CommandHookRegistry,
+  RecordMergeRegistry,
   CommandMiddlewareRegistry,
   createEntityExtensionReads,
   EntityExtensionLoaderRegistry,
@@ -66,6 +67,8 @@ import {
   formDeclarationsFrom,
   commandMiddlewareFrom,
   createCommandOutboxWake,
+  createRecordMergeRuntime,
+  mergeDeclarationsFrom,
   AuditRedactionService,
   activationDeclarationsFrom,
   capabilityRegistryFrom,
@@ -466,6 +469,25 @@ export async function composeTestServer(
       middleware: commandMiddlewareRegistry,
     });
 
+    // `specs/192-organization-merge/` — as `composeApp` builds it. A harness
+    // runs no worker, so nothing consumes the queue: a test drives a merge with
+    // `recordMergeRuntime.run(mergeId)`, which is what the worker would call.
+    const recordMergeRegistry = new RecordMergeRegistry({ warn: (message) => platformLogger().warn({}, message) });
+    const recordMergeRuntime = createRecordMergeRuntime({
+      orm,
+      emFactory: em,
+      registry: recordMergeRegistry,
+      isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+      // No Redis on purpose: every test process shares the queues, so a
+      // harness enqueues nothing and announces nothing.
+      log: platformLogger(),
+    });
+    const closeRecordMerge = closeOutboxWake;
+    closeOutboxWake = async () => {
+      await closeRecordMerge();
+      await recordMergeRuntime.close();
+    };
+
     const salesChannels = composeSalesChannelsKernel({
       emFactory: em,
       eventBus,
@@ -527,6 +549,9 @@ export async function composeTestServer(
       commandHookRegistry,
       // 193 WP-B — as `composeApp` registers it, for the effective-forms route.
       formRegistry,
+      // `specs/192-organization-merge/` — as `composeApp` registers them.
+      recordMergeService: recordMergeRuntime.service,
+      recordMergeRuntime,
       auditLogService,
       // Issue #844 — as `composeApp` registers it.
       auditRedactionService: new AuditRedactionService(em, auditLogService),
@@ -576,6 +601,9 @@ export async function composeTestServer(
         buyerSelfServiceActions: buyerSelfServiceActionsFrom(manifests),
         commandHookOrder: options.commandHookOrder,
       },
+      // `specs/192-organization-merge/` — sealed at the end of the call, against the same manifest set.
+      mergeRegistry: recordMergeRegistry,
+      mergeDeclarations: mergeDeclarationsFrom(manifests),
       // 189 P1 — sealed after the hook registry, against the same manifest set.
       commandMiddlewareRegistry,
       commandMiddleware: {
@@ -589,6 +617,7 @@ export async function composeTestServer(
       formRegistry,
       forms: formDeclarationsFrom(manifests, options.formOverrideGrants),
     });
+    await recordMergeRuntime.loadFreeze();
 
     const composedContext: ComposedPlatformContext = { ...platform, composed };
 

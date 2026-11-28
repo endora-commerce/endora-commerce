@@ -187,4 +187,32 @@ export const manifest = defineModuleManifest({
     PROMOTION_HOOKABLE_ACTIONS.createCoupon,
     PROMOTION_HOOKABLE_ACTIONS.generateCouponBatch,
   ].map(toHookableActionDeclaration),
+  /**
+   * `specs/192-organization-merge/` T049 — an Organization merge re-points the
+   * loser's Organization-specific promotions and its usages, and adds its
+   * per-Organization usage counters (`scope_key` = `<promotionId>:<organizationId>`)
+   * to the survivor's, so a limit cannot be reset by merging
+   * (`contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'promotions',
+        // FR-047: a reference is also set in SQL, each site asking the freeze first.
+        freeze: 'guarded',
+        phase: 'records',
+        references: [
+          { entity: 'Promotion', property: 'organizationId', disposition: 're_point' },
+          { entity: 'PromotionUsage', property: 'organizationId', disposition: 're_point' },
+          {
+            entity: 'PromotionUsageCounter',
+            property: 'scopeKey',
+            polymorphic: { discriminator: 'scopeType', value: 'organization' },
+            disposition: 'sum',
+          },
+        ],
+      },
+    ],
+  },
 });

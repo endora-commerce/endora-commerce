@@ -2,7 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { mergeWriteRefusal, orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import { Organization } from './entities/organization.entity.js';
 import type { SalesRepAssignmentPort } from './services/sales-rep-assignment-service.js';
 
@@ -35,7 +35,16 @@ export interface OrganizationInReachDeps {
   salesRepScope: Pick<SalesRepAssignmentPort, 'canSeeOrganization'>;
   /** The path parameter that names the Organization. */
   param: string;
+  /**
+   * `specs/192-organization-merge/` FR-052 — the one read that answers an
+   * archived (merged) Organization rather than `404`: its detail, which carries
+   * the survivor's id so the Admin UI leads there. Every other read of a merged
+   * Organization answers `404`, as for any soft-deleted one.
+   */
+  allowMerged?: boolean;
 }
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * Issue #698 (PR #847), shared since #856 — a preHandler that lets a route
@@ -64,11 +73,38 @@ export function organizationInReach(
     const notFound = (): HttpError => new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
     const id = (request.params as Record<string, unknown> | undefined)?.[deps.param];
     if (typeof id !== 'string' || !isUuidShape(id)) throw notFound();
-    if ((await deps.emFactory().count(Organization, { id, deletedAt: null })) === 0) throw notFound();
-    if (orgConstraintFor().kind === 'all') return;
-    const actor = adminActorOf(request);
-    if (actor === null || !(await deps.salesRepScope.canSeeOrganization(actor.adminUserId, id))) {
+    const reaches = async (organizationId: string): Promise<boolean> => {
+      if (orgConstraintFor().kind === 'all') return true;
+      const actor = adminActorOf(request);
+      return actor !== null && (await deps.salesRepScope.canSeeOrganization(actor.adminUserId, organizationId));
+    };
+    const unsafe = !SAFE_METHODS.has(request.method.toUpperCase());
+    if ((await deps.emFactory().count(Organization, { id, deletedAt: null })) === 0) {
+      // `specs/192-organization-merge/` FR-052, FR-053 (OQ-6): a merged
+      // Organization is reached through its survivor; a write naming it is
+      // refused with the survivor's id, never redirected, and a read answers
+      // 404 except the detail. Any other soft-deleted row is simply absent.
+      const merged = await deps.emFactory().findOne(
+        Organization,
+        { id, mergedIntoOrganizationId: { $ne: null } },
+        { fields: ['id', 'mergedIntoOrganizationId', 'mergeId'] },
+      );
+      if (merged === null || !merged.mergedIntoOrganizationId) throw notFound();
+      if (!(await reaches(merged.mergedIntoOrganizationId))) throw notFound();
+      if (unsafe) {
+        throw new HttpError(409, ERROR_CODES.ORGANIZATION_MERGED, 'This organization was merged into another one.', {
+          survivorId: merged.mergedIntoOrganizationId,
+          mergeId: merged.mergeId ?? null,
+        });
+      }
+      if (deps.allowMerged === true) return;
       throw notFound();
+    }
+    if (!(await reaches(id))) throw notFound();
+    // R-6 seam 3 — the loser of a running merge is written only by the merge.
+    if (unsafe) {
+      const refusal = mergeWriteRefusal('organization', id);
+      if (refusal !== null) throw refusal;
     }
   };
 }

@@ -217,6 +217,45 @@ export function OrganizationLookup(props: LookupPickerProps): ReactNode {
   );
 }
 
+/**
+ * One Project the caller sees — the Project merge's pickers
+ * (`specs/192-organization-merge/` US6): the list's own search by number or
+ * title, which leaves out merged (archived) Projects, and never `excludeId`.
+ */
+export function ProjectLookup(props: LookupPickerProps & { excludeId?: string | null }): ReactNode {
+  const t = useTranslation('projects');
+  const { excludeId } = props;
+  const load = useCallback(
+    async (query: string): Promise<ComboboxOption<string>[]> =>
+      (await projectsApi.listProjects({ ...(query ? { q: query } : {}), limit: 20 })).items
+        .filter((project) => project.id !== excludeId)
+        .map((project) => ({ value: project.id, label: `${project.number} ${project.title}` })),
+    [excludeId],
+  );
+  const remote = useRemoteOptions(load);
+  return (
+    <>
+      <Combobox<string>
+        id={props.id ?? ''}
+        ariaLabel={props.ariaLabel}
+        options={remote.options}
+        value={props.value}
+        onChange={props.onChange}
+        onSearchChange={remote.search}
+        manualFilter
+        loading={remote.loading}
+        loadingMessage={t('picker.loading')}
+        clearable={props.clearable ?? true}
+        disabled={props.disabled ?? false}
+        placeholder={props.placeholder ?? ''}
+        emptyMessage={t('picker.empty')}
+        selectedLabel={remote.labelOf(props.value) || (props.selectedLabel ?? '')}
+      />
+      <LoadError shown={remote.failed} />
+    </>
+  );
+}
+
 export interface MultiLookupProps {
   id?: string;
   ariaLabel: string;

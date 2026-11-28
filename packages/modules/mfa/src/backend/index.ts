@@ -74,6 +74,7 @@ import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
 import { MfaOrganizationPolicy } from './entities/mfa-organization-policy.entity.js';
 import { MfaRecoveryCode } from './entities/mfa-recovery-code.entity.js';
 import { MfaSocialIdentity } from './entities/mfa-social-identity.entity.js';
+import { MfaOrganizationMergeParticipant, type MfaMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `mfa` — the widest option surface in the wave, and why it is three names
@@ -190,6 +191,18 @@ export interface MfaCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T054 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): MfaMergeParticipantDeps => ctx.cradle<MfaMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'organization-policy',
+    new MfaOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   ctx.di.register({
     /**
      * Federated sign-in, defaulted to whatever this deployment's environment

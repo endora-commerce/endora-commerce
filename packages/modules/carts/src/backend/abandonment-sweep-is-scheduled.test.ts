@@ -81,6 +81,8 @@ async function composeAndMountRoutes(host: { processRunsWorkers: boolean; module
     di: { providePort: noop, register: noop },
     subscribe: noop,
     onBoot: noop,
+    // `specs/192-organization-merge/` — the merge participant's registration; not asked here.
+    merge: { host: noop, participate: noop },
     routes: (mount: (app: unknown) => Promise<void>) => {
       routes.push(mount);
     },

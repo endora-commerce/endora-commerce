@@ -221,3 +221,11 @@ Bez `invoices` — płatnicy widzą opłacane zamówienia, ale nie mogą pobrać
 Bez `credit_limits` — dla płatnika nie jest oferowana metoda płatności w ramach limitu kredytowego.
 Bez `customer_notifications` i `admin_notifications` — brak wpisów w centrum powiadomień i w dzwonku;
 e-maile nadal są wysyłane, a kolejka nadal pokazuje każdy wpis.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Powiązania z płatnikami i wnioski przechodzą do organizacji, która zostaje. Powiązanie między
+dwiema scalanymi organizacjami uczyniłoby ją płatnikiem samej siebie, więc jest odwoływane, a
+oczekujący wniosek między nimi jest zamykany z przyczyną „scalanie”. Gdy obie miały powiązanie z
+tym samym płatnikiem, zostaje powiązanie organizacji, która zostaje, a drugie jest odwoływane.
+Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

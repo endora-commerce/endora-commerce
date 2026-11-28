@@ -384,6 +384,7 @@ const modules = [
     label: 'Organizations', key: 'organizations',
     link: { type: 'doc', id: 'modules/organizations' },
     items: [
+      'modules/organization-merge',
       'modules/organization-hierarchy',
       'module-reference/organizations',
     ],

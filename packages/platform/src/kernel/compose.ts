@@ -2,6 +2,8 @@ import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { ModuleOrigin } from '@endora-commerce/contracts';
 import type { CommandHookCompositionInput, CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { RecordMergeRegistry } from './merge/registry.js';
+import type { MergeCompositionDeclarations } from './merge/declarations.js';
 import type { CommandMiddlewareCompositionInput, CommandMiddlewareRegistry } from '../commands/middleware/registry.js';
 import type { EntityExtensionLoaderRegistry } from './entity-extensions/registry.js';
 import type { FormRegistry } from './forms/registry.js';
@@ -220,6 +222,20 @@ export interface ComposeModulesOptions {
    * no action is hookable, so any registered hook refuses the composition.
    */
   readonly commandHooks?: CommandHookCompositionInput | undefined;
+  /**
+   * The composition's record-merge registry (`specs/192-organization-merge/`).
+   * Every module's `ctx.merge` registers into it, and this call **seals** it
+   * once the last module has registered, against {@link mergeDeclarations}.
+   * Absent in a composition root that runs no merge; `ctx.merge` is then a no-op.
+   */
+  readonly mergeRegistry?: RecordMergeRegistry | undefined;
+  /**
+   * What the merge registry is sealed against — `mergeDeclarationsFrom(manifests)`,
+   * derived by the root from the same manifest set as `commandHooks`. Omitted
+   * with a registry present, it is sealed against nothing: a registration then
+   * refuses for want of a declaration.
+   */
+  readonly mergeDeclarations?: MergeCompositionDeclarations | undefined;
   /**
    * The command-middleware registry the root also handed its `CommandBus`
    * (`specs/189-command-middleware/` P1). Every module's `ctx.commandMiddleware`
@@ -479,6 +495,7 @@ export function composeModules(
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
           : {}),
+        ...(options.mergeRegistry ? { mergeRegistry: options.mergeRegistry } : {}),
         ...(options.commandMiddlewareRegistry
           ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
           : {}),
@@ -547,6 +564,16 @@ export function composeModules(
     options.commandHookRegistry.seal(
       options.commandHooks ?? { hookableActions: [], moduleDependencies: {}, commandHookOrder: {} },
     );
+  }
+
+  // ---- Sealing the record-merge registry (`specs/192-organization-merge/`) --
+  //
+  // At the same point and for the same reason as the command hooks: every
+  // module has registered, and nothing has resolved yet.
+  if (options.mergeRegistry) {
+    options.mergeRegistry.seal({
+      declarations: options.mergeDeclarations ?? { hosts: [], participations: [] },
+    });
   }
 
   // ---- Sealing the command-middleware registry (189 P1) -------------------
@@ -689,6 +716,7 @@ export function composeModules(
         ...(options.commandHookRegistry
           ? { commandHookRegistry: options.commandHookRegistry }
           : {}),
+        ...(options.mergeRegistry ? { mergeRegistry: options.mergeRegistry } : {}),
         ...(options.commandMiddlewareRegistry
           ? { commandMiddlewareRegistry: options.commandMiddlewareRegistry }
           : {}),

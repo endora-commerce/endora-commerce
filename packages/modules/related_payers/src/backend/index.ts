@@ -78,6 +78,10 @@ import {
   RELATED_PAYER_ORDER_PLACED_DEFAULT,
   RELATED_PAYER_ORDER_PLACED_EMAIL_CODE,
 } from './email-templates/payer-order-defaults.js';
+import {
+  RELATED_PAYERS_MERGE_PARTICIPATION_KEY,
+  RelatedPayerOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `related_payers` — composition root (`specs/182-related-payers/`).
@@ -478,6 +482,24 @@ export function registerModule(ctx: ModuleContext): void {
       createRelatedPayersTimeZoneValidator(),
     );
   });
+  /**
+   * `specs/192-organization-merge/` T047 — this module's part of an
+   * Organization merge, in the `records` phase, through
+   * `related_payer.merge_reassign`: links and requests follow the survivor, a
+   * link between the two (or duplicating the survivor's) is revoked, a pending
+   * request between them is closed. Cached links are dropped after each batch.
+   * Registration only; the platform's runner calls it.
+   */
+  ctx.merge.participate(
+    'organization',
+    RELATED_PAYERS_MERGE_PARTICIPATION_KEY,
+    new RelatedPayerOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<RelatedPayersCradle>().emFactory(),
+      commandBus: () => ctx.cradle<RelatedPayersCradle>().commandBus,
+      onLinksChanged: (buyerOrganizationId) =>
+        ctx.cradle<RelatedPayersCradle>().relatedPayerLinkCache.publishDrop(buyerOrganizationId),
+    }),
+  );
 }
 
 /** The module's persisted entity classes (D-168). */

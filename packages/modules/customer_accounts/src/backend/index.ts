@@ -73,6 +73,14 @@ import { CustomerGroupService } from './services/customer-group-service.js';
 import { CustomerRollupScopeService } from './services/customer-rollup-scope.js';
 import { PasswordResetService } from './services/password-reset-service.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
+import type { MembershipPort } from '@endora-commerce/contracts';
+import type { RecordMergeService } from '@endora-commerce/platform/kernel';
+import { createMembershipPort } from './services/membership-port.js';
+import { toOneCustomerAccountRecord } from './services/customer-account-ports.js';
+import {
+  CUSTOMER_ACCOUNTS_MERGE_PARTICIPATION_KEY,
+  CustomerAccountMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `customer_accounts` — one customer auth service, where there were two
@@ -861,6 +869,40 @@ export function registerModule(ctx: ModuleContext): void {
       ctx.cradle<CustomerAccountsCradle>().emFactory,
     );
   });
+
+  /**
+   * `membershipPort` (`specs/191-membership-join-requests/contracts/membership-port.md`),
+   * as far as `specs/192-organization-merge/` T069 publishes it: the membership
+   * move as one audited, hookable Command (`customer_account.organization.change`)
+   * in the modes `move` and `merge`. 191 WP-1 (#1831) adds `detachToPersonal`
+   * and moves the operator paths onto it. No permission is checked here.
+   */
+  const membershipDeps = {
+    roles: organizationRoles,
+    organizations: () => lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+    recordMerge: () => ctx.cradle<{ recordMergeService: RecordMergeService }>().recordMergeService,
+    toRecord: (account: Parameters<typeof toOneCustomerAccountRecord>[1]) =>
+      toOneCustomerAccountRecord(twoFactorEnrolments, account),
+    commandBus: () => ctx.cradle<CustomerAccountsCradle>().commandBus,
+  };
+  ctx.di.providePort<MembershipPort>(
+    'membershipPort',
+    ctx.asFunction(() => createMembershipPort(membershipDeps)).singleton(),
+  );
+
+  // `specs/192-organization-merge/` T070 — the loser's members move to the
+  // survivor in the `members` phase, one membership Command per account in the
+  // mode `merge`, with the role the host's role map names.
+  const membership = createMembershipPort(membershipDeps);
+  ctx.merge.participate(
+    'organization',
+    CUSTOMER_ACCOUNTS_MERGE_PARTICIPATION_KEY,
+    new CustomerAccountMergeParticipant({
+      emFactory: () => ctx.cradle<CustomerAccountsCradle>().emFactory(),
+      roles: organizationRoles,
+      changeOrganization: (input) => membership.changeOrganization(input),
+    }),
+  );
 }
 
 /**

@@ -5206,6 +5206,42 @@
         }
       }
     },
+    "/api/v1/admin/organization-merges": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organization-merges/{mergeId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organization-merges/{mergeId}/cancel": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organization-merges/{mergeId}/resume": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/organizations": {
       "get": {
         "responses": {
@@ -5428,6 +5464,24 @@
     },
     "/api/v1/admin/organizations/{id}/members/{customerAccountId}/rollup": {
       "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organizations/{id}/merge-preview": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organizations/{id}/merges": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
@@ -6247,6 +6301,42 @@
         }
       }
     },
+    "/api/v1/admin/project-merges": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/project-merges/{mergeId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/project-merges/{mergeId}/cancel": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/project-merges/{mergeId}/resume": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/projects": {
       "get": {
         "responses": {
@@ -6714,6 +6804,24 @@
     },
     "/api/v1/admin/projects/{id}/members": {
       "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/merge-preview": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects/{id}/merges": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"

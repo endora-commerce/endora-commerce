@@ -101,3 +101,9 @@ ważności: `organizationId`, `salesChannelId`, `customerAccountId`, `expiresAt`
   w miejscu wywołania; przy egzekwowaniu usługa nie zależy od nazw zakresów.
 - **Limit żądań dla klucza** — `api-key-service.authenticate` zwraca identyfikator klucza; dodaj
   licznik dla każdego klucza w pre-handlerze albo w dalszej warstwie pośredniej.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Klucze API powiązane z duplikatem zostają powiązane z organizacją, która zostaje, i działają
+dalej. Podgląd scalania je wymienia, więc możesz je przejrzeć przed rozpoczęciem. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

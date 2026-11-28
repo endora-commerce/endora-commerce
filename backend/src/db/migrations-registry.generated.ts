@@ -169,6 +169,7 @@ import { Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage } from '
 import { Migration20261103T162518CoreAuditActorCustomerAccount } from '@endora-commerce/platform/migrations';
 import { Migration20261110T140633CoreSchemaExtensionsLedger } from '@endora-commerce/platform/migrations';
 import { Migration20261112T124348CoreCommandOutbox } from '@endora-commerce/platform/migrations';
+import { Migration20261125T082017CoreRecordMerges } from '@endora-commerce/platform/migrations';
 
 // ── credentials ─────────────────────────────────────────────────────────────
 import { Migration20260721T011509CredentialsInit } from '@endora-commerce/mod-credentials/migrations';
@@ -350,6 +351,7 @@ import { Migration20261110T135941OrganizationsTaxIdScope } from '@endora-commerc
 import { Migration20261110T173752OrganizationsTaxIdWriteLock } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261110T183238OrganizationsTaxIdNormalise } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261117T033143OrganizationsCustomerGroupColumn } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261125T082019OrganizationsMergePointer } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -397,6 +399,7 @@ import { Migration20261028T143448ProjectsReferenceKinds } from '@endora-commerce
 import { Migration20261114T145439ProjectsStageAlertInterrupted } from '@endora-commerce/mod-projects/migrations';
 import { Migration20261114T153132ProjectsConfigurationVersions } from '@endora-commerce/mod-projects/migrations';
 import { Migration20261122T074256ProjectsListSavedViews } from '@endora-commerce/mod-projects/migrations';
+import { Migration20261125T124200ProjectsMergePointer } from '@endora-commerce/mod-projects/migrations';
 import { Migration20261127T091628ProjectsCommentCustomFieldValues } from '@endora-commerce/mod-projects/migrations';
 
 // ── promotions ──────────────────────────────────────────────────────────────
@@ -629,6 +632,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('core', Migration20261103T162518CoreAuditActorCustomerAccount),
   migration('core', Migration20261110T140633CoreSchemaExtensionsLedger),
   migration('core', Migration20261112T124348CoreCommandOutbox),
+  migration('core', Migration20261125T082017CoreRecordMerges),
 
   // ── credentials ─────────────────────────────────────────────────────────────
   migration('credentials', Migration20260721T011509CredentialsInit),
@@ -810,6 +814,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20261110T173752OrganizationsTaxIdWriteLock),
   migration('organizations', Migration20261110T183238OrganizationsTaxIdNormalise),
   migration('organizations', Migration20261117T033143OrganizationsCustomerGroupColumn),
+  migration('organizations', Migration20261125T082019OrganizationsMergePointer),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
@@ -857,6 +862,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('projects', Migration20261114T145439ProjectsStageAlertInterrupted),
   migration('projects', Migration20261114T153132ProjectsConfigurationVersions),
   migration('projects', Migration20261122T074256ProjectsListSavedViews),
+  migration('projects', Migration20261125T124200ProjectsMergePointer),
   migration('projects', Migration20261127T091628ProjectsCommentCustomFieldValues),
 
   // ── promotions ──────────────────────────────────────────────────────────────

@@ -2,10 +2,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   EntityExtensionReadOptions,
   OrganizationDetailsPort,
+  OrganizationMergePreview,
+  OrganizationMergeRecord,
   OrganizationRecord,
   TaxIdResolution,
   WithEntityExtensions,
 } from '@endora-commerce/contracts';
+import type { OrganizationMergeService } from '../merge/organization-merge-service.js';
 import { normalizeOrganizationName } from '@endora-commerce/contracts';
 import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
@@ -48,8 +51,27 @@ export class OrganizationDetailsService implements OrganizationDetailsPort {
     private readonly emFactory: () => EntityManager,
     /** The kernel's `entityExtensionReads`; absent in a hand-built service, which has no loader to offer. */
     private readonly extensionReads: EntityExtensionReads = lazyEntityExtensionReads(() => undefined),
+    /** `specs/192-organization-merge/` — the merge reads; resolved per call. */
+    private readonly merges?: () => Pick<OrganizationMergeService, 'preview' | 'resolveMerged' | 'get'>,
   ) {
     this.#lookups = new TaxIdLookupService(emFactory);
+  }
+
+  previewMerge(survivorId: string, input: { readonly loserId: string }): Promise<OrganizationMergePreview> {
+    return this.#merges().preview(survivorId, input.loserId);
+  }
+
+  resolveMerged(id: string): Promise<string> {
+    return this.#merges().resolveMerged(id);
+  }
+
+  getMerge(mergeId: string): Promise<OrganizationMergeRecord | null> {
+    return this.#merges().get(mergeId);
+  }
+
+  #merges(): Pick<OrganizationMergeService, 'preview' | 'resolveMerged' | 'get'> {
+    if (this.merges === undefined) throw new Error('organizationDetailsPort: no merge service in this composition.');
+    return this.merges();
   }
 
   async findById(
@@ -169,5 +191,8 @@ export function toOrganizationRecord(organization: Organization): OrganizationRe
     updatedAt: organization.updatedAt,
     deletedAt: organization.deletedAt ?? null,
     convertedToCompanyAt: organization.convertedToCompanyAt ?? null,
+    mergedIntoOrganizationId: organization.mergedIntoOrganizationId ?? null,
+    mergedAt: organization.mergedAt ?? null,
+    mergeId: organization.mergeId ?? null,
   };
 }

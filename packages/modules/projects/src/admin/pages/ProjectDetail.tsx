@@ -1,15 +1,28 @@
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { GitMerge, Trash2 } from 'lucide-react';
 import type { ProjectDetail as ProjectDetailData } from '@endora-commerce/contracts';
 import { cn, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, PageHeader, RecordTabs } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  PageHeader,
+  RecordTabs,
+} from '@endora-commerce/admin-kit/ui';
+import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { projectsApi } from '../api.js';
 import { DeleteProjectDialog } from '../components/DeleteProjectDialog.js';
 import { StageBar } from '../components/StageBar.js';
 import { StateBadge } from '../components/StateBadge.js';
+import { MergedBanner } from '../merge/MergedBanner.js';
+import { ProjectMergeFlow } from '../merge/ProjectMergeFlow.js';
+import { MergedFromSection, ProjectMergeNotices, useProjectMerges } from '../merge/ProjectMergesSection.js';
 import { errorMessage, valueLabel } from '../lib/labels.js';
 import { offeredTabs, searchForTab, tabFromSearch } from './project-detail/tabs.js';
 
@@ -61,6 +74,7 @@ export function ProjectDetail(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [deleting, setDeleting] = useState(false);
+  const [merging, setMerging] = useState(false);
   const navigate = useNavigate();
   const isVisible = useSurfaceVisibility();
   const sequence = useRef(0);
@@ -69,6 +83,11 @@ export function ProjectDetail(): ReactNode {
   const sidebarShown = useAdminZone('project.detail.sidebar', { projectId: id }).length > 0;
 
   const tabs = offeredTabs(isVisible);
+  // `specs/192-organization-merge/` US6, FR-080 — *Merge a duplicate into this
+  // project* and the merges this Project takes part in, under the merge's code.
+  const canMerge = isVisible({ module: 'projects', requiredPermission: 'projects:merge' });
+  const archived = project?.mergedIntoProjectId != null;
+  const merges = useProjectMerges(id, canMerge && project !== null && !archived, project?.version ?? 0);
   const activeTab = tabFromSearch(searchParams, tabs);
 
   const selectTab = useCallback(
@@ -134,6 +153,7 @@ export function ProjectDetail(): ReactNode {
   }
 
   const tab = tabs.find((candidate) => candidate.id === activeTab) ?? tabs[0];
+  const label = `${project.number} ${project.title}`;
   const TabComponent = tab?.component;
 
   return (
@@ -144,6 +164,7 @@ export function ProjectDetail(): ReactNode {
           <span className="flex flex-wrap items-center gap-2 [overflow-wrap:anywhere]">
             <span>{project.title}</span>
             <StateBadge state={project.state} />
+            {archived ? <Badge variant="outline">{t('merge.banner.archivedBadge')}</Badge> : null}
           </span>
         }
         description={
@@ -161,19 +182,56 @@ export function ProjectDetail(): ReactNode {
         }
         back={back}
         actions={
-          project.permissions.canWrite ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11 text-destructive hover:text-destructive sm:min-h-9"
-              onClick={(): void => setDeleting(true)}
-            >
-              <Trash2 aria-hidden="true" />
-              {t('detail.delete')}
-            </Button>
+          project.permissions.canWrite || (canMerge && !archived) ? (
+            <span className="flex flex-wrap gap-2">
+              {/* `specs/192-organization-merge/` FR-080 — rare and irreversible: an outline action, away from no Save. */}
+              {canMerge && !archived && project.permissions.canWrite ? (
+                <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" onClick={(): void => setMerging(true)}>
+                  <GitMerge aria-hidden="true" />
+                  {t('merge.action.open')}
+                </Button>
+              ) : null}
+              {project.permissions.canWrite ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 text-destructive hover:text-destructive sm:min-h-9"
+                  onClick={(): void => setDeleting(true)}
+                >
+                  <Trash2 aria-hidden="true" />
+                  {t('detail.delete')}
+                </Button>
+              ) : null}
+            </span>
           ) : undefined
         }
       />
+
+      {/* FR-051, FR-052 — an archived (merged) Project is read-only and leads to its survivor. */}
+      {archived ? (
+        <MergedBanner survivorId={project.mergedIntoProjectId!} mergeId={project.mergeId ?? null} mergedAt={project.mergedAt ?? null} />
+      ) : (
+        <ProjectMergeNotices merges={merges} projectId={project.id} />
+      )}
+
+      {merging ? (
+        <ModalDialog
+          title={t('merge.flow.title')}
+          onClose={(): void => setMerging(false)}
+          widthClassName="max-w-3xl"
+          dismissOnScrim={false}
+        >
+          <ProjectMergeFlow
+            survivorId={project.id}
+            survivorName={label}
+            onCancel={(): void => setMerging(false)}
+            onStarted={(merge): void => {
+              setMerging(false);
+              void navigate(`/projects/merges/${merge.id}`);
+            }}
+          />
+        </ModalDialog>
+      ) : null}
 
       {deleting ? (
         <DeleteProjectDialog
@@ -196,6 +254,8 @@ export function ProjectDetail(): ReactNode {
             <StageBar key={project.id} project={project} onChange={setProject} reload={reload} />
           </CardContent>
         </Card>
+
+        {!archived ? <MergedFromSection merges={merges} projectId={project.id} /> : null}
 
         <DetailSidebarLayout
           sidebar={

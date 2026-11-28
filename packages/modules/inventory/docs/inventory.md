@@ -199,3 +199,8 @@ A subscription records the sales channel and the language it was made in: the ch
 - `DEFAULT_WAREHOUSE_CODE` = `default`
 
 Both are exported from `packages/modules/inventory/src/backend/entities/warehouse.entity.ts`.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Back-in-stock notification requests of the duplicate's members move to the organization that
+stays. See *Merging duplicate organizations* in the Organizations documentation.

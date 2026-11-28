@@ -34,10 +34,14 @@ function sources(dir: string): string[] {
   });
 }
 
-const WRITES = /em\.create\(Organization\b|applyReparentPaths\(|\borg\.taxId = /;
 // `PlaceInTree` chooses between `set_parent` and `move` for the parent route and
 // `organizationCommandPort.setParent` (`specs/186-aggregate-ports/` R-16.3).
-const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|PlaceInTree|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\b/;
+// `specs/192-organization-merge/` — the merge's structure batch moves the
+// loser's children (paths) and its finalize hands the loser's tax ID to the
+// survivor, so both join the population.
+const WRITES = /em\.create\(Organization\b|applyReparentPaths\(|\b(org|survivor)\.taxId = /;
+const FACTORIES =
+  /\bmake(CreateOrganization|SetParent|Move|PlaceInTree|ConvertToCompany|ChangeTaxId|RegisterOrganization|MergeStructure|MergeFinalize)Command\b/;
 
 describe('the writes of organizations.tax_id and path', () => {
   it('are the create and re-parent Commands', () => {
@@ -49,6 +53,8 @@ describe('the writes of organizations.tax_id and path', () => {
       'commands/change-tax-id.command.ts',
       'commands/convert-to-company.command.ts',
       'commands/create-organization.command.ts',
+      'commands/merge-finalize.command.ts',
+      'commands/merge-structure.command.ts',
       'commands/register-organization.command.ts',
       'commands/set-parent.command.ts',
     ]);
@@ -60,6 +66,7 @@ describe('the writes of organizations.tax_id and path', () => {
       return FACTORIES.test(readFileSync(path, 'utf8'));
     });
     expect(callers.map((path) => relative(BACKEND, path)).sort()).toEqual([
+      'merge/organization-merge-host.ts',
       'routes.admin.ts',
       // `organization-write-port.ts` delegates to the command port since
       // `specs/186-aggregate-ports/` T031 and names no factory.
@@ -69,7 +76,9 @@ describe('the writes of organizations.tax_id and path', () => {
     for (const path of callers) {
       const text = readFileSync(path, 'utf8');
       expect(text, relative(BACKEND, path)).toContain('runOrganizationWrite(');
-      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|PlaceInTree|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\(/);
+      expect(text).not.toMatch(
+        /\.run\(\s*make(CreateOrganization|SetParent|Move|PlaceInTree|ConvertToCompany|ChangeTaxId|RegisterOrganization|MergeStructure|MergeFinalize)Command\(/,
+      );
       expect(text).not.toMatch(/commandBus\.run\(\s*command\s*\)/);
     }
   });

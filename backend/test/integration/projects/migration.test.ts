@@ -163,6 +163,10 @@ describe('projects init migration', () => {
       { column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'NO', column_default: 'now()' },
       // Issue #449 — the token of the Project's sets, added by a later migration.
       { column_name: 'configuration_version', data_type: 'integer', is_nullable: 'NO', column_default: '1' },
+      // `specs/192-organization-merge/` US6 — the archived loser's pointer (`…_projects_merge_pointer`).
+      { column_name: 'merged_into_project_id', data_type: 'uuid', is_nullable: 'YES', column_default: null },
+      { column_name: 'merged_at', data_type: 'timestamp with time zone', is_nullable: 'YES', column_default: null },
+      { column_name: 'merge_id', data_type: 'uuid', is_nullable: 'YES', column_default: null },
     ]);
     const amount = await rows<{ numeric_precision: number; numeric_scale: number }>(
       `select numeric_precision, numeric_scale from information_schema.columns
@@ -227,6 +231,8 @@ describe('projects init migration', () => {
         'project_stages',
         'project_value_changes',
         'project_viewers',
+        // `specs/192-organization-merge/` US6 — an archived duplicate goes with the Project it was merged into.
+        'projects',
       ].map((child) => ({ child, on_delete: 'c' })),
     );
   });

@@ -125,6 +125,8 @@ import {
   startValueRecalculation,
   type ValueRecalculationProducer,
 } from './workers/value-recalculation-worker.js';
+import { CRM_MERGE_PARTICIPATION_KEY, CrmOpportunityMergeParticipant } from './merge/organization-merge-participant.js';
+import { CRM_PROJECT_MERGE_PARTICIPATION_KEY, CrmProjectReferenceMergeParticipant } from './merge/project-merge-participant.js';
 import { CrmOpportunity } from './entities/crm-opportunity.entity.js';
 import { CrmOpportunityAttachment } from './entities/crm-opportunity-attachment.entity.js';
 import { CrmOpportunityValueChange } from './entities/crm-opportunity-value-change.entity.js';
@@ -1378,6 +1380,31 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin,
     });
   });
+
+  // `specs/192-organization-merge/` T062 — this module's part of an
+  // Organization merge: the loser's Opportunities follow the survivor through
+  // this module's own Command (`crm.opportunity.merge_reassign`). Registration
+  // only; never called while this module is off (its step is deferred).
+  ctx.merge.participate(
+    'organization',
+    CRM_MERGE_PARTICIPATION_KEY,
+    new CrmOpportunityMergeParticipant({
+      emFactory: () => ctx.cradle<CrmCradle>().emFactory(),
+      commandBus: { run: (command) => ctx.cradle<CrmCradle>().commandBus.run(command) },
+    }),
+  );
+  // `specs/192-organization-merge/` US6, T085 — this module's part of a Project
+  // merge: references naming the loser in Opportunities' texts name the
+  // survivor (`crm.opportunity_reference.merge_reassign`). Dropped by the
+  // composition where no module hosts Project merges.
+  ctx.merge.participate(
+    'project',
+    CRM_PROJECT_MERGE_PARTICIPATION_KEY,
+    new CrmProjectReferenceMergeParticipant({
+      emFactory: () => ctx.cradle<CrmCradle>().emFactory(),
+      commandBus: { run: (command) => ctx.cradle<CrmCradle>().commandBus.run(command) },
+    }),
+  );
 }
 
 /** What the value section reads from the container, beside {@link CrmCradle}. */

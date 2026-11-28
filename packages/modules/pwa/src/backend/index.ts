@@ -33,6 +33,7 @@ import { PushMessage } from './entities/push-message.entity.js';
 import { PushNotificationPreference } from './entities/push-notification-preference.entity.js';
 import { PushSubscription } from './entities/push-subscription.entity.js';
 import { PwaIconRendition } from './entities/pwa-icon-rendition.entity.js';
+import { PwaOrganizationMergeParticipant, type PwaMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `pwa` — and **there is no bridge any more**
@@ -122,6 +123,18 @@ export interface PwaCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T053 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): PwaMergeParticipantDeps => ctx.cradle<PwaMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'push',
+    new PwaOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   ctx.di.register({
     pwa: ctx
       .asFunction(({ emFactory, redis, pwaRunWorkers, commandBus }: PwaCradle): PwaModuleResult => {

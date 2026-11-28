@@ -26,6 +26,7 @@ import { registerComparisonsShareRoutes } from './routes.share.js';
 import { registerComparisonsAdminRoutes } from './routes.admin.js';
 import { ComparisonProduct } from './entities/comparison-product.entity.js';
 import { Comparison } from './entities/comparison.entity.js';
+import { ComparisonOrganizationMergeParticipant, type ComparisonMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `comparisons` — the module that made a whole service to throw it away
@@ -68,6 +69,18 @@ export interface ComparisonsCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T051 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): ComparisonMergeParticipantDeps => ctx.cradle<ComparisonMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'comparisons',
+    new ComparisonOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   ctx.di.providePort(
     'comparisonService',
     ctx

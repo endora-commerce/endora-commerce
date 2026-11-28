@@ -36,6 +36,7 @@ import { makeAdminPatchOrganizationCommand } from './admin-patch-organization.co
 import { makeChangeTaxIdCommand } from './change-tax-id.command.js';
 import { makeConvertToCompanyCommand } from './convert-to-company.command.js';
 import { makeCreateOrganizationCommand } from './create-organization.command.js';
+import { makeMergeStartCommand } from './merge-start.command.js';
 import { makeRegisterOrganizationCommand } from './register-organization.command.js';
 import { makeSetCustomFieldValuesCommand } from './set-custom-field-values.command.js';
 
@@ -110,14 +111,46 @@ function expectNamesOnly(entries: ReadonlyArray<Record<string, unknown>>): void 
 }
 
 describe('organizations declares six hookable actions (176 T028, FR-024; #1057)', () => {
-  it('lists the six refs in its manifest, for both phases', () => {
+  it('lists the seven refs in its manifest, for both phases', () => {
     expect(manifest.hookableActions).toEqual(
-      [ORG.create, ORG.register, ORG.adminPatch, ORG.setCustomFieldValues, ORG.convertToCompany, ORG.changeTaxId].map((ref) => ({
+      [
+        ORG.create,
+        ORG.register,
+        ORG.adminPatch,
+        ORG.setCustomFieldValues,
+        ORG.convertToCompany,
+        ORG.changeTaxId,
+        ORG.mergeStart,
+      ].map((ref) => ({
         action: ref.action,
         objectType: ref.objectType,
         phases: ['beforeCommit', 'afterCommit'],
       })),
     );
+  });
+});
+
+describe('organization.merge.start is hookable (`specs/192-organization-merge/` FR-061)', () => {
+  it('declares its data and outbox data, ids and a source code only', () => {
+    const command = makeMergeStartCommand(
+      { recordMerge: () => ({}) as never },
+      {
+        mergeId: '00000000-0000-4000-8000-000000192f01',
+        survivorId: ORG_ID,
+        loserId: '00000000-0000-4000-8000-000000192f02',
+        fieldChoices: { name: 'loser' },
+        customFieldChoices: {},
+        source: 'erp_connector',
+        participantCounts: {},
+      },
+    );
+    expectHookableCommand(command, ORG.mergeStart, { result: {} as never, sentinels: ['S176-'] });
+    expect(command.hookData?.({} as never)).toEqual({
+      mergeId: '00000000-0000-4000-8000-000000192f01',
+      survivorId: ORG_ID,
+      loserId: '00000000-0000-4000-8000-000000192f02',
+      source: 'erp_connector',
+    });
   });
 });
 

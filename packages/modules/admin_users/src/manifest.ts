@@ -278,6 +278,21 @@ export const manifest = defineModuleManifest({
       'Owns admin login, sessions and impersonation; switched off, no operator could sign in ' +
       'to the Admin UI at all — including to switch it back on.',
   },
+  /**
+   * `specs/192-organization-merge/` T057 — an impersonation reason is a security log entry: in an
+   * Organization merge it stays on the archived loser, as recorded (`participant-dispositions.md`
+   * §A). A participation of `kept` alone writes nothing, so it has no phase, no step and no
+   * participant.
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'impersonation-reasons',
+        references: [{ entity: 'ImpersonationReason', property: 'organizationId', disposition: 'kept' }],
+      },
+    ],
+  },
 });
 
 /**

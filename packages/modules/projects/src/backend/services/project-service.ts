@@ -21,6 +21,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { assertMergeWritable, mergeWriteRefusal } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { enterStage, todayIn } from '../domain/deadline.js';
 import { defaultLinearMoves, type StageMoveDef } from '../domain/stage-graph.js';
@@ -144,7 +145,29 @@ export async function lockProject(
 ): Promise<Project> {
   const project = await lockProjectRow(em, id);
   await access.assertVisibleUnderLock(em, id, rule);
+  assertNotMerging(project);
   return project;
+}
+
+/**
+ * `specs/192-organization-merge/` US6, FR-053, OQ-6 — a write naming a Project
+ * that is being merged away (`409 RECORD_MERGE_IN_PROGRESS`, outside its own
+ * merge's steps) or that was merged into another one (`409 PROJECT_MERGED`,
+ * with the survivor's id) is refused, never redirected. The platform's freeze
+ * set answers first; the row's own pointer answers for a process that has not
+ * heard of the merge yet.
+ */
+export function assertNotMerging(project: Pick<Project, 'id' | 'mergedIntoProjectId' | 'mergeId'>): void {
+  const refusal = mergeWriteRefusal('project', project.id);
+  if (refusal !== null) throw refusal;
+  if (project.mergedIntoProjectId) {
+    throw new HttpError(
+      409,
+      ERROR_CODES.PROJECT_MERGED,
+      'This project was merged into another one; make the change on the project it was merged into.',
+      { survivorId: project.mergedIntoProjectId, mergeId: project.mergeId ?? null },
+    );
+  }
 }
 
 /**
@@ -906,6 +929,9 @@ export class ProjectService {
               hookData: hooked,
               outboxData: hooked,
               run: async ({ em: tx }) => {
+                // `specs/192-organization-merge/` FR-047: SQL the flush guard cannot see.
+                assertMergeWritable('project', visible.id);
+                assertMergeWritable('organization', organizationId);
                 const inserted = (await tx.execute(
                   `insert into "project_organizations" ("project_id", "organization_id") values (?, ?)
                    on conflict do nothing returning "organization_id"`,

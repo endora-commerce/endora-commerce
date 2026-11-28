@@ -112,11 +112,15 @@ const SUBJECTS: readonly Subject[] = [
     // scope screen and the personal-to-company conversion, each with its own
     // route in the module's admin layer. Issue #1040 added the tax-ID
     // correction (`change-organization-tax-id`), targeting the details route.
+    // `specs/192-organization-merge/` FR-082 added the merge flow and the
+    // merges list (`merge-organizations`, `open-record-merges`).
     actions: [
       'change-organization-tax-id',
       'convert-personal-organization',
+      'merge-organizations',
       'new-organization',
       'open-organizations',
+      'open-record-merges',
       'open-registration-registry-lookup-settings',
       'open-tax-id-scope',
     ],

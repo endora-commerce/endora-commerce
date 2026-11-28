@@ -242,3 +242,9 @@ Korzysta z `orders` (rdzeń zamawiania), `carts`, `quote_requests`, `organizatio
 `payment_methods`, `delivery_methods`, `catalog`, `addresses` i `settings`. Moduł `orders` **nie**
 zależy od `quick_order`; zakup jednym kliknięciem dostaje `OrderService` przez leniwy getter
 podłączony przy kompozycji.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Organizacja, która zostaje, zachowuje własne ustawienia domyślne szybkiego zamówienia; jeśli ich
+nie ma, przejmuje ustawienia duplikatu. Zobacz *Scalanie zduplikowanych organizacji* w
+dokumentacji modułu Organizacje.

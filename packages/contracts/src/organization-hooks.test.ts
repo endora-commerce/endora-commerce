@@ -3,7 +3,7 @@ import { ORGANIZATION_HOOKABLE_ACTIONS } from './organization-hooks.js';
 import { toHookableActionDeclaration } from './command-hooks.js';
 
 describe('ORGANIZATION_HOOKABLE_ACTIONS (176 T021, FR-024)', () => {
-  it('declares the six Organization writes for both phases', () => {
+  it('declares the seven Organization writes for both phases', () => {
     expect(Object.values(ORGANIZATION_HOOKABLE_ACTIONS).map(toHookableActionDeclaration)).toEqual([
       { action: 'organization.create', objectType: 'organization', phases: ['beforeCommit', 'afterCommit'] },
       { action: 'organization.register', objectType: 'organization', phases: ['beforeCommit', 'afterCommit'] },
@@ -19,6 +19,8 @@ describe('ORGANIZATION_HOOKABLE_ACTIONS (176 T021, FR-024)', () => {
         phases: ['beforeCommit', 'afterCommit'],
       },
       { action: 'organization.tax_id.change', objectType: 'organization', phases: ['beforeCommit', 'afterCommit'] },
+      // `specs/192-organization-merge/` FR-061 — a deployment may veto a merge.
+      { action: 'organization.merge.start', objectType: 'organization', phases: ['beforeCommit', 'afterCommit'] },
     ]);
   });
 });

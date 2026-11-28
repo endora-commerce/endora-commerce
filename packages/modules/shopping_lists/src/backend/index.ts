@@ -7,6 +7,7 @@ import type {
   OrganizationPermissionPort,
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -15,6 +16,7 @@ import { shoppingListsModule, type ShoppingListsModuleOptions } from './plugin.j
 import { ShoppingListService } from './services/shopping-list-service.js';
 import { ShoppingListItem } from './entities/shopping-list-item.entity.js';
 import { ShoppingList } from './entities/shopping-list.entity.js';
+import { ShoppingListOrganizationMergeParticipant } from './merge/organization-merge-participant.js';
 
 /**
  * `shopping_lists` — six optional options that decided which routes exist
@@ -147,6 +149,17 @@ export function registerModule(ctx: ModuleContext): void {
       .cradle<ShoppingListsCradle>()
       .shoppingListService.ensureDefault({ customerAccountId, organizationId });
   });
+
+  // `specs/192-organization-merge/` T051 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  ctx.merge.participate(
+    'organization',
+    'shopping-lists',
+    new ShoppingListOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<ShoppingListsCradle>().emFactory(),
+      commandBus: { run: (command) => ctx.cradle<{ commandBus: CommandBus }>().commandBus.run(command) },
+    }),
+  );
 
   ctx.routes(async (app) => {
     await ctx.cradle<ShoppingListsCradle>().shoppingLists(app);

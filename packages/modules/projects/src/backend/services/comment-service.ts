@@ -12,6 +12,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { mergeWriteRefusal } from '@endora-commerce/platform/tenancy';
 import { isDeepStrictEqual } from 'util';
 import { NOTE_CURSOR_INSTANT_SQL, encodeNoteCursor, noteListBounds } from '../domain/note-page.js';
 import { ProjectComment } from '../entities/project-comment.entity.js';
@@ -218,6 +219,13 @@ export class ProjectCommentService {
     const project = await this.deps.access.loadVisible(projectId);
     if (!isUuid(throughMessageId)) throw commentNotFound();
     const em = this.deps.emFactory();
+    // `specs/192-organization-merge/` FR-047: SQL the flush guard cannot see.
+    // A read marker is view state, so a Project being merged or merged away
+    // records none rather than refusing the reader: the merge moves markers
+    // once, and one written behind it would name the archived Project.
+    if (mergeWriteRefusal('project', project.id) !== null) {
+      return { unreadMessageCount: await this.#unreadCount(project.id, reader) };
+    }
     // command-coverage-ignore: a per-administrator read marker — view state of
     // the person reading, not an audited change to the Project (CRM's rule,
     // and `admin_notifications`' for a bell entry's read state).

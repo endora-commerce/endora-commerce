@@ -97,6 +97,26 @@ export type OrganizationTaxIdChangeOutbox = {
 };
 
 /**
+ * `organization.merge.start` (`specs/192-organization-merge/` FR-061): a
+ * deployment may veto a merge before it starts (`beforeCommit`) or start its
+ * own work after it (`afterCommit`, through the outbox). Ids and the source
+ * code only — the field choices are the merge record's.
+ */
+export interface OrganizationMergeStartHookData {
+  readonly mergeId: string;
+  readonly survivorId: string;
+  readonly loserId: string;
+  readonly source: string | null;
+}
+export type OrganizationMergeStartOutbox = {
+  readonly organizationId: string;
+  readonly mergeId: string;
+  readonly survivorId: string;
+  readonly loserId: string;
+  readonly source: string | null;
+};
+
+/**
  * The refs a hook author registers against (`ctx.commandHooks([{ on: ORG.create, … }])`)
  * and the `organizations` manifest lists. All six offer both phases; the
  * `afterCommit` delivery is the transactional outbox (P3).
@@ -129,6 +149,11 @@ export const ORGANIZATION_HOOKABLE_ACTIONS = {
   ),
   changeTaxId: hookableAction<OrganizationTaxIdChangeHookData, OrganizationTaxIdChangeOutbox>(
     'organization.tax_id.change',
+    'organization',
+    ['beforeCommit', 'afterCommit'],
+  ),
+  mergeStart: hookableAction<OrganizationMergeStartHookData, OrganizationMergeStartOutbox>(
+    'organization.merge.start',
     'organization',
     ['beforeCommit', 'afterCommit'],
   ),

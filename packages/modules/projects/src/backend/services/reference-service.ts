@@ -56,14 +56,17 @@ export interface ProjectReferenceServiceDeps {
   quoteRequests: Pick<LinkedRecordOwners, 'isPresent' | 'findMany'>;
   /** The one door to `tasks` — asked `present()` first. */
   tasks: Pick<ProjectTasks, 'present' | 'read'>;
-  /** This module's own Projects the reader may see (`specs/165-task-management/` R-5). */
-  projects: Pick<ProjectAccess, 'findVisibleMany'>;
+  /**
+   * This module's own Projects the reader may see (`specs/165-task-management/` R-5),
+   * and the survivor each merged-away Project resolves to (`specs/192-organization-merge/` FR-093).
+   */
+  projects: Pick<ProjectAccess, 'findVisibleMany' | 'mergedInto'>;
   /** Whether the reader may read each kind of target in the module that owns it. */
   mayRead: Pick<OwnerReadChecks, 'orders' | 'products' | 'quoteRequests' | 'tasks' | 'opportunities'>;
 }
 
 /** Where a chip leads. A person leads nowhere: an administrator's screen is `admin_users`'. */
-function adminUrl(token: RecordReferenceToken): string | null {
+export function adminUrl(token: RecordReferenceToken): string | null {
   switch (token.type) {
     case 'admin_user':
       return null;
@@ -152,11 +155,18 @@ export class ProjectReferenceService {
     ]);
     // An Opportunity through `crm`'s port with `crm:read`; a Project is this
     // module's own, read through `ProjectAccess` — one the reader may not see is absent.
+    // A Project merged into another one renders as its survivor (FR-093): the
+    // token is never rewritten, it is resolved here.
+    const survivorOf =
+      projectIds.length > 0 ? await this.deps.projects.mergedInto(projectIds) : new Map<string, string>();
+    const projectTarget = (id: string): string => survivorOf.get(id) ?? id;
     const [opportunities, projects] = await Promise.all([
       opportunitiesPresent && (await this.deps.mayRead.opportunities())
         ? this.deps.quoteRequests.findMany('opportunity', opportunityIds)
         : Promise.resolve(new Map()),
-      projectIds.length > 0 ? this.deps.projects.findVisibleMany(projectIds) : Promise.resolve([]),
+      projectIds.length > 0
+        ? this.deps.projects.findVisibleMany([...new Set(projectIds.map(projectTarget))])
+        : Promise.resolve([]),
     ]);
     const [products, orders, people, quoteRequests, tasks] = await Promise.all([
       mayReadProducts ? this.deps.products.findByIds(productIds, { liveOnly: true }) : Promise.resolve([]),
@@ -188,7 +198,11 @@ export class ProjectReferenceService {
     for (const view of quoteRequests.values()) labels.set(`quote_request:${view.id}`, view.number);
     for (const task of tasks) labels.set(`task:${task.id}`, task.number);
     for (const view of opportunities.values()) labels.set(`opportunity:${view.id}`, view.number);
-    for (const project of projects) labels.set(`project:${project.id}`, project.number);
+    const projectNumbers = new Map(projects.map((project) => [project.id, project.number]));
+    for (const id of projectIds) {
+      const number = projectNumbers.get(projectTarget(id));
+      if (number !== undefined) labels.set(`project:${id}`, number);
+    }
 
     return tokens.map((list) =>
       list.map((token): RecordReference => {
@@ -200,7 +214,7 @@ export class ProjectReferenceService {
           id: token.id,
           available: true,
           label,
-          url: adminUrl(token),
+          url: adminUrl(token.type === 'project' ? { type: 'project', id: projectTarget(token.id) } : token),
           ...(facts ? { order: facts } : {}),
         };
       }),

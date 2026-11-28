@@ -256,6 +256,13 @@ export const ERROR_CODES = {
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',
   // Feature 056 — a re-parent would create a cycle or exceed the depth bound.
   ORGANIZATION_TREE_INVALID: 'ORGANIZATION_TREE_INVALID',
+  // `specs/192-organization-merge/` — the Organization host's merge refusals
+  // (data-model §6): a personal Organization (D-299), a tree pair that may not
+  // merge (`details.code` = `ancestor` | `different_trees`), and a write naming
+  // an archived loser (`details.survivorId`).
+  ORGANIZATION_MERGE_PERSONAL: 'ORGANIZATION_MERGE_PERSONAL',
+  ORGANIZATION_MERGE_TREE_INVALID: 'ORGANIZATION_MERGE_TREE_INVALID',
+  ORGANIZATION_MERGED: 'ORGANIZATION_MERGED',
   // Issue #629 (#86) — a personal (B2C) organization is single-member, so the
   // action is refused (422, `details.code` = `add_member` | `invite` |
   // `sales_rep`, `details.organizationId`).
@@ -896,6 +903,20 @@ export const ERROR_CODES = {
   /** A retry of a command outbox row that is not dead (176 P4): only a failed delivery can be retried. */
   COMMAND_OUTBOX_NOT_DEAD: 'COMMAND_OUTBOX_NOT_DEAD',
 
+  // Record merge (`specs/192-organization-merge/` data-model §6) — the
+  // platform's merge mechanism, shared by every host type; `record-merge.ts`
+  // documents each.
+  RECORD_MERGE_SAME_RECORD: 'RECORD_MERGE_SAME_RECORD',
+  RECORD_MERGE_RECORD_UNAVAILABLE: 'RECORD_MERGE_RECORD_UNAVAILABLE',
+  RECORD_MERGE_ALREADY_RUNNING: 'RECORD_MERGE_ALREADY_RUNNING',
+  RECORD_MERGE_PARTICIPATION_INCOMPLETE: 'RECORD_MERGE_PARTICIPATION_INCOMPLETE',
+  RECORD_MERGE_PARTICIPANT_CONFLICT: 'RECORD_MERGE_PARTICIPANT_CONFLICT',
+  RECORD_MERGE_BUSY: 'RECORD_MERGE_BUSY',
+  RECORD_MERGE_IN_PROGRESS: 'RECORD_MERGE_IN_PROGRESS',
+  RECORD_MERGE_NOT_CANCELLABLE: 'RECORD_MERGE_NOT_CANCELLABLE',
+  RECORD_MERGE_NOT_RESUMABLE: 'RECORD_MERGE_NOT_RESUMABLE',
+  RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED: 'RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED',
+  RECORD_MERGE_RESIDUE: 'RECORD_MERGE_RESIDUE',
   // Command middleware (`specs/189-command-middleware/` FR-060) — the Command
   // Bus's answers when an admission rule cannot decide, or a middleware runs a
   // Command. A contributor's own refusal codes are its module's.
@@ -1345,6 +1366,18 @@ export const ERROR_CODES = {
   PROJECT_HAS_LINKS: 'PROJECT_HAS_LINKS',
   /** A saved Projects list view name its owner already uses, case-insensitively (#1734). */
   PROJECT_SAVED_VIEW_NAME_TAKEN: 'PROJECT_SAVED_VIEW_NAME_TAKEN',
+  /**
+   * `specs/192-organization-merge/` US6 (OQ-6) — a write names a Project merged
+   * into another one; `details.survivorId`, `details.mergeId`. Refused, never
+   * redirected.
+   */
+  PROJECT_MERGED: 'PROJECT_MERGED',
+  /**
+   * `specs/192-organization-merge/` FR-090 — a Project merge start that does
+   * not confirm every Organization the survivor gains from the duplicate;
+   * `details.organizationIds` (422).
+   */
+  PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED: 'PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED',
   /** An Organization outside the caller's reach, or one that does not exist — indistinguishable. */
   PROJECT_ORGANIZATION_OUT_OF_SCOPE: 'PROJECT_ORGANIZATION_OUT_OF_SCOPE',
   /** The Stage the Project is in cannot be deleted. */

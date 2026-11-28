@@ -332,3 +332,8 @@ Nothing is deleted. Forms, versions, entries, notes and settings are kept, and e
 back when you switch the module on again — the e-mails that were waiting are sent then, and
 the first run of the background job applies the retention periods and the customer
 anonymisations that happened in the meantime.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Entries submitted by the duplicate's members move to the organization that stays. See *Merging
+duplicate organizations* in the Organizations documentation.

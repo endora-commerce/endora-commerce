@@ -123,3 +123,9 @@ przenoszenia zgłasza je w raporcie pominiętych.
   które automatycznie archiwizują nieaktualne listy.
 - **Przenoszenie wyłącznie do zapytania ofertowego** — przeniesienie już zwraca identyfikator
   zapytania; storefront może przekierować kupującego do szkicu, aby przed wysłaniem dodał notatkę.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Listy zakupowe przechodzą do organizacji, która zostaje. Przeniesiona lista domyślna przestaje
+być domyślna, gdy jej właściciel ma już tam listę domyślną. Zobacz *Scalanie zduplikowanych
+organizacji* w dokumentacji modułu Organizacje.

@@ -2679,3 +2679,9 @@ The admin's global search (the command palette, ⌘K / Ctrl+K) finds sales oppor
 | Description | no |
 
 A result shows the number and title, the organization and the status, and opens the opportunity. Opportunities appear for a role holding `crm:read`, within the admin's organization scope. While CRM is switched off they are not searched and are not offered on the configuration screen; their configuration is kept.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+The duplicate's opportunities move to the organization that stays. If the CRM module is switched
+off while the merge runs, its step is deferred and runs by itself once the module is switched on
+again. See *Merging duplicate organizations* in the Organizations documentation.

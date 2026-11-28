@@ -87,7 +87,7 @@ const RULE_SCOPED_READ_LEDGER: Readonly<Record<string, number>> = {
   'services/link-service.ts': 4,
   'services/loss-reason-service.ts': 1,
   'services/move-service.ts': 4,
-  'services/project-access.ts': 17,
+  'services/project-access.ts': 18,
   'services/project-asset-references.ts': 5,
   'services/project-audit-references.ts': 1,
   'services/project-read-service.ts': 29,

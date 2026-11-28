@@ -1,7 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { supportedLanguageOf, type ChannelMemberEntityType, isUuidShape } from '@endora-commerce/contracts';
+import {
+  ORGANIZATION_WEBHOOK_EVENT_TYPES,
+  supportedLanguageOf,
+  type ChannelMemberEntityType,
+  isUuidShape,
+  type WebhookEventRegistryPort,
+} from '@endora-commerce/contracts';
 import type {
   AddressServicePort,
   AdminI18nTranslatePort,
@@ -55,6 +61,7 @@ import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState, lazyEntityExtensionReads, lazyPort } from '@endora-commerce/platform/kernel';
 import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
 import type {
+  RecordMergeService,
   RequireAdminAnyFactory,
   RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
@@ -87,6 +94,11 @@ import { OrganizationRestrictionService } from './services/organization-restrict
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import { TaxIdScopeService } from './services/tax-id-scope-service.js';
 import { OrganizationCommandService } from './services/organization-command-port.js';
+import { OrganizationMergeHost } from './merge/organization-merge-host.js';
+import { OrganizationMergeService } from './merge/organization-merge-service.js';
+import { createOrganizationMergeNotifier } from './merge/organization-merge-notifier.js';
+import { adminDisplayNames, organizationNames } from './merge/organization-merge-names.js';
+import { registerOrganizationMergeRoutes } from './routes.merge.js';
 import { probeTaxIdScope } from './services/tax-id-scope-probe.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
 import {
@@ -376,6 +388,7 @@ export interface OrganizationsCradle {
   readonly organizationRoleCatalogue: OrganizationRoleCatalogue;
   readonly organizationRoleCache: OrganizationRoleCache;
   readonly organizationRoleService: OrganizationRoleService;
+  readonly organizationMergeService: OrganizationMergeService;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -995,10 +1008,102 @@ export function registerModule(ctx: ModuleContext): void {
           new OrganizationDetailsService(
             emFactory,
             lazyEntityExtensionReads(() => cradle().entityExtensionReads),
+            () => cradle().organizationMergeService,
           ),
       )
       .singleton(),
   );
+
+  // --- Organization merge (`specs/192-organization-merge/`) -----------------
+  //
+  // This module hosts the `organization` record type in the platform's merge
+  // mechanism: the operation (preview, start / cancel / resume Commands), the
+  // host's own structure and finalize phases, the archived loser and the
+  // merged event. Every other module moves its own rows in its own step; this
+  // module names none of them (Principle I). `recordMergeService` is the
+  // platform's, registered by the composition root.
+  const recordMerge = (): RecordMergeService => ctx.cradle<{ recordMergeService: RecordMergeService }>().recordMergeService;
+  const customFieldValues = (): CustomFieldValuePort => lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService');
+  ctx.di.register({
+    organizationMergeService: ctx
+      .asFunction(
+        ({ emFactory, commandBus }: OrganizationsCradle) =>
+          new OrganizationMergeService({ emFactory, commandBus, recordMerge, customFieldValues }),
+      )
+      .singleton(),
+  });
+  // `contracts/events-and-webhooks.md` §3 — the bell entries on `needs_attention`
+  // (holders of `organizations:merge` who reach both) and on completion (the
+  // administrator who started it). `admin_notifications` is asked for its
+  // presence first, inside the notifier.
+  const mergeNotifier = createOrganizationMergeNotifier({
+    isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+    notifications: () => lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort'),
+    merges: () => cradle().organizationMergeService,
+    names: (ids) => organizationNames(cradle().emFactory(), ids),
+    holders: async () => {
+      const admins = await lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort').listAll({ activeOnly: true });
+      const active = admins.filter((admin) => admin.status === 'active').map((admin) => admin.id);
+      if (active.length === 0) return [];
+      const holding = await cradle().permissionService.holdersOf(active, 'organizations:merge');
+      return active.filter((id) => holding.has(id));
+    },
+    reachingBoth: async (adminUserIds, survivorId, loserId) => {
+      const scopes = await lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort').resolveForAdmins(adminUserIds);
+      const reps = lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort');
+      const out: string[] = [];
+      for (const adminUserId of adminUserIds) {
+        const scope = scopes.get(adminUserId);
+        if (scope === undefined || ('unresolved' in scope && scope.unresolved !== undefined)) continue;
+        const reaches = scope.allowAll
+          ? true
+          : 'allowedOrganizationIds' in scope
+            ? scope.allowedOrganizationIds.includes(survivorId) && scope.allowedOrganizationIds.includes(loserId)
+            : (await reps.canSeeOrganization(adminUserId, survivorId)) && (await reps.canSeeOrganization(adminUserId, loserId));
+        if (reaches) out.push(adminUserId);
+      }
+      return out;
+    },
+  });
+  ctx.merge.host(
+    'organization',
+    new OrganizationMergeHost({
+      emFactory: () => cradle().emFactory(),
+      commandBus: { run: (command) => cradle().commandBus.run(command) },
+      recordMerge,
+      tree: () => cradle().organizationTreeService,
+      membership: () => lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+      customFieldValues,
+      roleCache: () => cradle().organizationRoleCache,
+      warn: (message, error) => ctx.log.warn({ err: error }, message),
+      notifier: () => mergeNotifier,
+    }),
+  );
+  ctx.routes(async (app) => {
+    await registerOrganizationMergeRoutes(app, {
+      emFactory: cradle().emFactory,
+      requireAdmin: (permission) => async (req, reply) => cradle().requireAdmin(permission)(req, reply),
+      requireAdminAny: (permissions) => async (req, reply) => cradle().requireAdminAny(permissions)(req, reply),
+      salesRepScope: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
+      merges: () => cradle().organizationMergeService,
+      // The names the merge screens show beside the ids (survivor, loser, and
+      // the administrator who started it), read here rather than by one
+      // request per row from the Admin UI.
+      organizationNames: (ids) => organizationNames(cradle().emFactory(), ids),
+      adminNames: (ids) => adminDisplayNames(lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'), ids),
+    });
+  });
+  /**
+   * `organization.merged.v1` offered for outbound webhook delivery — the first
+   * Organization webhook type (`contracts/events-and-webhooks.md` §2). A push
+   * from a contribution-only boot hook, as `forms` does; nothing is read back.
+   */
+  ctx.onBoot(() => {
+    const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+    for (const eventType of ORGANIZATION_WEBHOOK_EVENT_TYPES) {
+      registry.register({ ownerModuleId: 'organizations', eventType });
+    }
+  });
 
   /**
    * The server-side custom-field write — for a subscriber on

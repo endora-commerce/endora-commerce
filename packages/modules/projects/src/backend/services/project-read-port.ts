@@ -5,6 +5,8 @@ import {
   type WithEntityExtensions,
   type ProjectNotePage,
   type ProjectNoteQuery,
+  type ProjectMergePreview,
+  type ProjectMergeRecord,
   type ProjectRecord,
   type ProjectReadPort,
   type ProjectRecordKind,
@@ -12,16 +14,19 @@ import {
 } from '@endora-commerce/contracts';
 import { lazyEntityExtensionReads, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import type { ProjectCommentService } from './comment-service.js';
-import type { ProjectAccess, VisibleProjectRow } from './project-access.js';
+import type { ProjectMergeService } from '../merge/project-merge-service.js';
+import { projectNotFound, type ProjectAccess, type VisibleProjectRow } from './project-access.js';
 import type { ProjectReadService } from './project-read-service.js';
 import type { RecordProjectService } from './record-project-service.js';
 
 export interface ProjectReadPortDeps {
-  access: Pick<ProjectAccess, 'findVisible' | 'findVisibleMany' | 'searchVisible'>;
+  access: Pick<ProjectAccess, 'findVisible' | 'findVisibleMany' | 'searchVisible' | 'visibleIds'>;
   read: Pick<ProjectReadService, 'summary'>;
   records: Pick<RecordProjectService, 'findByRecord'>;
   /** The notes listing — the comment service's, which owns the table (issue #1905). */
   notes: Pick<ProjectCommentService, 'listNotes'>;
+  /** The Project merge (`specs/192-organization-merge/` US6), resolved per call. */
+  merges: () => Pick<ProjectMergeService, 'preview' | 'resolveMerged' | 'get'>;
   /**
    * `specs/187-side-table-extensions/` FR-058 — the kernel's
    * `entityExtensionReads` and the entity manager a loader reads on, for
@@ -112,6 +117,30 @@ export class ProjectReadPortService implements ProjectReadPort {
     return attached ?? record;
   }
 
+  /**
+   * `specs/192-organization-merge/` FR-002, FR-062 — the merge preview, for
+   * two Projects the caller sees (`404 PROJECT_NOT_FOUND` otherwise, as for a
+   * missing one). Writes nothing.
+   */
+  async previewMerge(survivorId: string, input: { readonly loserId: string }): Promise<ProjectMergePreview> {
+    const visible = await this.deps.access.visibleIds([survivorId, input.loserId]);
+    if (!visible.has(survivorId) || !visible.has(input.loserId)) throw projectNotFound();
+    return this.deps.merges().preview(survivorId, input.loserId);
+  }
+
+  /** FR-093 — the survivor's id for a merged Project, else the id itself. */
+  resolveMerged(id: string): Promise<string> {
+    return this.deps.merges().resolveMerged(id);
+  }
+
+  /** One Project merge, or `null` — also when the caller does not see both Projects. */
+  async getMerge(mergeId: string): Promise<ProjectMergeRecord | null> {
+    const merge = await this.deps.merges().get(mergeId);
+    if (merge === null) return null;
+    const visible = await this.deps.access.visibleIds([merge.survivorId, merge.loserId]);
+    return visible.has(merge.survivorId) && visible.has(merge.loserId) ? merge : null;
+  }
+
   #record(row: VisibleProjectRow): Promise<ProjectRecord> {
     return projectRecordOf(row, this.deps.read);
   }
@@ -146,5 +175,8 @@ export async function projectRecordOf(
     customFieldValues: { ...(row.custom_field_values ?? {}) },
     version: row.version,
     configurationVersion: row.configuration_version,
+    mergedIntoProjectId: row.merged_into_project_id ?? null,
+    mergedAt: row.merged_at ? new Date(row.merged_at) : null,
+    mergeId: row.merge_id ?? null,
   };
 }

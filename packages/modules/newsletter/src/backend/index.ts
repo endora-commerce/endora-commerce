@@ -27,6 +27,7 @@ import { NewsletterSubscriberTag } from './entities/newsletter-subscriber-tag.en
 import { NewsletterSubscriber } from './entities/newsletter-subscriber.entity.js';
 import { NewsletterSuppression } from './entities/newsletter-suppression.entity.js';
 import { NewsletterTag } from './entities/newsletter-tag.entity.js';
+import { NewsletterSubscriberOrganizationMergeParticipant, type NewsletterSubscriberMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `newsletter` — the module whose secret the harness pins (feature 072, wave 2,
@@ -117,6 +118,18 @@ export interface NewsletterCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T052 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): NewsletterSubscriberMergeParticipantDeps => ctx.cradle<NewsletterSubscriberMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'subscribers',
+    new NewsletterSubscriberOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   ctx.di.register({
     // Contribution point, absent by default: no branding source, neutral email.
     newsletterEmailBranding: ctx

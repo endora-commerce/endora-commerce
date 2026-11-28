@@ -155,4 +155,30 @@ export const manifest = defineModuleManifest({
     { code: 'CREDIT_LIMIT_NOT_GRANTED' },
     { code: 'LIMIT_INSUFFICIENT' },
   ],
+  /**
+   * `specs/192-organization-merge/` T046 (OQ-8) — an Organization merge keeps
+   * the survivor's credit limit, or gives it the loser's when it has none, in
+   * the `configuration` phase; the loser's reservations and return top-ups
+   * follow the survivor in `records`, which may exceed its limit — the preview
+   * warns (`contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'credit-limit',
+        phase: 'configuration',
+        references: [{ entity: 'CreditLimit', property: 'organizationId', disposition: 'survivor_wins_fill_gaps' }],
+      },
+      {
+        host: 'organization',
+        key: 'credit-exposure',
+        phase: 'records',
+        references: [
+          { entity: 'CreditLimitReservation', property: 'reservingOrganizationId', disposition: 're_point' },
+          { entity: 'CreditLimitReturnTopup', property: 'organizationId', disposition: 're_point' },
+        ],
+      },
+    ],
+  },
 });

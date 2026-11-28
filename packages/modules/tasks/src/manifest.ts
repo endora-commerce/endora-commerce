@@ -427,4 +427,35 @@ export const manifest = defineModuleManifest({
   // (`@endora-commerce/demo-composition`, `tasks.ts` and `projects.ts`), not
   // this module's demo body (`specs/165-task-management/` research R-23).
   demo: false,
+  /**
+   * `specs/192-organization-merge/` US6, T084 (`contracts/participant-dispositions.md`
+   * §B) — a Project merged into another one: its Tasks move to the survivor's
+   * context with their Stage dropped (FR-092), and references to it in Tasks'
+   * texts name the survivor (FR-093), in the `records` phase, through
+   * `task.merge_move_context`. Both columns hold a Project only under the
+   * `project` context or reference type, so they are declared polymorphic.
+   */
+  merge: {
+    participates: [
+      {
+        host: 'project',
+        key: 'project-tasks',
+        phase: 'records',
+        references: [
+          {
+            entity: 'Task',
+            property: 'contextId',
+            polymorphic: { discriminator: 'contextType', value: 'project' },
+            disposition: 're_point',
+          },
+          {
+            entity: 'TaskReference',
+            property: 'targetId',
+            polymorphic: { discriminator: 'targetType', value: 'project' },
+            disposition: 're_point',
+          },
+        ],
+      },
+    ],
+  },
 });

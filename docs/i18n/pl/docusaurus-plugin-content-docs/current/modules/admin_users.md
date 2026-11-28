@@ -514,3 +514,8 @@ wieloznaczny `*` daje każde uprawnienie; lista, która go zawiera, jest zapisyw
 - **Własne etapy logowania** — miejsce przed weryfikacją hasła w `admin-auth-service.ts`.
 - **Odbiorcy audytu logowania jako klient** — każdy wpis audytu z akcją `impersonation.start|end`
   ma tę samą strukturę; raportowanie w dalszych systemach może łączyć dane właśnie po nich.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Powody personifikacji zapisane dla duplikatu pozostają takie, jak zostały zapisane: są historią.
+Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

@@ -49,6 +49,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `tasks` | nie | degrades-without `taskCommandPort` — projekty działają bez zadań: bez zakładki Zadania, bez zadań etapów i bez blokad zakończenia. |
 | `tasks` | nie | contributes-to `taskContextRegistry` |
 | `tasks` | nie | degrades-without `taskReadPort` — projekty działają bez zadań: bez zakładki Zadania, bez zadań etapów i bez blokad zakończenia. |
+| `webhooks` | nie | contributes-to `webhookEventRegistry` |
 
 ## Uprawnienia
 
@@ -56,6 +57,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | --- | --- | --- |
 | `projects:analytics` | View project analytics | `projects:read` |
 | `projects:configure` | Configure projects (roles, templates, loss reasons) | `projects:read` |
+| `projects:merge` | Merge duplicate projects | `projects:write` |
 | `projects:read` | View projects | — |
 | `projects:see_all` | See every project regardless of visibility | `projects:read` |
 | `projects:write` | Create and run projects | `projects:read` |
@@ -64,9 +66,11 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
+| `merge-projects` | `/projects/merge` | `projects:merge` |
 | `new-project` | `/projects/new` | `projects:write` |
 | `open-project-analytics` | `/projects/analytics` | `projects:analytics` |
 | `open-project-loss-reasons` | `/projects/settings/loss-reasons` | `projects:configure` |
+| `open-project-merges` | `/projects/merges` | `projects:merge` |
 | `open-project-roles` | `/projects/settings/roles` | `projects:configure` |
 | `open-project-templates` | `/projects/settings` | `projects:configure` |
 | `open-projects` | `/projects` | `projects:read` |

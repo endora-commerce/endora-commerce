@@ -161,9 +161,11 @@ const afterCommitEntry = (ref: (typeof ACCOUNTS)[keyof typeof ACCOUNTS]): Comman
 const toRecord = (account: CustomerAccount): CustomerAccountRecord => toCustomerAccountRecord(account, true);
 
 describe('customer_accounts declares three hookable actions (193 FR-110, FR-114)', () => {
-  it('lists the three refs in its manifest, for both phases', () => {
+  it('lists the three refs in its manifest, for both phases, beside the membership move', () => {
+    // `changeOrganization` (`specs/192-organization-merge/` T069) is the fourth
+    // declaration; its own tests sit with the membership Command.
     expect(manifest.hookableActions).toEqual(
-      [ACCOUNTS.create, ACCOUNTS.updateProfile, ACCOUNTS.customFieldsUpdate].map((ref) => ({
+      [ACCOUNTS.create, ACCOUNTS.updateProfile, ACCOUNTS.customFieldsUpdate, ACCOUNTS.changeOrganization].map((ref) => ({
         action: ref.action,
         objectType: ref.objectType,
         phases: ['beforeCommit', 'afterCommit'],
@@ -418,7 +420,9 @@ describe('none of the three is reversible (176 R-20; 193 hookable-writers.md §4
 
   it('each Command returns a result and audit states only, and no revert state', async () => {
     const ran = await outcomes();
-    expect(ran.map((entry) => entry.action)).toEqual(Object.values(ACCOUNTS).map((ref) => ref.action));
+    expect(ran.map((entry) => entry.action)).toEqual(
+      [ACCOUNTS.create, ACCOUNTS.updateProfile, ACCOUNTS.customFieldsUpdate].map((ref) => ref.action),
+    );
     for (const { action, outcome } of ran) {
       expect(Object.keys(outcome).filter((key) => !OUTCOME_KEYS.has(key as keyof CommandOutcome<unknown>)), action).toEqual(
         [],

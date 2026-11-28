@@ -66,6 +66,11 @@ import { createInvoiceDocumentType, INVOICE_RENDER_LANGUAGE } from './document/i
 import type { InvoicesTranslate } from './invoices-prose.js';
 import { GRANT_DONE_SETTING, grantDocumentTemplatesAccess } from './document/document-templates-grant.js';
 import { Invoice } from './entities/invoice.entity.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import {
+  INVOICES_MERGE_PARTICIPATION_KEY,
+  InvoiceOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `invoices` — a document module with a late-bound verifier (feature 072,
@@ -116,6 +121,7 @@ import { Invoice } from './entities/invoice.entity.js';
  */
 
 export interface InvoicesCradle {
+  readonly commandBus: CommandBus;
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly auditLogService: AuditPort;
@@ -586,6 +592,20 @@ export function registerModule(ctx: ModuleContext): void {
     }
   });
 
+  /**
+   * `specs/192-organization-merge/` T044 — this module's part of an
+   * Organization merge: the loser's invoices move to the survivor in the
+   * `records` phase, through `invoice.merge_reassign`; the issued documents are
+   * not touched (FR-043). Registration only; the platform's runner calls it.
+   */
+  ctx.merge.participate(
+    'organization',
+    INVOICES_MERGE_PARTICIPATION_KEY,
+    new InvoiceOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<InvoicesCradle>().emFactory(),
+      commandBus: () => ctx.cradle<InvoicesCradle>().commandBus,
+    }),
+  );
 }
 
 /**

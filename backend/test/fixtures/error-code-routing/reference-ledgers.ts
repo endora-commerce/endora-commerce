@@ -277,6 +277,90 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'while a hook would run. A 500: the owner broke its own published contract. The raiser is ' +
       'the Command Bus.',
   },
+  RECORD_MERGE_SAME_RECORD: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a merge naming one record as both survivor and loser (422). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_RECORD_UNAVAILABLE: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a merge of a record that is deleted, already merged or, as the survivor, rejected (409). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_ALREADY_RUNNING: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a start over a record another running merge holds a lock on (409). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_PARTICIPATION_INCOMPLETE: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a start while an effectively present module holds an undeclared reference to the host (409, the runtime twin of `check:merge-participation`). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_PARTICIPANT_CONFLICT: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a start a participant reports an unresolvable conflict for (409). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_BUSY: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a start while a participant has business in flight for the loser (409, retryable; the `orders` participant today). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_IN_PROGRESS: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a write naming the frozen loser of a running merge (409). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_NOT_CANCELLABLE: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a cancel after a step started (409). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_NOT_RESUMABLE: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a resume of a merge that does not need attention (409). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a start without the irreversible acknowledgement (422). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  RECORD_MERGE_RESIDUE: {
+    to: '_i18n',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a merge stopped because finalize still found rows naming the loser (recorded on the merge). The raiser is the ' +
+      'platform record-merge mechanism, shared by every host type.',
+  },
+  ORGANIZATION_MERGE_PERSONAL: {
+    to: 'organizations',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a merge involving a personal (B2C) Organization (409, D-299 OQ-1). The noun is the ' +
+      'Organization, and the raise sites are the merge rules and the reach guard of `organizations`.',
+  },
+  ORGANIZATION_MERGE_TREE_INVALID: {
+    to: 'organizations',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a merge of a tree pair that may not merge, the loser above the survivor or non-roots of two trees (409, D-299 OQ-3). The noun is the ' +
+      'Organization, and the raise sites are the merge rules and the reach guard of `organizations`.',
+  },
+  ORGANIZATION_MERGED: {
+    to: 'organizations',
+    reason:
+      'Minted by `specs/192-organization-merge/` (data-model §6) for a write naming an archived (merged) Organization, carrying the id of the one it was merged into (409). The noun is the ' +
+      'Organization, and the raise sites are the merge rules and the reach guard of `organizations`.',
+  },
   // `specs/189-command-middleware/` P1 — the Command Bus's answers when an
   // admission rule cannot decide, or a middleware runs a Command.
   COMMAND_ADMISSION_TIMEOUT: {
@@ -836,6 +920,20 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
     reason:
       'Minted with saved views on the Projects list (issue #1734): a saved view of the list named as one ' +
       'its owner already has, case-insensitively. One raise site, `ProjectListViewService`.',
+  },
+  PROJECT_MERGED: {
+    to: 'projects',
+    reason:
+      'Minted by `specs/192-organization-merge/` US6 (data-model §6) for a write naming an archived (merged) Project, ' +
+      'carrying the id of the one it was merged into (409, OQ-6). The noun is the Project; the raise sites are ' +
+      '`lockProject` of `projects` and the platform merge freeze, whose host code it is.',
+  },
+  PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED: {
+    to: 'projects',
+    reason:
+      'Minted by `specs/192-organization-merge/` FR-090 (owner decision C) for a Project merge start that does not ' +
+      'confirm every Organization the survivor gains from the duplicate (422). The noun is the Project merge; the one ' +
+      'raise site is `ProjectMergeService.start` of `projects`.',
   },
   TASK_VIEW_NAME_TAKEN: {
     to: 'tasks',
@@ -3499,6 +3597,72 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
     reason:
       'A Command declared hookable that supplied no hook data. The refusal is the Command Bus\'s, ' +
       'raised for whichever owner declared the action, so no one module owns it.',
+  },
+  RECORD_MERGE_SAME_RECORD: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a merge naming one record as both survivor and loser (422). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_RECORD_UNAVAILABLE: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a merge of a record that is deleted, already merged or, as the survivor, rejected (409). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_ALREADY_RUNNING: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a start over a record another running merge holds a lock on (409). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_PARTICIPATION_INCOMPLETE: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a start while an effectively present module holds an undeclared reference to the host (409, the runtime twin of `check:merge-participation`). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_PARTICIPANT_CONFLICT: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a start a participant reports an unresolvable conflict for (409). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_BUSY: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a start while a participant has business in flight for the loser — an unsettled placement intent or a pending gateway payment (409, retryable). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_IN_PROGRESS: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a write naming the frozen loser of a running merge (409). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_NOT_CANCELLABLE: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a cancel after a step started (409). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_NOT_RESUMABLE: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a resume of a merge that does not need attention (409). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a start without the irreversible acknowledgement (422). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
+  },
+  RECORD_MERGE_RESIDUE: {
+    tier: 'T3',
+    reason:
+      'A record-merge refusal: a merge stopped because finalize still found rows naming the loser (recorded on the merge). The noun is a record merge, which the platform runs for ' +
+      'every host type (`organizations` today, `projects` next), so no host module may own it.',
   },
   // `specs/189-command-middleware/` P1 — command middleware is a step of the
   // platform's Command Bus, which no module owns.

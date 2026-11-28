@@ -30,5 +30,7 @@
   "organizationPanel.overdrawn": "Rezerwacje przekraczają limit o {amount}. Nowe zamówienia z płatnością odroczoną są odrzucane.",
   "settingLabels.credit_limits.enabled.name": "Limity kredytowe włączone",
   "module.name": "Limity kredytowe",
-  "module.description": "Limity kredytowe organizacji i ich sprawdzanie przy składaniu zamówienia."
+  "module.description": "Limity kredytowe organizacji i ich sprawdzanie przy składaniu zamówienia.",
+  "merge.participation.credit-limit": "limit kredytowy",
+  "merge.participation.credit-exposure": "wykorzystanie limitu"
 }

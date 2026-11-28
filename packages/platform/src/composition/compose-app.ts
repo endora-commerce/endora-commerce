@@ -113,6 +113,9 @@ import {
   buyerSelfServiceActionsFrom,
 } from '../kernel/lifecycle/command-hook-inputs.js';
 import { platformLogger } from '../kernel/logging.js';
+import { RecordMergeRegistry } from '../kernel/merge/registry.js';
+import { mergeDeclarationsFrom } from '../kernel/merge/declarations.js';
+import { createRecordMergeRuntime } from '../kernel/merge/runtime.js';
 import {
   activeSchemaExtensionContext,
   activeSchemaExtensions,
@@ -778,6 +781,25 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     middleware: commandMiddlewareRegistry,
   });
 
+  // `specs/192-organization-merge/` — the record merge: the registry every
+  // module's `ctx.merge` registers into (sealed by `composeModules` below), and
+  // the runtime around it — the service hosts call, the runner, its queue on
+  // this process's Redis, and the frozen set the tenant seams read. Presence is
+  // the live effective state, asked per step, so a switched-off participant is
+  // deferred and caught up without a restart (D-299).
+  const recordMergeRegistry = new RecordMergeRegistry({
+    warn: (message) => platformLogger().warn({}, message),
+  });
+  const recordMergeRuntime = createRecordMergeRuntime({
+    orm,
+    emFactory: em,
+    registry: recordMergeRegistry,
+    isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+    onPresenceInstalled: (listener) => registryCache.onPresenceInstalled(listener),
+    redis,
+    log: platformLogger(),
+  });
+
   // Feature 060 — API interceptor registry. Modules register pre/post
   // interceptors against endpoints owned by other modules; execution is
   // lifecycle-gated per interceptor via the enabled-set cache predicate.
@@ -851,6 +873,10 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     commandHookRegistry,
     // 193 WP-B — so `_lifecycle` can serve the effective forms from it.
     formRegistry,
+    // `specs/192-organization-merge/` — what a merge host's Commands call, and the
+    // runtime `_lifecycle` starts the runner from.
+    recordMergeService: recordMergeRuntime.service,
+    recordMergeRuntime,
     // The resolved registry — core manifests plus this deployment's overlay
     // modules plus every installed package. `admin_roles` builds the permission
     // catalogue from it and cannot see it itself: which modules a deployment
@@ -1000,6 +1026,10 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       buyerSelfServiceActions: buyerSelfServiceActionsFrom(resolvedRegistry.map((entry) => entry.manifest)),
       commandHookOrder: options.commandHookOrder,
     },
+    // `specs/192-organization-merge/` — sealed at the end of the call, against
+    // the same manifest set.
+    mergeRegistry: recordMergeRegistry,
+    mergeDeclarations: mergeDeclarationsFrom(resolvedRegistry.map((entry) => entry.manifest)),
     // 189 P1 — sealed after the hook registry, against the same manifest set;
     // the composer adds each entry's origin.
     commandMiddlewareRegistry,
@@ -1015,6 +1045,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     formRegistry,
     forms: formDeclarationsFrom(resolvedRegistry.map((entry) => entry.manifest), options.formOverrideGrants),
   });
+
+  // The frozen and archived sets, before the first request can ask them, and
+  // their refresh on the merge channel (R-6). Never fatal: a set that failed
+  // to load is retried by the periodic reload.
+  await enterSystemScope('boot: load record merges', () => recordMergeRuntime.loadFreeze(), { entryPoint: 'boot' });
+  await recordMergeRuntime.watch(redisSubscriber);
 
   const composedContext: ComposedAppContext = {
     orm,
@@ -1598,6 +1634,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       await escapeHatchAudit.detach();
       // The wake-up's producer queue shares `redis`; close it first.
       await commandOutboxWake.close();
+      await recordMergeRuntime.close();
       redis.disconnect();
       redisSubscriber.disconnect();
       await ormLifecycle.close();

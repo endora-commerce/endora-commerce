@@ -396,6 +396,20 @@ export const manifest = defineModuleManifest({
       weight: 234,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T051 — in an Organization merge the loser's back-in-stock
+   * notification requests move to the survivor (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'availability-notifications',
+        phase: 'records',
+        references: [{ entity: 'AvailabilityNotification', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });
 
 /** Legacy export retained for backward compatibility. */

@@ -475,6 +475,7 @@ sprzed wyłączenia.
 | `projects:see_all` | Wgląd we wszystkie projekty w granicach swojego dostępu, niezależnie od ustawienia modułu i wyboru samego projektu (zob. *Kto widzi projekt*). Wymaga `projects:read`; nigdy nie poszerza dostępu do organizacji. |
 | `projects:configure` | Tworzenie, edycja, duplikowanie, archiwizacja i przywracanie szablonów; dodawanie, zmiana nazwy, archiwizacja, przywracanie i usuwanie ról projektowych i powodów utraty. Wymaga `projects:read`; każdy, kto może przeglądać projekty, może odczytać szablony, role i powody utraty, aby użyć ich w projekcie. |
 | `projects:analytics` | Przeglądanie analityki projektów (zob. *Analityka*) — każdy wskaźnik liczony spośród projektów, które możesz zobaczyć. Wymaga `projects:read`. |
+| `projects:merge` | Scalanie zduplikowanego projektu z innym oraz wznawianie i anulowanie takiego scalania (zob. *Scalanie zduplikowanych projektów*). Musisz też widzieć oba projekty i mieć `projects:write`. Wymaga `projects:write`; nie ma go żadna predefiniowana rola. |
 
 Rola projektowa nie jest jednym z tych uprawnień: jej pełnienie nie nadaje
 żadnego uprawnienia (zob. *Role projektowe*).
@@ -727,6 +728,57 @@ oznacza te same dni, za które liczone są wskaźniki.
 
 Gdy moduł Projekty jest wyłączony, ekranu i jego pozycji w menu bocznym nie
 ma, a wskaźniki nie są udostępniane.
+
+## Scalanie zduplikowanych projektów
+
+Gdy dwóch handlowców otworzyło ten sam przetarg jako dwa projekty, scal
+duplikat z projektem, który zostaje. Otwórz projekt, który zostaje, i wybierz
+**Scal duplikat…** albo użyj akcji **Scal projekty** w palecie poleceń
+(⌘K / CTRL+K) i najpierw wybierz projekt do zachowania. Potrzebujesz
+uprawnienia **Scalanie zduplikowanych projektów** (`projects:merge`) i musisz
+widzieć oba projekty oraz móc je edytować.
+
+Scalanie ma trzy kroki:
+
+1. **Wybierz duplikat.** Lista pokazuje projekty, które widzisz, poza tym
+   projektem; projekt już scalony nigdy nie jest proponowany.
+2. **Przejrzyj i wybierz wartości.** Podgląd pokazuje, co przejdzie do
+   projektu, który zostaje, z podziałem na obszary — komentarze, załączniki,
+   powiązania, zadania, odwołania — oraz każdą różniącą się wartość: tytuł,
+   opis, wartość, datę rozpoczęcia i to, kto widzi projekt. Domyślnie wybrana
+   jest wartość projektu, który zostaje; pusta przyjmuje wartość duplikatu. Pola
+   niestandardowe są proponowane w ten sam sposób. Etapy, stan i przebieg
+   projektu, który zostaje, nigdy nie są proponowane: scalanie nie łączy dwóch
+   przebiegów.
+3. **Potwierdź.** Zaznacz, że scalenia nie można cofnąć, i rozpocznij je. Gdy
+   duplikat jest przypisany do organizacji, do których projekt, który zostaje,
+   nie jest, uzyskają one do niego dostęp — ich użytkownicy będą go widzieć.
+   Podgląd je wymienia, a ty potwierdzasz to osobno.
+
+Co dzieje się z rekordami duplikatu:
+
+| Rekordy | Co się dzieje |
+| --- | --- |
+| Komentarze (notatki i wiadomości) i ich odwołania | Przechodzą do projektu, który zostaje, i pojawiają się w jego wątku w kolejności napisania. Przeczytane wiadomości pozostają przeczytane. |
+| Załączniki | Przechodzą; plik, który projekt, który zostaje, już ma, nie jest dołączany drugi raz. |
+| Podpięte zamówienia, zapytania ofertowe i szanse sprzedaży | Przechodzą — dokument należy do jednego projektu. |
+| Organizacje, członkowie i osoby z dostępem | Dodawane do projektu, który zostaje, tam gdzie ich brakuje; osoba będąca członkiem obu zachowuje rolę z projektu, który zostaje. |
+| Zadania | Przechodzą do projektu, który zostaje, do jego etapu o tej samej nazwie; zadanie z etapu, którego tam nie ma, trafia do bieżącego etapu. |
+| Odwołania do duplikatu w tekstach innych projektów, zadań i szans sprzedaży | Prowadzą do projektu, który zostaje. Same teksty nie są zmieniane: wzmianka o duplikacie jest wyświetlana jako projekt, który zostaje. |
+| Etapy, historia etapów, przejścia, zmiany wartości i alerty o terminach | Zostają przy duplikacie. |
+
+W trakcie scalania duplikatu nie można zmieniać. Po zakończeniu duplikat jest
+**zarchiwizowany**: nie pojawia się na liście, w polach wyboru, w wyszukiwaniu
+ani w analityce, a jego strona — nadal dostępna do odczytu, z własną historią
+etapów — informuje *Scalono z …* i prowadzi do projektu, który zostaje. Każda
+zmiana zarchiwizowanego projektu jest odrzucana. Każde scalanie ma własną
+stronę (**Scalenia projektów** w palecie, `/projects/merges`) z postępem;
+scalanie, które **wymaga uwagi**, jest tam na początku listy, z przyciskiem
+**Wznów**. Scalanie można anulować tylko, zanim jakikolwiek rekord zostanie
+przeniesiony.
+
+Gdy moduł Projekty jest wyłączony, scalanie projektów nie istnieje: nie ma
+akcji, ekranu ani API.
 
 ## Dla programistów
 
@@ -1104,8 +1156,14 @@ przez `lazyPort` i deklaruj krawędź jako `degrades-without` ze zdaniem
 | `findByIds(ids)` | Projekty o podanych `ids`, w dowolnej kolejności; identyfikator projektu, którego wywołujący nie może zobaczyć albo który nie istnieje, jest pomijany. |
 | `search({ q, limit })` | Projekty, których numer lub tytuł zawiera `q`, od najnowszych, najwyżej `limit` (nie więcej niż 20). |
 | `listNotes({ organizationId?, authorAdminUserId?, createdFrom?, createdBefore?, cursor?, limit })` | Notatki zapisane przy projektach, od najstarszej, jako `{ items, nextCursor }`, najwyżej `limit` (nie więcej niż 100) na stronę. Każdy element to `ProjectNoteRecord` — `id`, `projectId`, `organizationIds`, `author` (`id`, `name`), `body`, `createdAt`, `editedAt`. |
+| `previewMerge(survivorId, { loserId })` | Co zrobiłoby scalenie `loserId` z `survivorId`: każda odmowa, co przeniósłby każdy moduł i różniące się wartości. Niczego nie zapisuje. Wywołujący musi widzieć oba projekty, inaczej odpowiedź to `404` `PROJECT_NOT_FOUND`. |
+| `resolveMerged(id)` | Identyfikator projektu, z którym scalono `id`, albo samo `id` — o to pyta kod wyświetlający `[[project:<id>]]`, zanim odczyta projekt. |
+| `getMerge(mergeId)` | Jedno scalanie projektów z jego krokami albo `null` — także gdy wywołujący nie widzi obu projektów. |
 
-Wszystkie pięć metod odpowiada w imieniu wywołującego, przez `ProjectAccess` w jego
+Scalony (zarchiwizowany) projekt zwraca tylko `findById`, z ustawionymi
+`mergedIntoProjectId`, `mergedAt` i `mergeId`; pozostałe metody go pomijają.
+
+Wszystkie metody odpowiadają w imieniu wywołującego, przez `ProjectAccess` w jego
 własnym kontekście dzierżawy: projekt, który nie istnieje, projekt poza
 zasięgiem wywołującego i projekt, którego nie może on zobaczyć, to ten sam
 `null` — albo zostają pominięte. Odpowiedź jest zwykłym obiektem, nigdy encją.
@@ -1131,6 +1189,47 @@ albo niepoprawna data kończą się odmową `422 VALIDATION_FAILED`.
 sekwencji numerów: kolejny numer `PRJ-…` dla kodu, który zapisuje projekty bez
 polecenia (Command), na przykład dla kompozycji demo; jeden format i jedna
 sekwencja, niezależnie od tego, kto tworzy projekt.
+
+### Scalanie projektów
+
+`projects` jest **gospodarzem** typu rekordu `project` w platformowym
+mechanizmie scalania (`specs/192-organization-merge/`, ten sam mechanizm co
+przy scalaniu organizacji). Manifest deklaruje `merge.hosts: [{ type: 'project' }]`;
+platforma wykonuje fazy `structure` → `records` → `finalize`.
+
+| Trasa | Uprawnienie | Co robi |
+| --- | --- | --- |
+| `POST /api/v1/admin/projects/:id/merge-preview` `{ loserId }` | `projects:merge` | Podgląd; `:id` to projekt, który zostaje. |
+| `POST /api/v1/admin/projects/:id/merges` `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true, acknowledgedOrganizationIds? }` | `projects:merge` | Rozpoczyna scalanie; `202` ze scalaniem. Bez potwierdzenia `422` `RECORD_MERGE_ACKNOWLEDGEMENT_REQUIRED`. Każda organizacja z `organizationsGainingAccess` w podglądzie musi być w `acknowledgedOrganizationIds`, w stanie z chwili startu, inaczej `422` `PROJECT_MERGE_ORGANIZATION_ACCESS_UNCONFIRMED` z `details.organizationIds`. |
+| `GET /api/v1/admin/project-merges[?state=&projectId=]` | `projects:merge` | Scalenia, których oba projekty wywołujący widzi. |
+| `GET /api/v1/admin/project-merges/:mergeId` | `projects:read` | Jedno scalanie z krokami. |
+| `POST /api/v1/admin/project-merges/:mergeId/resume` / `cancel` `{ expectedVersion }` | `projects:merge` | Wznawia scalanie wymagające uwagi; anuluje scalanie, zanim jakikolwiek rekord został przeniesiony. |
+
+Każda trasa wymaga też, aby wywołujący widział oba projekty i miał
+`projects:write`; projekt, którego nie widzi, daje `404` `PROJECT_NOT_FOUND`.
+Zapis dotyczący zarchiwizowanego projektu daje `409` `PROJECT_MERGED` z
+`details.survivorId`; zapis dotyczący projektu w trakcie scalania daje `409`
+`RECORD_MERGE_IN_PROGRESS`. Projekt scalony wcześniej z duplikatem po
+zakończeniu scalania wskazuje na projekt, który zostaje, więc wskaźnik nigdy nie
+ma więcej niż jednego kroku.
+
+Audytowane polecenia (Command), każde zapisywane przy projekcie, który
+zostaje, z identyfikatorem scalania i nigdy z wartością:
+`projects.project.merge.start` (z hookami — wdrożenie może zawetować
+scalanie), `projects.project.merge.cancel`, `projects.project.merge.resume`,
+`projects.project.merge.structure` (suma organizacji, członków i osób z
+dostępem), `projects.project.merge_reassign` (powiązania, komentarze,
+załączniki, odwołania, znaczniki przeczytania) i
+`projects.project.merge.finalize` (wybrane wartości, wskaźnik archiwum i
+zdarzenie). Dwa inne moduły przenoszą własne wiersze w fazie `records`, własnymi
+poleceniami: `tasks` (`task.merge_move_context` — kontekst zadania, bez etapu,
+oraz odwołania w zadaniach) i `crm` (`crm.opportunity_reference.merge_reassign`
+— odwołania w tekstach szans sprzedaży).
+
+`project.merged.v1` — `{ projectId, mergedProjectId, mergeId, mergedAt, source }`,
+same identyfikatory — jest publikowane raz dla każdego zakończonego scalania i
+dostępne jako typ zdarzenia webhooka. Projekt nie należy do jednej organizacji,
+więc trafia do subskrypcji webhooków obejmujących całą platformę.
 
 ### Zapis projektów z innego modułu
 
@@ -1242,3 +1341,10 @@ liczba i odczyt po identyfikatorze w module albo zawiera jej predykat SQL, albo
 zaczyna od projektu, który ona zwróciła, a własny test modułu odrzuca odczyt
 tabeli projektu w każdym innym miejscu. Kod dodawany do tego modułu odczytuje
 projekty przez nią.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Projekty, w których uczestniczy duplikat, wymieniają w zamian organizację, która zostaje, bez
+powtórzeń, a powiązania z zamówieniami, zapytaniami ofertowymi i szansami sprzedaży duplikatu
+przechodzą razem z nią. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu
+Organizacje.

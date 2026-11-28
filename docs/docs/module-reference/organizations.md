@@ -52,6 +52,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `credentials` | no | contributes-to `configurationTypeRegistry` |
 | `credentials` | no | degrades-without `credentialsService` — the registration company lookup cannot use GUS; Polish lookups use the Ministry of Finance VAT White List alone |
 | `credit_limits` | no | refuses-without `creditLimitReadPort` — the ancestor-chain lookup for who holds a credit limit refuses — no screen reaches it, because its only caller is that module's own service |
+| `webhooks` | no | contributes-to `webhookEventRegistry` |
 
 ## Permissions
 
@@ -64,6 +65,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `organizations:convert-to-company` | Convert personal organizations to companies | `customers:read` |
 | `organizations:manage-roles` | Manage organization roles | `organizations:read-roles` |
 | `organizations:manage-tax-id-scope` | Manage the tax-ID scope | `customers:read` |
+| `organizations:merge` | Merge duplicate organizations | `customers:read` |
 | `organizations:read-roles` | View organization roles | — |
 
 ## Command palette
@@ -72,8 +74,10 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | --- | --- | --- |
 | `change-organization-tax-id` | `/organizations/change-tax-id` | `organizations:change-tax-id` |
 | `convert-personal-organization` | `/organizations/convert-to-company` | `organizations:convert-to-company` |
+| `merge-organizations` | `/organizations/merge` | `organizations:merge` |
 | `new-organization` | `/organizations/new` | `customers:manage` |
 | `open-organizations` | `/organizations` | `customers:read` |
+| `open-record-merges` | `/organizations/merges` | `organizations:merge` |
 | `open-registration-registry-lookup-settings` | `/settings` | `settings:read` |
 | `open-tax-id-scope` | `/organizations/tax-id-scope` | `organizations:manage-tax-id-scope` |
 

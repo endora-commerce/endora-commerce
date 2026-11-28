@@ -67,6 +67,21 @@ const EXPECTED: readonly ExpectedAction[] = [
     icon: 'Tag',
     label: { en: 'Project loss reasons', pl: 'Powody utraty projektów' },
   },
+  // `specs/192-organization-merge/` US6, FR-082 — the merge flow and the merges list.
+  {
+    id: 'merge-projects',
+    route: '/projects/merge',
+    permission: 'projects:merge',
+    icon: 'ClipboardList',
+    label: { en: 'Merge projects', pl: 'Scal projekty' },
+  },
+  {
+    id: 'open-project-merges',
+    route: '/projects/merges',
+    permission: 'projects:merge',
+    icon: 'ClipboardList',
+    label: { en: 'Project merges', pl: 'Scalenia projektów' },
+  },
 ];
 
 describe('projects palette actions (163 FR-041, T130)', () => {
@@ -80,7 +95,7 @@ describe('projects palette actions (163 FR-041, T130)', () => {
     await teardownBackendServer(h);
   });
 
-  it('declares the four actions of §4 and the two of issue #516', () => {
+  it('declares the four actions of §4, the two of issue #516 and the two of the Project merge', () => {
     expectDeclared('projects', EXPECTED);
   });
 
@@ -103,7 +118,7 @@ describe('projects palette actions (163 FR-041, T130)', () => {
     ]);
   });
 
-  it('serves the six, labelled in English and Polish', async () => {
+  it('serves the eight, labelled in English and Polish', async () => {
     await expectLabels(h, 'projects', EXPECTED);
   });
 });

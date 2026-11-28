@@ -30,5 +30,7 @@
   "organizationPanel.overdrawn": "Reservations exceed the limit by {amount}. New deferred-payment orders are refused.",
   "settingLabels.credit_limits.enabled.name": "Credit limits enabled",
   "module.name": "Credit limits",
-  "module.description": "Per-organization credit limits and credit-check enforcement at checkout."
+  "module.description": "Per-organization credit limits and credit-check enforcement at checkout.",
+  "merge.participation.credit-limit": "limit",
+  "merge.participation.credit-exposure": "open exposure"
 }

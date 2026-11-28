@@ -168,3 +168,9 @@ próby).
 - **Zasady dotyczące zakresu subskrypcji** — `webhook-service.ts` przyjmuje dowolny dostarczany typ
   zdarzenia; ogranicz to (np. tak, by zdarzenia jednego modułu mogły subskrybować tylko wybrane
   integracje), wstrzykując funkcję sprawdzającą.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Webhooki powiązane z duplikatem przechodzą do organizacji, która zostaje, przed zakończeniem
+scalania, więc otrzymują jego zdarzenie `organization.merged.v1`. Zobacz *Scalanie
+zduplikowanych organizacji* w dokumentacji modułu Organizacje.

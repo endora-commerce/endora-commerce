@@ -1522,6 +1522,100 @@ blokada, odblokowanie), walidacja VAT, kanały sprzedaży, role i opiekunowie ha
   wystawione już zamówienia, faktury i dokumenty ofert zachowują swój. Weryfikacja numeru
   podatkowego nie zmienia statusu VAT.
 
+## Scalanie zduplikowanych organizacji {#merging-duplicate-organizations}
+
+**Scalenie** oznacza, że dwie organizacje od początku były jedną: duplikat (organizacja
+*scalana*) zostaje zarchiwizowany ze wskazaniem organizacji, która zostaje (organizacji
+*docelowej*), a wszystko, co należało do duplikatu, przechodzi do organizacji docelowej.
+Scalenie działa **tylko w przód** — nie można go cofnąć, a dla żadnego polecenia scalania nie
+jest dostępne cofnięcie przez Command Bus.
+
+Mechanizm scalania należy do platformy, a ten moduł obsługuje w nim typ rekordu
+`organization`. Każdy inny moduł przenosi własne rekordy wskazujące na duplikat, we własnym
+kroku i własnymi audytowanymi poleceniami. Dopóki każdy moduł z takim odwołaniem nie zadeklaruje,
+co dzieje się z jego rekordami, podgląd działa, a rozpoczęcie scalania jest odrzucane kodem
+`409 RECORD_MERGE_PARTICIPATION_INCOMPLETE` z listą modułów w `details.modules`.
+
+Jak operator scala organizacje, śledzi scalanie i je wznawia w panelu administracyjnym, opisuje
+[przewodnik po scalaniu](./organization-merge.md).
+
+### Kto może scalać i jakie pary {#merge-who-and-which-pairs}
+
+- Wymagane uprawnienie to `organizations:merge`. Nie należy ono do predefiniowanej roli
+  handlowca. Użytkownik musi też mieć dostęp do **obu** organizacji według reguły dostępu
+  handlowców; organizacja poza zasięgiem daje `404`, tak jakby nie istniała.
+- Organizacji osobistej (B2C) nigdy się nie scala: `409 ORGANIZATION_MERGE_PERSONAL`.
+- Scalić można dwie organizacje główne albo dwie organizacje z tego samego drzewa. Duplikat nie
+  może leżeć w drzewie nad organizacją docelową (`409 ORGANIZATION_MERGE_TREE_INVALID`,
+  `details.code: ancestor`), a organizacje podrzędne z dwóch różnych drzew są odrzucane
+  (`different_trees`). Organizacje podrzędne duplikatu przechodzą pod organizację docelową.
+- Organizacja usunięta, odrzucona albo już scalona jest odrzucana
+  (`RECORD_MERGE_RECORD_UNAVAILABLE`), podobnie jak para, której rekord bierze udział w innym
+  trwającym scalaniu (`RECORD_MERGE_ALREADY_RUNNING`). Tak samo jest z duplikatem, który
+  wchłonął inną organizację w scalaniu, którego część dla wyłączonego modułu nie została jeszcze
+  nadrobiona (`RECORD_MERGE_ALREADY_RUNNING`, z identyfikatorem tamtego scalania): najpierw
+  włącz ten moduł.
+
+### API panelu administracyjnego {#merge-admin-api}
+
+| Metoda i ścieżka | Uprawnienie | Działanie |
+| --- | --- | --- |
+| `POST /api/v1/admin/organizations/:id/merge-preview` | `organizations:merge` | `{ loserId }` — odmowy, liczba rekordów do przeniesienia w każdym obszarze i różniące się wartości. Niczego nie zapisuje. |
+| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — ponownie sprawdza podgląd i rozpoczyna scalanie (`202`). |
+| `GET /api/v1/admin/organization-merges` | `organizations:merge` | `?state=&organizationId=` — scalenia, do których obu organizacji masz dostęp. |
+| `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` | Jedno scalenie wraz z krokami. |
+| `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` — scalenie wymagające uwagi rusza ponownie; zakończone kroki nie są powtarzane. |
+| `POST /api/v1/admin/organization-merges/:mergeId/cancel` | `organizations:merge` | `{ expectedVersion }` — tylko zanim jakikolwiek rekord został przeniesiony. |
+
+Każda trasa zwracająca scalenie podaje obok identyfikatorów także `survivorName`, `loserName`
+i `actorName` (`OrganizationMergeView`), dzięki czemu ekrany scalania nie odczytują organizacji
+osobno dla każdego wiersza. Nazwa duplikatu jest zwracana także po jego zarchiwizowaniu, a nazwa,
+której nie da się odczytać, ma wartość `null`.
+
+`fieldChoices` przyjmuje dla każdego pola `survivor` albo `loser`: dla nazwy, nazwy prawnej,
+NIP-u, statusu VAT, adresu rejestrowego, grupy klientów, sposobu dziedziczenia limitu kredytowego
+i strategii realizacji. Domyślnie wygrywa wartość organizacji docelowej, a puste pole organizacji
+docelowej przejmuje wartość duplikatu. Adresy do potwierdzeń zamówień są zawsze sumą obu list.
+Wartości pól niestandardowych podlegają tej samej zasadzie dla każdego pola i są sprawdzane
+względem aktualnych definicji. Status, znaczniki moderacji i miejsce w drzewie nigdy nie są do
+wyboru. Gdy organizacja docelowa przejmuje NIP duplikatu, duplikat zwalnia go w tym samym zapisie,
+a razem z NIP-em przechodzi ostatni wynik walidacji VAT duplikatu.
+
+### W trakcie scalania i po nim {#merge-during-and-after}
+
+- Od rozpoczęcia do zakończenia duplikat jest **zamrożony**: każdy zapis, który go wskazuje — od
+  operatora, kupującego, klucza API czy innego modułu — jest odrzucany kodem
+  `409 RECORD_MERGE_IN_PROGRESS`. Zapisy do organizacji docelowej działają bez zmian.
+- Scalanie działa jako zadanie w tle, w fazach (struktura, konfiguracja, adresy, członkowie,
+  rekordy, finalizacja). Nieudany krok jest ponawiany; gdy próby się wyczerpią, scalanie
+  zatrzymuje się w stanie *wymaga uwagi* i można je wznowić. Moduł wyłączony w chwili, gdy
+  scalanie do niego dochodzi, jest pomijany, a jego część wykonuje się automatycznie po
+  ponownym włączeniu modułu.
+- Po zakończeniu duplikat jest zarchiwizowany: jest miękko usunięty, ma
+  `mergedIntoOrganizationId`, `mergedAt` i `mergeId` i nie pojawia się na żadnej liście, w żadnym
+  polu wyboru ani w wyszukiwaniu. `GET /api/v1/admin/organizations/:id` nadal go zwraca, z
+  identyfikatorem organizacji docelowej; zapis, który go wskazuje, jest odrzucany kodem
+  `409 ORGANIZATION_MERGED` z `details.survivorId`. Kod serwerowy rozwiązuje stary identyfikator
+  przez `organizationDetailsPort.resolveMerged(id)`. Organizacja scalona wcześniej z duplikatem
+  wskazuje teraz na organizację docelową, więc wskaźnik nigdy nie ma więcej niż jednego kroku.
+- Dla autorów modułów: zamrożenie i odmowa obejmują każde odwołanie, które manifest deklaruje w
+  `merge.participates`, poza odwołaniem zostawianym przy duplikacie jako historia, bez względu na
+  klasyfikację encji — platforma sprawdza każdy zapis przez ORM. Zapis ustawiający takie
+  odwołanie w SQL albo natywnym wywołaniu ORM (`nativeUpdate`, `nativeInsert`, `upsert`) jest
+  tam niewidoczny: zadeklaruj uczestnictwo z `freeze: 'guarded'` i przed nim wywołaj
+  `assertMergeWritable(host, ids)` z `@endora-commerce/platform/tenancy`.
+  `check:merge-participation` znajduje każde takie miejsce.
+- Zdarzenie `organization.merged.v1` jest publikowane jeden raz, z polami `organizationId`
+  (organizacja docelowa), `mergedOrganizationId`, `mergeId`, `mergedAt` i `source`. Jest dostępne
+  dla webhooków wychodzących. `organization.merge.start` jest akcją dostępną dla hooków, więc
+  wdrożenie może zablokować scalanie, zanim się rozpocznie.
+- Każdy wpis audytu zapisany przez scalanie zawiera jego `mergeId`, z nazwami pól i kodami, nigdy
+  z wartościami.
+- Gdy scalanie zatrzyma się w stanie *wymaga uwagi*, każdy aktywny administrator z uprawnieniem
+  `organizations:merge`, który ma dostęp do obu organizacji, otrzymuje powiadomienie z odnośnikiem
+  do scalania; po zakończeniu powiadomienie dostaje administrator, który je rozpoczął. Przy
+  wyłączonym module `admin_notifications` nikt nie jest powiadamiany, a scalanie przebiega bez zmian.
+
 ## Wpisy audytu
 
 Dziennik audytu platformy to jedna tabela, którą czyta każdy operator z

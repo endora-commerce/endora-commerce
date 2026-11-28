@@ -252,4 +252,18 @@ export const manifest = defineModuleManifest({
   // validator refuses a block whose section its manifest does not declare);
   // merged by key with `cms`' and `newsletter`'s, same weight.
   blockCategories: [{ key: 'forms', titleKey: 'blocks.category.forms', contexts: ['cms'], weight: 70 }],
+  /**
+   * `specs/192-organization-merge/` T052 — in an Organization merge the form entries attributed to
+   * the loser move to the survivor (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'form-entries',
+        phase: 'records',
+        references: [{ entity: 'FormEntry', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

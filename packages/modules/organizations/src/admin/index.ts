@@ -98,6 +98,30 @@ export const contributions: AdminContributions = {
       requiredPermission: 'organizations:change-tax-id',
     },
     {
+      // `specs/192-organization-merge/` (`contracts/organization-merge.md` §5) —
+      // the ⌘K action's screen: choose the organization to keep, then the
+      // merge flow. Static, so ahead of `/:id`; under the code its preview and
+      // start enforce.
+      path: `${ROUTE_PATH}/merge`,
+      component: () => import('./pages/MergeOrganizationsPage.js'),
+      requiredPermission: 'organizations:merge',
+    },
+    {
+      // The merges, *needs attention* first (FR-081), under the code
+      // `GET /api/v1/admin/organization-merges` enforces.
+      path: `${ROUTE_PATH}/merges`,
+      component: () => import('./pages/OrganizationMergesPage.js'),
+      requiredPermission: 'organizations:merge',
+    },
+    {
+      // One merge's progress, read under the Organization screens' own codes,
+      // as `GET /api/v1/admin/organization-merges/:mergeId` is; resume and
+      // cancel are shown only to `organizations:merge`.
+      path: `${ROUTE_PATH}/merges/:mergeId`,
+      component: () => import('./pages/OrganizationMergePage.js'),
+      requiredPermission: [...READ_PERMISSION],
+    },
+    {
       path: `${ROUTE_PATH}/:id`,
       component: () => import('./pages/OrganizationDetail.js'),
       requiredPermission: [...READ_PERMISSION],

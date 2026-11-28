@@ -17,6 +17,7 @@ import { Migration20261028T143448ProjectsReferenceKinds } from './20261028T14344
 import { Migration20261114T145439ProjectsStageAlertInterrupted } from './20261114T145439_projects_stage_alert_interrupted.js';
 import { Migration20261114T153132ProjectsConfigurationVersions } from './20261114T153132_projects_configuration_versions.js';
 import { Migration20261122T074256ProjectsListSavedViews } from './20261122T074256_projects_list_saved_views.js';
+import { Migration20261125T124200ProjectsMergePointer } from './20261125T124200_projects_merge_pointer.js';
 import { Migration20261127T091628ProjectsCommentCustomFieldValues } from './20261127T091628_projects_comment_custom_field_values.js';
 
 export const migrations = [
@@ -27,6 +28,7 @@ export const migrations = [
   Migration20261114T145439ProjectsStageAlertInterrupted,
   Migration20261114T153132ProjectsConfigurationVersions,
   Migration20261122T074256ProjectsListSavedViews,
+  Migration20261125T124200ProjectsMergePointer,
   Migration20261127T091628ProjectsCommentCustomFieldValues,
 ];
 
@@ -38,5 +40,6 @@ export {
   Migration20261114T145439ProjectsStageAlertInterrupted,
   Migration20261114T153132ProjectsConfigurationVersions,
   Migration20261122T074256ProjectsListSavedViews,
+  Migration20261125T124200ProjectsMergePointer,
   Migration20261127T091628ProjectsCommentCustomFieldValues,
 };

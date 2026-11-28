@@ -20,3 +20,11 @@ Komunikację HTTP z dostawcą obsługują moduły adapterów poszczególnych dos
 ## Dla programisty
 
 Schemat danych należy do tego modułu. Adapter dostawcy nie dostarcza własnej migracji. Identyfikatory faktur w mapowaniach i wysyłkach to UUID bez klucza obcego do modułu invoices.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Organizacja, która zostaje, zachowuje własne mapowanie klienta w systemie księgowym dla każdego
+adaptera i poświadczenia; mapowanie, które miał tylko duplikat, jest przejmowane, a sprzeczne
+zostaje przy duplikacie i jest wymienione w podglądzie scalania. Mapowania dokumentów przechodzą
+do organizacji, która zostaje; historia wysyłek pozostaje taka, jak została zapisana. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

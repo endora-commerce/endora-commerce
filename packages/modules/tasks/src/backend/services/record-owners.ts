@@ -43,7 +43,11 @@ export interface OwnedRecordLabel {
 export interface TaskRecordOwners {
   /** Whether the module that owns `kind` is effectively present. Ask before anything else here. */
   isPresent(kind: SwitchableRecordKind): boolean;
-  /** The records of `ids` the caller may reach, by id. **Only while present.** */
+  /**
+   * The records of `ids` the caller may reach, keyed by the id asked. **Only
+   * while present.** A merged Project answers its survivor's record under the
+   * loser's id.
+   */
   labels(kind: SwitchableRecordKind, ids: readonly string[]): Promise<Map<string, OwnedRecordLabel>>;
   /**
    * What the `@@` list offers for `q`, newest first, at most `limit`. A Quote
@@ -82,8 +86,17 @@ export function createTaskRecordOwners(ports: TaskRecordOwnerPorts): TaskRecordO
           out.set(record.id, { id: record.id, label: record.number, sublabel: record.title });
         }
       } else if (kind === 'project') {
-        for (const record of await ports.projects.findByIds(unique)) {
-          out.set(record.id, { id: record.id, label: record.number, sublabel: record.title });
+        // A Project merged into another one is named by its survivor, under
+        // the id asked (`specs/192-organization-merge/` FR-093): a mention is
+        // never rewritten, it resolves when rendered.
+        const survivors = await Promise.all(unique.map((id) => ports.projects.resolveMerged(id)));
+        const targetOf = new Map(unique.map((id, index) => [id, survivors[index] ?? id]));
+        const found = new Map(
+          (await ports.projects.findByIds([...new Set(targetOf.values())])).map((record) => [record.id, record]),
+        );
+        for (const id of unique) {
+          const record = found.get(targetOf.get(id) ?? id);
+          if (record) out.set(id, { id: record.id, label: record.number, sublabel: record.title });
         }
       } else {
         // The quote desk's port reads one at a time; a text names a few.

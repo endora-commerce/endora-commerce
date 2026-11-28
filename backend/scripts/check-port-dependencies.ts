@@ -199,6 +199,12 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // registry. Platform infrastructure as `commandHookRegistry` is: `_lifecycle`
   // reads it for the effective forms, and no module owns it.
   'formRegistry',
+  // `specs/192-organization-merge/` — the record merge's service a host's
+  // Commands call, and the runtime `_lifecycle` starts the runner from. Built by
+  // both roots around the merge registry they hand `composeModules`; no module
+  // owns either name.
+  'recordMergeService',
+  'recordMergeRuntime',
   'settingsReadPort',
   // The same kernel object as `settingsReadPort`, seen from the writing side:
   // `composeSettingsKernel` builds one `SettingsCache` and a root contributes

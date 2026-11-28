@@ -221,6 +221,12 @@ describe('pwa — the Rule Builder pickers read published ports', () => {
         searchIdsByName: async () => [],
         findByTaxId: async () => [],
         resolveByTaxId: async () => ({ kind: 'none' }),
+        // `specs/192-organization-merge/` — not asked here.
+        previewMerge: async () => {
+          throw new Error('not used');
+        },
+        resolveMerged: async (id: string) => id,
+        getMerge: async () => null,
       },
       customerGroups: unusedPort as CustomerGroupReadPort,
     });
@@ -407,6 +413,8 @@ describe('pwa — quote pushes arrive through customerPushPort, not through quot
       worker: () => undefined,
       // Issue #544 — the icon write validator is pushed from a boot hook.
       onBoot: () => undefined,
+      // `specs/192-organization-merge/` T053 — the merge participant's registration.
+      merge: { host: () => undefined, participate: () => undefined },
       log: { info: () => undefined, warn: () => undefined, error: () => undefined },
     } as unknown as ModuleContext;
     registerModule(ctx);

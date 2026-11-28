@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { ORGANIZATION_HOOKABLE_ACTIONS, type OrganizationDetailsPort } from '@endora-commerce/contracts';
 import { lazyPort, type ModuleContext, type RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { z } from 'zod';
@@ -6,6 +7,7 @@ import { z } from 'zod';
 import { ExampleErpOrganizationKey } from './entities/example-erp-organization-key.entity.js';
 import { fillErpKeyOnCreate } from './hooks/fill-erp-key.js';
 import { EXAMPLE_ERP_KEYS_HOST, EXAMPLE_ERP_KEYS_PERMISSION } from './manifest.js';
+import { EXAMPLE_ERP_KEYS_MERGE_KEY, ExampleErpKeysOrganizationMergeParticipant } from './merge.js';
 import { ExampleErpKeyExtensionSchema, type ExampleErpKeysPort } from './ports.js';
 import {
   ERP_KEY_LIST_DEFAULT_LIMIT,
@@ -33,6 +35,7 @@ const ListQuerySchema = z.object({
 interface ExampleErpKeysCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly emFactory: () => EntityManager;
+  readonly commandBus: CommandBus;
 }
 
 /**
@@ -47,7 +50,9 @@ interface ExampleErpKeysCradle {
  *  3. `ctx.entityExtensionLoaders` — the loader behind
  *     `include: ['extensions.example_erp_keys']` on `organizations.Organization`,
  *     the host the manifest `extends`;
- *  4. `ctx.routes` — the one gated admin read, under the lifecycle gate.
+ *  4. `ctx.merge.participate` — what an Organization merge does with the
+ *     loser's key (`merge.ts`), as the manifest's `merge.participates` declares;
+ *  5. `ctx.routes` — the one gated admin read, under the lifecycle gate.
  */
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): ExampleErpKeysCradle => ctx.cradle<ExampleErpKeysCradle>();
@@ -69,6 +74,15 @@ export function registerModule(ctx: ModuleContext): void {
   ]);
 
   ctx.entityExtensionLoaders([{ host: EXAMPLE_ERP_KEYS_HOST, schema: ExampleErpKeyExtensionSchema, load: loadErpKeys }]);
+
+  ctx.merge.participate(
+    'organization',
+    EXAMPLE_ERP_KEYS_MERGE_KEY,
+    new ExampleErpKeysOrganizationMergeParticipant({
+      emFactory: () => cradle().emFactory().fork({ clear: true }),
+      commandBus: () => cradle().commandBus,
+    }),
+  );
 
   ctx.routes(async (app) => {
     app.get(

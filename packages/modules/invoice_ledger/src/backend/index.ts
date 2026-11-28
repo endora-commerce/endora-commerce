@@ -40,6 +40,11 @@ import {
 } from './services/invoice-ledger-registry.service.js';
 import { InvoiceLedgerRoutingService } from './services/invoice-ledger-routing.service.js';
 import { InvoiceLedgerWebhookService } from './services/invoice-ledger-webhook.service.js';
+import {
+  INVOICE_LEDGER_CLIENT_MAPS_MERGE_KEY,
+  INVOICE_LEDGER_DOCUMENT_MAPS_MERGE_KEY,
+  InvoiceLedgerOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 type LedgerEvents = Record<string, EventBase> & {
   [INVOICE_LEDGER_DELIVERY_QUEUED_EVENT]: InvoiceLedgerDeliveryQueuedEvent;
@@ -318,6 +323,27 @@ export function registerModule(ctx: ModuleContext): void {
       deliveries: invoiceLedgerDeliveryAdmin,
     });
   });
+  /**
+   * `specs/192-organization-merge/` T045 (FR-044, OQ-10) — this module's part
+   * of an Organization merge, through `invoice_ledger.merge_reassign`: client
+   * mappings fill the survivor's gaps in `configuration` (the survivor's win,
+   * the loser's are listed), document mappings are re-pointed in `records`; the
+   * delivery log is kept. Registration only; the platform's runner calls them.
+   */
+  const mergeDeps = {
+    emFactory: () => ctx.cradle<LedgerCradle>().emFactory(),
+    commandBus: () => ctx.cradle<LedgerCradle>().commandBus,
+  };
+  ctx.merge.participate(
+    'organization',
+    INVOICE_LEDGER_CLIENT_MAPS_MERGE_KEY,
+    new InvoiceLedgerOrganizationMergeParticipant('client-maps', mergeDeps),
+  );
+  ctx.merge.participate(
+    'organization',
+    INVOICE_LEDGER_DOCUMENT_MAPS_MERGE_KEY,
+    new InvoiceLedgerOrganizationMergeParticipant('document-maps', mergeDeps),
+  );
 }
 
 export const entities = [

@@ -627,3 +627,11 @@ Retention policy:
   module's retention policy** (controlled outside this feature). The
   carts-side mirror in `cart_audit_entries` is the source of truth for
   the carts UI even when the platform-wide table has aged out.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Open carts move to the organization that stays with their buyers and are repriced in its context
+on their next read; a line that loses its price stays in the cart, marked as unpriced. A cart
+*Buying for* the duplicate buys for the organization that stays instead, and the setting is
+cleared when that is the cart's own organization. See *Merging duplicate organizations* in the
+Organizations documentation.

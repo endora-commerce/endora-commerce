@@ -12192,6 +12192,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 949,
     sources: ['extensible-owners'],
   },
+  // **New with `specs/192-organization-merge/` (T008, T011).** Its walk is the
+  // estate's source roots (every module root and the platform), so `files`
+  // moves with every `.ts` file the tree gains or loses. `sites` is the finer
+  // number: the persisted properties that name an Organization or a Project by
+  // the population rule, so a module gaining such a column moves it while
+  // `files` barely notices. Measured on `feat/1907-organization-merge` after
+  // `build:packages`, with `git status --porcelain` showing only the change.
+  'backend/scripts/check-merge-participation.ts': {
+    prefix: '[merge-participation]',
+    run: { kind: 'tsx', path: 'scripts/check-merge-participation.ts', args: [] },
+    files: 3046,
+    sites: 56,
+    sources: ['manifest-index'],
+  },
   'backend/scripts/check-queue-names.ts': {
     prefix: '[queue-names]',
     run: { kind: 'tsx', path: 'scripts/check-queue-names.ts', args: [] },

@@ -26,6 +26,7 @@ import {
 } from './services/retention-sweeper.js';
 import { MikroRetentionStore } from './services/retention-store.js';
 import { runRetentionSweepTick, startRetentionSweep, type RetentionSweepDeps } from './workers/retention-sweep-worker.js';
+import { CustomerNotificationOrganizationMergeParticipant, type CustomerNotificationMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `customer_notifications` — composed by the kernel container
@@ -52,6 +53,18 @@ const MODULE_ID = 'customer_notifications';
 const RETENTION_DAYS_CODE = 'customer_notifications.retention_days';
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T052 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): CustomerNotificationMergeParticipantDeps => ctx.cradle<CustomerNotificationMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'notifications',
+    new CustomerNotificationOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   // --- The published port (`contracts/delivery-and-ports.md` §1) ------------
   // `providePort` gates it on this module's effective state: a producer that
   // skipped its presence check is refused with `MODULE_DISABLED` rather than

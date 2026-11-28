@@ -83,3 +83,17 @@ export {
   type OrgScopeSql,
   type OrgScopeSource,
 } from './derived-scope.js';
+/**
+ * `specs/192-organization-merge/` (R-6, R-8) — the answer a write naming a
+ * record a merge froze, or a merged (archived) one, gets: `null` when it may
+ * proceed. A host module asks it on its own routes; the org write guard and the
+ * tenant resolution already ask it for every `@OrgScoped` write.
+ */
+export { mergeWriteRefusal } from './merge-freeze.js';
+/**
+ * `specs/192-organization-merge/` FR-047 — throws that refusal for every id a
+ * reference value carries. A module calls it before a `native*` call or a SQL
+ * statement that sets a reference its manifest declares with
+ * `freeze: 'guarded'`; an ORM flush is checked by the platform itself.
+ */
+export { assertMergeWritable } from './merge-reference-guard.js';

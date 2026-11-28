@@ -66,6 +66,7 @@ import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyEntityExtensionReads, lazyPort, type EntityExtensionReads } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
+import { CATALOG_MERGE_PARTICIPATION_KEY, CatalogMergeParticipant } from './merge/organization-merge-participant.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
@@ -1583,6 +1584,28 @@ export function registerModule(ctx: ModuleContext): void {
       cradle().emFactory,
     );
   });
+
+  // `specs/192-organization-merge/` T064 — this module's part of an
+  // Organization merge: the audience allow-lists name the survivor, through
+  // this module's own Command, then the changed products' pages and search
+  // documents are refreshed (FR-055). `search` is probed before the port is
+  // resolved, as `catalogSearchReindex` does: with it off there is no index.
+  ctx.merge.participate(
+    'organization',
+    CATALOG_MERGE_PARTICIPATION_KEY,
+    new CatalogMergeParticipant({
+      emFactory: () => cradle().emFactory(),
+      commandBus: { run: (command) => cradle().commandBus.run(command) },
+      reindexProducts: async (productIds) => {
+        if (!effectiveState.isPresent('search')) return;
+        await lazyPort<SearchReindexPort>(ctx, 'searchReindexPort').reindexProducts(productIds);
+      },
+      revalidateProducts: (productIds) => {
+        for (const productId of productIds) cradle().catalogProductPageRevalidation.productChanged(productId);
+      },
+      warn: (message, error) => ctx.log.warn({ err: error }, message),
+    }),
+  );
 }
 
 /**

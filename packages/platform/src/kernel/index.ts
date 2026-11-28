@@ -87,6 +87,12 @@ export {
 export { configuredAdminBaseUrl } from './admin-base-url.js';
 
 export { effectiveState, toModulePresenceDto } from './lifecycle/effective-state.js';
+/**
+ * `specs/192-organization-merge/` — what a merge **host**'s Commands call
+ * (`recordMergeService`, registered by the root). A type only: a participant
+ * needs nothing from here beyond `ctx.merge` and the contract types.
+ */
+export type { RecordMergeService, RecordMergeBeginInput } from './merge/service.js';
 // Feature 132 — the derived capability families. A module reads them through
 // `effectiveState`; these are the shapes those reads answer in.
 export type {

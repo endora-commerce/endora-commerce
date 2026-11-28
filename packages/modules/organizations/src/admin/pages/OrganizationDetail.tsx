@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Briefcase, Building2, Receipt, ShoppingCart, Users } from 'lucide-react';
 import type {
   AdminOrganization,
@@ -36,11 +36,15 @@ import { VatValidationPanel } from '../panels/VatValidationPanel.js';
 import { newestRegistrationRow } from '../panels/vat-validation-view.js';
 import { RestrictionsPanel, changedRestrictionLists, type RestrictionsSelection } from '../panels/RestrictionsPanel.js';
 import { SalesChannelsPanel } from '../panels/SalesChannelsPanel.js';
+import { MergedBanner } from '../merge/MergedBanner.js';
+import { OrganizationMergeFlow } from '../merge/OrganizationMergeFlow.js';
+import { MergedFromSection, OrganizationMergeNotices, useOrganizationMerges } from '../merge/OrganizationMergesSection.js';
 import {
   CustomFieldValuesPanel,
   DetailHeaderActions,
   ImmediateBadge,
   ModalDialog,
+  RowActionMenuItem,
   SaveSessionActions,
   SaveSessionSummary,
   customFieldErrorsOf,
@@ -206,6 +210,11 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   // tax-ID change: only while `organizations` is present.
   const canChangeVatStatus = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
   const [changingVatStatus, setChangingVatStatus] = useState(false);
+  // `specs/192-organization-merge/` FR-080 — *Merge a duplicate into this organization*, and the
+  // merges this organization takes part in, both under the merge's own code.
+  const canMerge = isVisible({ module: 'organizations', requiredPermission: 'organizations:merge' });
+  const [merging, setMerging] = useState(false);
+  const navigate = useNavigate();
   // The Sales tab holds the host's sales-rep section, which gates itself on this code
   // (`OrganizationSalesRepsTab`), and the `organization.detail.sales` zone (issue #1452, UX
   // audit DS-20). The tab is offered while either has something to show (Z15), so it is never
@@ -281,11 +290,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
 
   // FR-062: assigning a role needs `customers:manage` alone, so the role list
   // is read only when the operator may read it; otherwise the selects offer the
-  // roles the members hold. A personal Organization's role routes answer 404.
+  // roles the members hold. A personal Organization's role routes answer 404,
+  // and so do a merged (archived) one's.
   const orgLoaded = org !== null;
   const isPersonal = org?.isPersonal === true;
+  const isMerged = org?.mergedIntoOrganizationId != null;
   const refreshRoles = useCallback(async (): Promise<void> => {
-    if (!canReadRoles || !orgLoaded || isPersonal) {
+    if (!canReadRoles || !orgLoaded || isPersonal || isMerged) {
       setRoleList(null);
       return;
     }
@@ -295,7 +306,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     } catch {
       setRoleList(null);
     }
-  }, [canReadRoles, orgLoaded, isPersonal, id]);
+  }, [canReadRoles, orgLoaded, isPersonal, isMerged, id]);
 
   useEffect(() => {
     void refreshRoles();
@@ -488,6 +499,9 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     [refresh, membersStatus],
   );
 
+  const archived = org?.mergedIntoOrganizationId != null;
+  const merges = useOrganizationMerges(id, canMerge && org !== null && !archived, resource.data?.version ?? 0);
+
   if (resource.initialLoading) return <DetailSkeleton label={t('organizations.loading')} />;
   if (!org)
     return loadError !== null ? (
@@ -504,6 +518,30 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <AlertDescription>{t('organizations.detail.notFound')}</AlertDescription>
       </Alert>
     );
+
+  // FR-051, FR-052 — an archived (merged) organization is read-only: its banner leads to the
+  // organization it was merged into, and nothing on the screen writes.
+  if (archived) {
+    return (
+      <>
+        <PageHeader
+          back={{ label: t('organizations.page.title'), to: '/organizations' }}
+          title={org.name}
+          titleActions={<Badge variant="outline">{own('merge.banner.archivedBadge')}</Badge>}
+        />
+        <MergedBanner survivorId={org.mergedIntoOrganizationId!} mergeId={org.mergeId ?? null} mergedAt={org.mergedAt ?? null} />
+        <EditorSection chrome="card" title={t('organizations.detail.registeredAddress')}>
+          <p className="text-sm">
+            {org.registeredAddress.street}
+            <br />
+            {org.registeredAddress.postalCode} {org.registeredAddress.city}
+            <br />
+            {org.registeredAddress.country}
+          </p>
+        </EditorSection>
+      </>
+    );
+  }
 
   // Zeigarnik: a tab says it holds what the page Save has not written yet. The custom fields are
   // Overview's; every other host change and every zone panel is Commerce's.
@@ -558,7 +596,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             primary={
               <SaveSessionActions hostCount={hostCount} canSave={canManage} saving={busy} onSave={(): void => void savePage()} />
             }
-          />
+          >
+            {/* `specs/192-organization-merge/` FR-080 — rare and irreversible, so in "More", away
+                from the Save (Von Restorff, Fitts). A personal organization is never merged. */}
+            {canMerge && !org.isPersonal ? (
+              <RowActionMenuItem onSelect={(): void => setMerging(true)}>{own('merge.action.open')}</RowActionMenuItem>
+            ) : null}
+          </DetailHeaderActions>
         }
       />
 
@@ -571,6 +615,8 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           />
         </div>
       ) : null}
+
+      <OrganizationMergeNotices merges={merges} organizationId={org.id} />
 
       {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
@@ -624,6 +670,8 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               than saving on its own (feature 180, WP-7): its bag travels in the host part's one
               `PATCH`, under the organization's `expectedUpdatedAt`, so the record's version check
               guards it with the rest (research R15). */}
+          <MergedFromSection merges={merges} organizationId={org.id} />
+
           <CustomFieldValuesPanel
             key={reloadKey}
             entityType="organization"
@@ -836,6 +884,25 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               setChangingTaxId(false);
               taxStatus.show(taxIdChangeMessage(own, result));
               void refresh();
+            }}
+          />
+        </ModalDialog>
+      ) : null}
+
+      {merging ? (
+        <ModalDialog
+          title={own('merge.flow.title')}
+          onClose={(): void => setMerging(false)}
+          widthClassName="max-w-3xl"
+          dismissOnScrim={false}
+        >
+          <OrganizationMergeFlow
+            survivorId={org.id}
+            survivorName={org.name}
+            onCancel={(): void => setMerging(false)}
+            onStarted={(merge): void => {
+              setMerging(false);
+              void navigate(`/organizations/merges/${merge.id}`);
             }}
           />
         </ModalDialog>

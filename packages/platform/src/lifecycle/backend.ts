@@ -14,6 +14,7 @@ import type { FormRegistry } from '../kernel/forms/registry.js';
 import type { CommandBus } from '../commands/command-bus.js';
 import { startCommandOutboxDrain } from '../commands/outbox/drain-worker.js';
 import { PostgresOutboxStore } from '../commands/outbox/store.js';
+import type { RecordMergeRuntime } from '../kernel/merge/runtime.js';
 import { registerApiDescriptionRoutes } from './routes.api-description.js';
 import { registerPlatformInfoRoutes } from '../http/platform-info.js';
 import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
@@ -101,6 +102,11 @@ export interface LifecycleCradle {
   readonly processRunsWorkers?: boolean;
   /** The connection a consumer is built on; read only when the root registered it. */
   readonly moduleQueueRedis?: Redis | undefined;
+  /**
+   * The record merge's runtime (`specs/192-organization-merge/`), registered by
+   * a root that composes the merge mechanism; read only when it did.
+   */
+  readonly recordMergeRuntime?: RecordMergeRuntime;
 }
 
 /**
@@ -128,6 +134,27 @@ async function startOutboxDrain(ctx: ModuleContext, app: FastifyInstance): Promi
     store: new PostgresOutboxStore(cradle.emFactory),
     handlers: cradle.commandHookRegistry as CommandHookRegistry,
     log: ctx.log,
+    attach: (worker) => ctx.worker(worker, { logger: app.log }),
+    onClose: (close) => {
+      app.addHook('onClose', close);
+    },
+  });
+}
+
+/**
+ * Start the record-merge runner (`specs/192-organization-merge/` research R-2,
+ * R-10) where this process runs workers: the consumer of `platform.record-merge`,
+ * the repeatable catch-up and the presence-driven catch-up. `_lifecycle` for
+ * the outbox drain's reason — the platform's resident, non-deactivatable
+ * module, whose `ctx.worker` gives the consumer the platform's shutdown path.
+ * Per-step presence is the participant's own, decided by the runner.
+ */
+async function startRecordMergeRunner(ctx: ModuleContext, app: FastifyInstance): Promise<void> {
+  const cradle = ctx.cradle<LifecycleCradle>();
+  if (!('recordMergeRuntime' in cradle) || !('processRunsWorkers' in cradle)) return;
+  const runtime = cradle.recordMergeRuntime as RecordMergeRuntime;
+  await runtime.startWorker({
+    processRunsWorkers: cradle.processRunsWorkers === true,
     attach: (worker) => ctx.worker(worker, { logger: app.log }),
     onClose: (close) => {
       app.addHook('onClose', close);
@@ -209,6 +236,7 @@ export function registerModule(ctx: ModuleContext): void {
   // `BACKEND_ROLE=worker` process reaches too.
   ctx.routes(async (app) => {
     await startOutboxDrain(ctx, app);
+    await startRecordMergeRunner(ctx, app);
   });
 
   ctx.ungatedRoutes(

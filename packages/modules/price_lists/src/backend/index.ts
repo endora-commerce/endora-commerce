@@ -60,6 +60,10 @@ import { PriceProfilePrice } from './entities/price-profile-price.entity.js';
 import { PriceProfileStaleProduct } from './entities/price-profile-stale-product.entity.js';
 import { PriceListValueChange } from './entities/price-list-value-change.entity.js';
 import { PriceListRowValueChange } from './entities/price-list-row-value-change.entity.js';
+import {
+  PRICE_LISTS_MERGE_PARTICIPATION_KEY,
+  PriceListOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `price_lists` — the decoration proof target (feature 072, wave 3, T127).
@@ -571,6 +575,23 @@ export function registerModule(ctx: ModuleContext): void {
       ctx.cradle<PriceListsCradle>().emFactory,
     );
   });
+  /**
+   * `specs/192-organization-merge/` T048 — this module's part of an
+   * Organization merge, in the `configuration` phase: the loser's price-book
+   * audience memberships are unioned into the survivor's and its display-mode
+   * override fills the survivor's gap, through `price_list.merge_reassign`; the
+   * pricing generation is bumped after each batch. Registration only; the
+   * platform's runner calls it.
+   */
+  ctx.merge.participate(
+    'organization',
+    PRICE_LISTS_MERGE_PARTICIPATION_KEY,
+    new PriceListOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<PriceListsCradle>().emFactory(),
+      commandBus: () => ctx.cradle<PriceListsCradle>().commandBus,
+      bumpPricing: (change) => ctx.cradle<PriceListsCradle>().priceLists.handle.pricingGeneration.bump(change),
+    }),
+  );
 }
 
 /**

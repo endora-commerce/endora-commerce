@@ -46,6 +46,7 @@ import { registerQuickOrderPreferenceAdminRoutes } from './routes.preferences.ad
 import { registerQuickOrderOneClickRoutes } from './routes.one-click.js';
 import { registerQuickOrderPreviewRoutes } from './routes.preview.js';
 import { QuickOrderDefaultPreference } from './entities/quick-order-default-preference.entity.js';
+import { QuickOrderOrganizationMergeParticipant, type QuickOrderMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `quick_order` — a module that owned five route files and was mounted by
@@ -124,6 +125,18 @@ function warnOnce(condition: string, message: string): void {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T054 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): QuickOrderMergeParticipantDeps => ctx.cradle<QuickOrderMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'default-preferences',
+    new QuickOrderOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   const cradle = (): QuickOrderCradle => ctx.cradle<QuickOrderCradle>();
 
   /**

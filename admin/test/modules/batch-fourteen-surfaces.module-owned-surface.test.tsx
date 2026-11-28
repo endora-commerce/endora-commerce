@@ -216,6 +216,10 @@ const SUBJECTS: readonly Subject[] = [
       ['/organizations/convert-to-company', 'organizations:convert-to-company'],
       // Issue #1040 — the tax-ID correction screen.
       ['/organizations/change-tax-id', 'organizations:change-tax-id'],
+      // `specs/192-organization-merge/` — the merge flow, the merges list and one merge's progress.
+      ['/organizations/merge', 'organizations:merge'],
+      ['/organizations/merges', 'organizations:merge'],
+      ['/organizations/merges/:mergeId', ['customers:read', 'customers:manage']],
       ['/organizations/:id', ['customers:read', 'customers:manage']],
     ],
     navTargets: ['/organizations'],

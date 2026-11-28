@@ -127,6 +127,12 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   /** Row 11. */
   'lifecycle/effective-state.js': ['effectiveState', 'toModulePresenceDto'],
   /**
+   * `specs/192-organization-merge/` — the service a merge host's Commands call,
+   * resolved as `recordMergeService`. Types only: the implementation, the
+   * registry and the runner are the host's (`./composition`).
+   */
+  'merge/service.js': ['RecordMergeService', 'RecordMergeBeginInput'],
+  /**
    * Feature 132 — the three shapes `effectiveState`'s capability readers answer
    * in. Types only, and published for the reason the group header states: a
    * published method whose return shape is unpublished is a method a consumer
@@ -412,6 +418,16 @@ const PUBLISHED_TENANCY_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'assignedOrganizationIdsForRanking',
     'orgConstraintForAdminScope',
   ],
+  /**
+   * `specs/192-organization-merge/` — what a write naming a merging or merged
+   * record is answered: a host module asks it on its own routes.
+   */
+  'merge-freeze.js': ['mergeWriteRefusal'],
+  /**
+   * `specs/192-organization-merge/` FR-047 — the same answer for a module's own
+   * SQL setting a reference its manifest declares `freeze: 'guarded'`.
+   */
+  'merge-reference-guard.js': ['assertMergeWritable'],
 };
 
 /**
@@ -852,6 +868,18 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'commands/outbox/store.ts': ['PostgresOutboxStore'],
   'commands/outbox/drain.ts': ['drainCommandOutbox'],
   'commands/outbox/drain-worker.ts': ['runCommandOutboxDrainTick'],
+  // `specs/192-organization-merge/` — the record merge's host half: the registry
+  // a root hands `composeModules`, the declarations it is sealed against, the
+  // runtime both roots build (the test kit's `composeTestServer` and the
+  // backend harness are the consumers), the entity classes the generated
+  // registry names, and the kernel's own participations the static check reads.
+  'kernel/merge/registry.ts': ['RecordMergeRegistry'],
+  'kernel/merge/declarations.ts': ['mergeDeclarationsFrom'],
+  'kernel/merge/runtime.ts': ['createRecordMergeRuntime', 'RecordMergeRuntime'],
+  'kernel/merge/completeness.ts': ['KERNEL_MERGE_PARTICIPATIONS'],
+  'kernel/merge/record-merge.entity.ts': ['RecordMerge'],
+  'kernel/merge/record-merge-step.entity.ts': ['RecordMergeStep'],
+  'kernel/merge/record-merge-lock.entity.ts': ['RecordMergeLock'],
   // Feature 132. The derivation and its refusal sit beside the two above for the
   // same reason: a root calls them once, before the first module registers, and a
   // module never does — it reads the result through `effectiveState`, which is on

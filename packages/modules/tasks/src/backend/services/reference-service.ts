@@ -192,8 +192,14 @@ export class TaskReferenceService {
       labels.set(`admin_user:${person.id}`, `${person.firstName} ${person.lastName}`.trim() || person.email);
     }
     for (const task of tasks) labels.set(`task:${task.id}`, task.number);
+    // Keyed by the id the text names; the record's own id is where its chip
+    // leads — a merged Project's survivor (`specs/192-organization-merge/` FR-093).
+    const targets = new Map<string, string>();
     for (const [kind, found] of switchable) {
-      for (const record of found.values()) labels.set(`${kind}:${record.id}`, record.label);
+      for (const [id, record] of found) {
+        labels.set(`${kind}:${id}`, record.label);
+        targets.set(`${kind}:${id}`, record.id);
+      }
     }
 
     return tokens.map((list) =>
@@ -206,7 +212,7 @@ export class TaskReferenceService {
           id: token.id,
           available: true,
           label,
-          url: adminUrl(token),
+          url: adminUrl({ type: token.type, id: targets.get(`${token.type}:${token.id}`) ?? token.id }),
           ...(facts ? { order: facts } : {}),
         };
       }),

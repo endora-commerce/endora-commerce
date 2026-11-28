@@ -82,4 +82,21 @@ export const manifest = defineModuleManifest({
     ],
   },
   activation: { settingCode: 'analytics.enabled', default: true },
+  /**
+   * `specs/192-organization-merge/` T056 — in an Organization merge the loser's events move to the
+   * survivor (OQ-12), as a trailing step of 500-row batches that does not hold the merge's
+   * completion (R-16) (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'events',
+        phase: 'records',
+        trailing: true,
+        batchSize: 500,
+        references: [{ entity: 'AnalyticsEvent', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

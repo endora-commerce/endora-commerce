@@ -261,3 +261,8 @@ własnych połączeń sieciowych — każdy obraz trafia do dokumentu przez Asse
 Moduł porównań nie ma w czasie kompilacji żadnych zależności od modułu `carts`. Usunięcie modułu
 porównań nie wpływa na działanie katalogu, ustawień, kanałów sprzedaży i koszyków — nie zostają
 żadne wiszące odwołania.
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Porównania zapisane przez kupujących duplikatu przechodzą do organizacji, która zostaje. Zobacz
+*Scalanie zduplikowanych organizacji* w dokumentacji modułu Organizacje.

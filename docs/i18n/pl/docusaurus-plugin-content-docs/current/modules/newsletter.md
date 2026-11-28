@@ -328,3 +328,9 @@ grupami), `newsletter_send_records`, `newsletter_engagement_events`, `newsletter
 `newsletter_automation_runs`. Nadawca, tempo wysyłki i tryb zgody są przechowywane w module
 **ustawień**, a połączenie SMTP w module **poświadczeń** (bez osobnej tabeli danych
 uwierzytelniających).
+
+## Po scaleniu organizacji {#when-organizations-are-merged}
+
+Subskrybenci powiązani z duplikatem zostają powiązani z organizacją, która zostaje; status ich
+subskrypcji się nie zmienia. Zobacz *Scalanie zduplikowanych organizacji* w dokumentacji modułu
+Organizacje.

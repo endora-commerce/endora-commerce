@@ -29,6 +29,7 @@ import {
 import { startWebhookDeliveryRetention } from './services/delivery-retention-worker.js';
 import { WebhookDelivery } from './entities/webhook-delivery.entity.js';
 import { Webhook } from './entities/webhook.entity.js';
+import { WebhookOrganizationMergeParticipant, type WebhookMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `webhooks` — the module whose subscriptions are rows, not registrations
@@ -106,6 +107,18 @@ export interface WebhooksCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T055 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): WebhookMergeParticipantDeps => ctx.cradle<WebhookMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'bound-webhooks',
+    new WebhookOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   /**
    * Issue #928 — the retention window of the delivery history. The setting
    * is platform-wide, so it is read with `null` for the channel; a read that

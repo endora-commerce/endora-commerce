@@ -243,5 +243,7 @@
   "transactionalEmails.quote_request_operator_submitted.description": "Wysyłany do operatorów obsługujących zapytania ofertowe organizacji, gdy kupujący złoży zapytanie.",
   "transactionalEmails.quote_request_operator_resubmitted.name": "Ponowne złożenie zapytania ofertowego (operator)",
   "transactionalEmails.quote_request_operator_resubmitted.description": "Wysyłany do operatorów obsługujących zapytania ofertowe organizacji, gdy kupujący złoży zapytanie ponownie.",
-  "module.description": "Proces zapytań ofertowych (RFQ) inicjowanych przez klienta, z wyceną przez administratora, akceptacjami i wygasaniem."
+  "module.description": "Proces zapytań ofertowych (RFQ) inicjowanych przez klienta, z wyceną przez administratora, akceptacjami i wygasaniem.",
+  "merge.participation.organization-policy": "ustawienia",
+  "merge.participation.organization-records": "zapytania ofertowe"
 }

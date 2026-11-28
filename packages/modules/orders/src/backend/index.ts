@@ -135,6 +135,7 @@ import { OrderTransitionEffect } from './entities/order-transition-effect.entity
 import { OrderExternalReference } from './entities/order-external-reference.entity.js';
 import { OrderStatus } from './entities/order-status.entity.js';
 import { Order } from './entities/order.entity.js';
+import { ORDER_MERGE_PARTICIPATION_KEY, OrderMergeParticipant } from './merge/organization-merge-participant.js';
 
 /**
  * `orders` — forty options, twenty-seven of them optional, and nine settings
@@ -1296,6 +1297,19 @@ export function registerModule(ctx: ModuleContext): void {
       registry.register(tool);
     }
   });
+
+  // `specs/192-organization-merge/` T058 — this module's part of an
+  // Organization merge: its own rows naming the loser follow the survivor,
+  // through its own Command (`order.merge_reassign`). Registration only; the
+  // platform's runner calls it per merge, never while this module is off.
+  ctx.merge.participate(
+    'organization',
+    ORDER_MERGE_PARTICIPATION_KEY,
+    new OrderMergeParticipant({
+      emFactory: () => cradle().emFactory(),
+      commandBus: { run: (command) => cradle().commandBus.run(command) },
+    }),
+  );
 }
 
 /**

@@ -241,5 +241,7 @@
   "transactionalEmails.quote_request_operator_submitted.description": "Sent to the operators who handle the Organization’s quote requests when a buyer submits a quote request.",
   "transactionalEmails.quote_request_operator_resubmitted.name": "Quote request re-submitted (operator)",
   "transactionalEmails.quote_request_operator_resubmitted.description": "Sent to the operators who handle the Organization’s quote requests when a buyer re-submits a quote request.",
-  "module.description": "Customer-initiated RFQ workflow with admin pricing, approvals, and expiry."
+  "module.description": "Customer-initiated RFQ workflow with admin pricing, approvals, and expiry.",
+  "merge.participation.organization-policy": "settings",
+  "merge.participation.organization-records": "quote requests"
 }

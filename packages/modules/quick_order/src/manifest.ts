@@ -138,4 +138,26 @@ export const manifest = defineModuleManifest({
       weight: 226,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T054 — in an Organization merge the Organization-scoped default
+   * preference is survivor-wins with fill gaps: the loser's is adopted only when the survivor has
+   * none (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'default-preferences',
+        phase: 'configuration',
+        references: [
+          {
+            entity: 'QuickOrderDefaultPreference',
+            property: 'scopeId',
+            polymorphic: { discriminator: 'scope', value: 'organization' },
+            disposition: 'survivor_wins_fill_gaps',
+          },
+        ],
+      },
+    ],
+  },
 });

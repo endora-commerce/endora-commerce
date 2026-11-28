@@ -77,6 +77,11 @@ import { registerCartsOrganizationRoutes } from './routes.organization.js';
 import { CartAuditEntry } from './entities/cart-audit-entry.entity.js';
 import { CartItem } from './entities/cart-item.entity.js';
 import { Cart } from './entities/cart.entity.js';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import {
+  CARTS_MERGE_PARTICIPATION_KEY,
+  CartOrganizationMergeParticipant,
+} from './merge/organization-merge-participant.js';
 
 /**
  * `carts` — the module that owned 4593 lines and registered none of them
@@ -132,6 +137,7 @@ export interface CartShoppingListBridge {
 
 /** What `carts` resolves from the container, and the names it owns. */
 export interface CartsCradle {
+  readonly commandBus: CommandBus;
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditPort;
   readonly redis: Redis;
@@ -610,6 +616,22 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register(CART_APPROVED_EMAIL_CODE, CART_APPROVED_DEFAULT, 'carts');
     defaults.register(CART_REJECTED_EMAIL_CODE, CART_REJECTED_DEFAULT, 'carts');
   });
+  /**
+   * `specs/192-organization-merge/` T043 — this module's part of an
+   * Organization merge: the loser's carts and carts *Buying for* it move to the
+   * survivor in the `records` phase, through `cart.merge_reassign`; each moved
+   * cart's recompute cache is dropped after the commit, so it is repriced on its
+   * next read. Registration only; the platform's runner calls it.
+   */
+  ctx.merge.participate(
+    'organization',
+    CARTS_MERGE_PARTICIPATION_KEY,
+    new CartOrganizationMergeParticipant({
+      emFactory: () => ctx.cradle<CartsCradle>().emFactory(),
+      commandBus: () => ctx.cradle<CartsCradle>().commandBus,
+      reprice: (cartId) => ctx.cradle<CartsCradle>().cartRecomputeCache.invalidate(cartId),
+    }),
+  );
 }
 
 /**

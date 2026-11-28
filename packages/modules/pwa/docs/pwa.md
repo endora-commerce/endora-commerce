@@ -183,3 +183,8 @@ binaries is out of scope; the technical readiness is:
 3. Click **Generate VAPID keys** (or `POST /api/v1/admin/pwa/vapid/generate`).
 4. Set `NEXT_PUBLIC_BUILD_ID` / `VITE_BUILD_ID` in the deploy pipeline.
 5. Device-test install + push over HTTPS.
+
+## When organizations are merged {#when-organizations-are-merged}
+
+Push subscriptions and push preferences of the duplicate's members move to the organization that
+stays. See *Merging duplicate organizations* in the Organizations documentation.

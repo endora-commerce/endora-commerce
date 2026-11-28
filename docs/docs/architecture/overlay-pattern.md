@@ -130,14 +130,22 @@ contributes them the way an installed package does, and the same rules hold it:
 - **Extension columns** — an overlay module may declare `schemaExtensions` on an
   extensible core table, as an installed package does; see
   [Declared extension columns](./schema-extensions.md).
+- **Merge participation** — a table that names an Organization (or another
+  mergeable host) says what a merge does with the loser's rows, in the manifest's
+  `merge.participates` and through `ctx.merge.participate`, as a package's does.
+  Undeclared, the coverage check refuses the tree.
 - **Promotion keeps the id** — a module later moved from the overlay into a
   package keeps its module id, so the migrations a database has already recorded
   still match.
 
 `apps/example/modules/example_erp_keys/` in the platform repository is the
 reference overlay module, and the one to copy: a side table on `organizations`
-with its migration, a command hook filling it, a port in `ports.ts`, and an admin
-screen with its palette action.
+with its migration, a command hook filling it, a port in `ports.ts`, an admin
+screen with its palette action, and its Organization merge step. In a merge, a
+survivor with no ERP key inherits the loser's; a survivor with one keeps it, and
+the loser's stays on the archived loser, listed in the merge preview.
+Reconciling that key in the ERP is the integrator's job: the platform cannot
+know which ERP record should survive.
 
 **The reason this used to be refused is retired.** An overlay module once
 contributed no schema, on the reasoning that it lives in the same repository and

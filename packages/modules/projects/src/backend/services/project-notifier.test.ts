@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AdminNotificationMessage } from '@endora-commerce/contracts';
 import { projectLinkPath, projectNotificationText, type ProjectNotificationText } from './project-notifier.js';
+import { PROJECT_MERGE_NOTIFICATION_KEYS } from '../merge/project-merge-notifier.js';
 
 /**
  * A bell entry of this module is translatable and says no more than the
@@ -59,7 +60,11 @@ describe('projectNotificationText', () => {
   }
 
   it('the bundles hold no notification key the module does not record', () => {
-    const recorded = new Set(Object.values(SENTENCES).map((text) => text.titleMessage.key));
+    const recorded = new Set([
+      ...Object.values(SENTENCES).map((text) => text.titleMessage.key),
+      // `specs/192-organization-merge/` US6 — the Project merge's two, recorded by `merge/project-merge-notifier.ts`.
+      ...PROJECT_MERGE_NOTIFICATION_KEYS,
+    ]);
     for (const language of ['en', 'pl'] as const) {
       const shipped = Object.keys(bundle(language)).filter((key) => key.startsWith('notifications.'));
       expect(new Set(shipped)).toEqual(recorded);

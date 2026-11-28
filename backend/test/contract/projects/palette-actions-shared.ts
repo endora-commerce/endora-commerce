@@ -76,6 +76,8 @@ export function actionRouteFindings(moduleId: string) {
     actionId: action.id,
     targetRoute: action.targetRoute,
     ...(action.requiredPermission === undefined ? {} : { requiredPermission: action.requiredPermission }),
+    // An action that names its entry route is judged against it, as `check:action-route-permissions` does.
+    ...(action.entryApiRoute === undefined ? {} : { entryApiRoute: action.entryApiRoute }),
   }));
   const ledger = Object.fromEntries(
     Object.entries(ACTION_PERMISSION_DISAGREEMENTS).filter(([key]) => key.startsWith(`${moduleId}:`)),

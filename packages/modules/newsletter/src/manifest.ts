@@ -350,4 +350,18 @@ export const manifest = defineModuleManifest({
       weight: 236,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T052 — in an Organization merge the subscribers attributed to
+   * the loser move to the survivor (`participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'subscribers',
+        phase: 'records',
+        references: [{ entity: 'NewsletterSubscriber', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

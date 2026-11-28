@@ -111,4 +111,20 @@ export const manifest = defineModuleManifest({
       memberDefault: true,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T042 — an Organization merge re-points the
+   * loser's addresses to the survivor in the `addresses` phase (before the
+   * members move); the survivor's defaults are kept
+   * (`contracts/participant-dispositions.md` §A).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'addresses',
+        phase: 'addresses',
+        references: [{ entity: 'Address', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

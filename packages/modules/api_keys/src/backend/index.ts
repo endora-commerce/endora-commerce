@@ -12,6 +12,7 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { ApiKeyService } from './services/api-key-service.js';
 import { integrationsModule } from './plugin.js';
 import { ApiKey } from './entities/api-key.entity.js';
+import { ApiKeyOrganizationMergeParticipant, type ApiKeyMergeParticipantDeps } from './merge/organization-merge-participant.js';
 
 /**
  * `api_keys` — the module `auth` reads at every request (feature 072, wave 2,
@@ -65,6 +66,18 @@ export interface ApiKeysCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/192-organization-merge/` T055 — this module's part of an
+  // Organization merge, under the key its manifest declares.
+  const mergeDeps = (): ApiKeyMergeParticipantDeps => ctx.cradle<ApiKeyMergeParticipantDeps>();
+  ctx.merge.participate(
+    'organization',
+    'bound-keys',
+    new ApiKeyOrganizationMergeParticipant({
+      emFactory: () => mergeDeps().emFactory(),
+      commandBus: { run: (command) => mergeDeps().commandBus.run(command) },
+    }),
+  );
+
   const permissions = lazyPort<PermissionReadPort>(ctx, 'permissionService');
   ctx.di.register({
     // One registration holds the whole graph: the two gates close over the

@@ -44,6 +44,7 @@ import { Project } from '../entities/project.entity.js';
 import { ProjectOrganization } from '../entities/project-organization.entity.js';
 import { ProjectStage } from '../entities/project-stage.entity.js';
 import { ProjectStageMove } from '../entities/project-stage-move.entity.js';
+import { makeProjectMergeStartCommand } from '../commands/project-merge-start.command.js';
 import { MoveService, type MoveServiceDeps } from './move-service.js';
 import { PROJECTS_AUDIT_KEYS } from './project-audit-state.js';
 import { ProjectService, type ProjectServiceDeps } from './project-service.js';
@@ -314,7 +315,7 @@ const createBody: CreateProjectBody = {
 } as CreateProjectBody;
 
 describe('projects lists its hookable actions in its manifest', () => {
-  it('lists the eight refs, for both phases', () => {
+  it('lists the eight refs and the merge start, for both phases', () => {
     expect(manifest.hookableActions?.map((declaration) => declaration.action)).toEqual(
       Object.values(PROJECTS).map((ref) => ref.action),
     );
@@ -558,7 +559,9 @@ describe('an afterCommit handler is delivered through the outbox', () => {
     await asAdmin(() => h.moves.close(PROJECT_ID, { outcome: 'completed', version: 6 }, 'en'));
     await asAdmin(() => h.moves.reopen(PROJECT_ID, { version: 7 }, 'en'));
 
-    expect(new Set(h.outbox.map((row) => row['action']))).toEqual(new Set(Object.values(PROJECTS).map((ref) => ref.action)));
+    // The merge start is the merge's own Command, held below (`specs/192-organization-merge/` FR-061).
+    const written = Object.values(PROJECTS).filter((ref) => ref !== PROJECTS.mergeStart);
+    expect(new Set(h.outbox.map((row) => row['action']))).toEqual(new Set(written.map((ref) => ref.action)));
     for (const row of h.outbox) expect(row['organizationId'], String(row['action'])).toBeNull();
   });
 
@@ -582,5 +585,31 @@ describe('an afterCommit handler is delivered through the outbox', () => {
 
     expect(h.outbox).toEqual([]);
     expect(h.w.project.state).toBe('completed');
+  });
+});
+
+describe('projects.project.merge.start is hookable (`specs/192-organization-merge/` FR-061)', () => {
+  it('declares its data and outbox data, ids and a source code only — none pinned to an Organization', () => {
+    const command = makeProjectMergeStartCommand(
+      { recordMerge: () => ({}) as never, assertVisibleUnderLock: async () => undefined },
+      {
+        mergeId: '00000000-0000-4000-8000-000000192f11',
+        survivorId: PROJECT_ID,
+        loserId: '00000000-0000-4000-8000-000000192f12',
+        fieldChoices: { title: 'loser' },
+        customFieldChoices: {},
+        source: 'erp_connector',
+        participantCounts: {},
+        acknowledgedOrganizationIds: [],
+      },
+    );
+    expectHookableCommand(command, PROJECTS.mergeStart, { result: {} as never, sentinels: [SENTINEL] });
+    expect(command.hookData?.({} as never)).toEqual({
+      projectId: PROJECT_ID,
+      mergeId: '00000000-0000-4000-8000-000000192f11',
+      survivorId: PROJECT_ID,
+      loserId: '00000000-0000-4000-8000-000000192f12',
+      source: 'erp_connector',
+    });
   });
 });

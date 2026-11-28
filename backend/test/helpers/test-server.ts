@@ -13,7 +13,7 @@ import type { Redis } from 'ioredis';
 
 import { buildServer, type ModulePlugin } from '@endora-commerce/platform/composition';
 import type { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
-import type { CommandHookRegistry } from '@endora-commerce/platform/composition';
+import type { CommandHookRegistry, RecordMergeRuntime } from '@endora-commerce/platform/composition';
 import { publishStateChanged, registryCache } from '@endora-commerce/platform/composition';
 import { effectiveState, getResolvedChannel } from '@endora-commerce/platform/kernel';
 import { type TenantContext } from '@endora-commerce/platform/tenancy';
@@ -407,6 +407,11 @@ export interface BackendServerHandle {
    * handlers: the harness runs no worker.
    */
   commandHookRegistry: CommandHookRegistry;
+  /**
+   * `specs/192-organization-merge/` — the record-merge runtime, so a test drives
+   * a merge with `run(mergeId)`: the harness runs no worker.
+   */
+  recordMergeRuntime: RecordMergeRuntime;
   redis: Redis;
   /** Feature 072 (T073) — the module-state pub/sub client, disconnected at teardown. */
   redisSubscriber: Redis;
@@ -2853,6 +2858,7 @@ export async function setupBackendServer(
     apiInterceptors,
     commandHookRegistry: (container.cradle as never as { commandHookRegistry: CommandHookRegistry })
       .commandHookRegistry,
+    recordMergeRuntime: (container.cradle as never as { recordMergeRuntime: RecordMergeRuntime }).recordMergeRuntime,
     redis,
     redisSubscriber: handle.redisSubscriber,
     pubSubArmed: handle.pubSubArmed,

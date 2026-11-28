@@ -217,7 +217,9 @@ export const manifest = defineModuleManifest({
   // `specs/193-admin-form-extensions/` FR-110, FR-114 (D-300): the account's
   // creation, profile edit and custom-field edit, both phases. None of the
   // three is reversible (176 R-20), which `customer-account-hookable-actions.test.ts`
-  // holds.
+  // holds. And the membership move (`specs/191-membership-join-requests/` §4,
+  // `specs/192-organization-merge/` T069): a deployment may veto or follow it,
+  // and tell a merge from a move by its `mode`.
   hookableActions: Object.values(CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
@@ -244,4 +246,21 @@ export const manifest = defineModuleManifest({
       weight: 140,
     },
   ],
+  /**
+   * `specs/192-organization-merge/` T070 (`contracts/participant-dispositions.md`
+   * §A) — the loser's members follow the survivor of an Organization merge in
+   * the `members` phase, one `customer_account.organization.change` per account
+   * in the mode `merge`, 50 accounts a batch (R-16).
+   */
+  merge: {
+    participates: [
+      {
+        host: 'organization',
+        key: 'organization-members',
+        phase: 'members',
+        batchSize: 50,
+        references: [{ entity: 'CustomerAccount', property: 'organizationId', disposition: 're_point' }],
+      },
+    ],
+  },
 });

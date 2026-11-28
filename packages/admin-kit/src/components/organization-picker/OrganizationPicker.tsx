@@ -22,6 +22,8 @@ export interface OrganizationPickerProps {
    */
   kind?: OrganizationPickerKind;
   salesRepAdminUserId?: string;
+  /** Organizations never offered — e.g. the one a merge keeps, which cannot be its own duplicate. */
+  excludeIds?: readonly string[];
   placeholder?: string;
   emptyMessage?: string;
   clearable?: boolean;
@@ -59,12 +61,14 @@ export function OrganizationPicker(props: OrganizationPickerProps): React.ReactE
 
   const options = useMemo<ComboboxOption<string>[]>(
     () =>
-      items.map((it) => ({
-        value: it.id,
-        label: it.name,
-        description: it.legalName ?? undefined,
-      })),
-    [items],
+      items
+        .filter((it) => !props.excludeIds?.includes(it.id))
+        .map((it) => ({
+          value: it.id,
+          label: it.name,
+          description: it.legalName ?? undefined,
+        })),
+    [items, props.excludeIds],
   );
 
   const renderOption = (

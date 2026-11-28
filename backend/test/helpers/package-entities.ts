@@ -123,6 +123,7 @@ import type { Megamenu as MegamenuRow } from '../../../packages/modules/megamenu
 import type { MegamenuItem as MegamenuItemRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu-item.entity.js';
 import type { MegamenuBinding as MegamenuBindingRow } from '../../../packages/modules/megamenu/src/backend/entities/megamenu-binding.entity.js';
 import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/src/backend/entities/organization.entity.js';
+import type { OrganizationInvitation as OrganizationInvitationRow } from '../../../packages/modules/organizations/src/backend/entities/organization-invitation.entity.js';
 import type { OrganizationSalesRepAssignment as OrganizationSalesRepAssignmentRow } from '../../../packages/modules/organizations/src/backend/entities/organization-sales-rep-assignment.entity.js';
 import type { PriceList as PriceListRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list.entity.js';
 import type { PriceListMatrixEntry as PriceListMatrixEntryRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-matrix-entry.entity.js';
@@ -1020,6 +1021,11 @@ export const Organization = classNamed<OrganizationRow>(
   installedModuleEntities,
   'organizations',
   'Organization',
+);
+export const OrganizationInvitation = classNamed<OrganizationInvitationRow>(
+  installedModuleEntities,
+  'organizations',
+  'OrganizationInvitation',
 );
 export const OrganizationSalesRepAssignment = classNamed<OrganizationSalesRepAssignmentRow>(
   installedModuleEntities,
