@@ -41,8 +41,12 @@ describe('CustomerAccountCommandPort (186 US3)', () => {
     expectTypeOf<CustomerAccountCommandPort['create']>().toEqualTypeOf<
       (input: CustomerAccountCreateInput, options?: AggregateCommandOptions) => Promise<CustomerAccountRecord>
     >();
+    // `specs/193-admin-form-extensions/` D-300.10 as amended — the storefront caller's buyer flag.
     expectTypeOf<CustomerAccountCommandPort['createStandalone']>().toEqualTypeOf<
-      (input: CustomerAccountStandaloneCreateInput, options?: AggregateCommandOptions) => Promise<CustomerAccountRecord>
+      (
+        input: CustomerAccountStandaloneCreateInput,
+        options?: AggregateCommandOptions & { readonly buyerSelfService?: true },
+      ) => Promise<CustomerAccountRecord>
     >();
     expectTypeOf<CustomerAccountCommandPort['updateProfile']>().toEqualTypeOf<
       (id: string, patch: CustomerAccountProfilePatch, options?: AggregateCommandOptions) => Promise<CustomerAccountRecord>

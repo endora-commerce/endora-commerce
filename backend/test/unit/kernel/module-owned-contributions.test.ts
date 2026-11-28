@@ -141,7 +141,9 @@ const CLUSTER_SIX: ReadonlyArray<{
   {
     what: 'social-login account creation',
     owner: 'customer_accounts',
-    inBackend: 'create(CustomerAccount',
+    // `specs/193-admin-form-extensions/` D-300.31 — the creation is the module's
+    // own `customer_account.register_social` Command, which its composition runs.
+    inBackend: 'makeRegisterSocialCommand(',
     notInRoot: 'create(CustomerAccount',
   },
 ];

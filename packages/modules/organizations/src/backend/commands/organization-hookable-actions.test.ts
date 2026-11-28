@@ -133,7 +133,7 @@ describe('organizations declares six hookable actions (176 T028, FR-024; #1057)'
 });
 
 describe('organization.merge.start is hookable (`specs/192-organization-merge/` FR-061)', () => {
-  it('declares its data and outbox data, ids and a source code only', () => {
+  it('declares its data and outbox data: ids and a source code, plus the survivor outcome in-process', () => {
     const command = makeMergeStartCommand(
       { recordMerge: () => ({}) as never },
       {
@@ -152,6 +152,11 @@ describe('organization.merge.start is hookable (`specs/192-organization-merge/` 
       survivorId: ORG_ID,
       loserId: '00000000-0000-4000-8000-000000192f02',
       source: 'erp_connector',
+      // `specs/193-admin-form-extensions/` D-300.28 — the in-process hook data
+      // also carries the outcome the start fixes on the survivor, which `run`
+      // computes (here it has not run, so nothing changes). The outbox data
+      // stays ids and codes.
+      survivor: { after: expect.any(Object), changed: [] },
     });
   });
 });

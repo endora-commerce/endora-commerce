@@ -359,7 +359,7 @@ function start(loser: Organization, fieldChoices: Record<string, 'survivor' | 'l
     ...command,
     hookData: () => ({ ...(command.hookData!({} as never) as object), survivor: { after: outcome.after, changed: outcome.changed } }),
     run: async () => ({ result: { id: ORG_ID }, before: null, after: { mergeId: ORG_ID } }),
-  } as Command<unknown>;
+  } as unknown as Command<unknown>;
 }
 
 /** `organization.merge.finalize`, its run a stand-in answering the survivor it wrote. */
@@ -370,7 +370,7 @@ function finalize(survivor: Organization, changedFields: string[]): Command<unkn
     hookData: () => ({ organization: (command.hookData!({ survivor, finalized: true, mergedAt: new Date() } as never) as { organization: unknown }).organization, changedFields }),
     run: async () => ({ result: { survivor, finalized: true, mergedAt: new Date() }, before: null, after: { mergeId: ORG_ID } }),
     event: undefined,
-  } as Command<unknown>;
+  } as unknown as Command<unknown>;
 }
 
 const WRITE_VAT = { target: 'organization.vatStatus', writePermission: 'organizations:change-tax-id', reason: 'Only tax staff change VAT status.' } as const;
