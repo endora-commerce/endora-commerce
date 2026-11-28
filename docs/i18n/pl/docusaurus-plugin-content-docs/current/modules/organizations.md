@@ -136,7 +136,7 @@ architektury *Command Bus*.
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCommandPort.setCustomFieldValues` | `organization`, `changedFields`, `changedCustomFields` |
-| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
+| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organization`, `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
 Wszystkie sześć oferuje obie fazy. Odbiorca `afterCommit` jest obsługiwany przez kolejkę dostarczeń platformy
@@ -147,8 +147,10 @@ aktualizacjach, `status` i `changedFields` przy zamianie na firmę oraz `changed
 NIP-u. Zmiany
 zgłoszone przez hook trafiają do jedynego wpisu audytu organizacji jako nazwy, w
 `extensions.<moduleId>.changedFields`. Hook rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
-Hooki zamiany na firmę i korekty NIP dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy
-NIP-u, nazwy ani adresu. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej hooki i tak
+Hooki zamiany na firmę dostają też przekształconą organizację (`organization`, jej stan po zmianie),
+więc NIP, nazwa i adres trafiają teraz do ich hooków `beforeCommit`, tak jak już trafiają do hooków
+`admin_patch`; dane outboxa nadal zawierają tylko identyfikatory, kody i nazwy pól. Hooki korekty NIP
+dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy NIP-u. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej hooki i tak
 są uruchamiane z pustym `changedFields`: wpis audytu powstaje tylko wtedy, gdy hook zgłosił zapis, i
 wtedy ten jeden wpis wymienia wyłącznie pola hooka. Dane rozszerzeń (`extensions`) może przekazać
 tylko kod po stronie serwera, w ostatnim argumencie każdej metody `organizationCommandPort` — a

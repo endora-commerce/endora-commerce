@@ -144,7 +144,7 @@ page.
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCommandPort.setCustomFieldValues` | `organization`, `changedFields`, `changedCustomFields` |
-| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
+| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organization`, `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
 All six offer both phases. An `afterCommit` handler is delivered through the
@@ -155,8 +155,11 @@ plus `customerAccountId` and `status` on registration, `status` on create,
 `changedFields` on a conversion, and `changedFields` on a tax-ID correction. A
 hook's noted changes appear in the Organization's single audit entry as names,
 under `extensions.<moduleId>.changedFields`. The registration hook never sees
-the e-mail verification token. The conversion and tax-ID hooks are handed ids,
-codes and field names only — never the tax ID, the name or the address. A
+the e-mail verification token. The conversion's hooks are also handed the
+converted Organization (`organization`, its after-state), so the tax ID, the name
+and the address now reach its `beforeCommit` hooks, as they already reach
+`admin_patch`'s; its outbox data stays ids, codes and field names. The tax-ID
+correction's hooks are handed ids, codes and field names only — never the tax ID. A
 tax-ID correction to the same value changes nothing, and its hooks still run
 with an empty `changedFields`: no audit entry is recorded unless a hook noted a
 write, and then the one entry names only the hook's fields. Extension input

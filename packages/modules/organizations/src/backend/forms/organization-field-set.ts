@@ -32,17 +32,14 @@ import type { FieldSetRegistration } from '@endora-commerce/platform/kernel';
  *   `taxId` invites presentation kinds only.
  * - the hierarchy moves and moderation — `parentId` and `status` invite
  *   presentation kinds only.
- * - `organization.merge.finalize` — it copies a value one of the two merged
- *   records already stores, and a rule is not retroactive (D-300.4, D-300.11).
- * - the personal organisation provisioned for a standalone buyer
- *   (`PersonalOrganizationService.provisionFor`) and its anonymisation — system
- *   invariants with fixed values, outside the Command Bus, and buyer
- *   self-service besides (D-300.3).
- *
- * None of these three is a writer (D-300.28): merge finalize, provisioning and
- * anonymisation are not held to the field rules, and the merge's own grant
- * (`specs/192-organization-merge/`) governs what it copies — a field's
- * `writePermission` does not bind it.
+ * - the merge (`organization.merge.start` and `organization.merge.finalize`)
+ *   and personal-organisation provisioning
+ *   (`PersonalOrganizationService.provisionFor`) — **not yet registered,
+ *   pending the architect's re-ruling of D-300.28 and D-300.31**, which hold
+ *   both as writers. Until then neither is checked.
+ * - anonymisation — an erasure (D-300.32). It runs outside the Command Bus and
+ *   is held to no rule, so it can never be refused; a scrubbed row that breaks
+ *   a rule added later is a stored value, tolerated as any is (D-300.4).
  */
 
 /** The keys of the organization field set. */
