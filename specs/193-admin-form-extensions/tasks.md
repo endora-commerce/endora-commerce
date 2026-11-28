@@ -70,8 +70,8 @@ the merge request that changes their inputs.
 ## Phase 3: Read wire and kit (B2 and C)
 
 ### WP-B2 admin reads (FR-015)
-- [ ] T035 [T] `reads.test.ts`: the loader is consulted when `adminReads` is set; omitted when `adminReads` is absent; omitted when the module is off; called once per module; `loader-and-columns-on-one-host` is refused.
-- [ ] T036 Implement `adminReads` and loader consultation in `schema-extensions/reads.ts`, and pass the loader registry in `compose-app.ts`.
+- [x] T035 [T] `reads.test.ts`: the loader is consulted when `adminReads` is set; omitted when `adminReads` is absent; omitted when the module is off; called once per module; `loader-and-columns-on-one-host` is refused.
+- [x] T036 Implement `adminReads` and loader consultation in `schema-extensions/reads.ts`, and pass the loader registry in `compose-app.ts`.
 
 ### WP-C admin-kit (FR-004, FR-011, FR-016, FR-032 (client), FR-044, FR-052, FR-061, FR-062)
 - [ ] T037 [T] Layout algorithm unit tests (`field-slots.md` §5), shared with T030's vectors.
@@ -187,6 +187,18 @@ imports `applyFieldMoves` from WP-D's contracts change.
 - [ ] T087 [T] WP-C: client rules hold the same set as the server on edit forms (D-300.11). A read-only field that a present derivation targets is submitted (D-300.12). The layout comes from the contracts' `formLayout` (D-300.14).
 - [ ] T088 [T] WP-E1 and WP-E3: `buyerSelfService` on `organization.register`, on `customer_account.register_standalone`, and on the invitation acceptance through `CustomerAccountMemberWritePort.create`'s new optional input. Add a test that lists every storefront route reaching a field-set writer (D-300.10).
 - [ ] T089 [T] WP-L1: an operator `hidden` or `readOnly` on an effectively required create-form field is refused with no exemption (D-300.12).
+
+## Phase 3 ruling follow-ups (D-300.17 to D-300.25, R-25)
+
+These are added to the work package named on each line.
+- [ ] T090 [T] (WP-C, #2032) an operator change to a key the kit renders read-only (core or slot) is dropped and warned once per key in development, and a derived or defaulted value is not dropped (D-300.18).
+- [ ] T091 [T] (WP-C, #2032) on an edit form a derivation whose `from` field changes and then changes back returns its target to the loaded value, and the submission omits the target (D-300.20).
+- [ ] T092 [T] (WP-C, #2032) `GET /api/v1/admin/effective-forms` answers `Cache-Control: private, no-cache` (assert in `routes.admin.forms.test.ts`, `patch` platform changeset), and the route's stale "pending the architect's ruling" note goes (D-300.21).
+- [ ] T093 [T] (WP-C, #2032) `flattenExtensions` types a module's value as `Record<string, unknown> | null`, following D-300.24.
+- [ ] T094 [T] (WP-L1) `EffectiveSlotOverrideSchema`, `SLOT_OPERATOR_KINDS` and `forms[].slots` in contracts; `formLayout` honours `hidden` for a slot's wire key, keeping its anchor, with a `FORM_LAYOUT_VECTORS` case; `effective-forms.ts` serves slot rows (presence, `no-longer-accepted`, `position-fallback`) and its header is corrected; `custom_fields.form_layout.set` admits slot keys per `operator-form-layout.md` §2, where `before`/`after` wins over `section`; the detail response's `slots` array carries `status` and the `position-fallback` notice; `fieldSlotHook` refuses a schema that does not accept `{}` (D-300.17).
+- [ ] T095 [T] (WP-L2) the kit applies `forms[].slots` (label and help in the reader's language only, hidden, position to anchor), and the screen computes `orphaned` for an `active` slot row that no present, permitted slot contribution of the form declares (D-300.17).
+- [ ] T096 [T] (WP-B2, #2033) the `columnExtensions` reader passed by `composeApp` and `composeTestServer` throws before `schemaExtensionContextRecorded()`; a `composeTestServer` test refuses a module with `adminReads` columns and an `adminReads` loader on `organizations` (D-300.22, D-300.23).
+- [ ] T097 [T] (WP-B2, #2033) `ExtensionAttributesSchema`'s per-module value is `z.record(z.string(), z.json()).nullable()` and `ExtensionAttributeMap` follows; a non-object, non-null `adminReads` loader value fails the read with `EntityExtensionLoaderOutputError`; the `adminReads` doc comment and the contracts changeset say so (D-300.24). `null` for a record with no value stays (D-300.25).
 
 ## Dependencies (summary)
 

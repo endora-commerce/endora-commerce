@@ -48,7 +48,8 @@ judged once, over the conjunction of every module's tightenings, by composition'
 
 ```
 GET /api/v1/admin/effective-forms      preHandler: requireAdmin()   (no code — FR-023, D-300.9)
-200 EffectiveFormsResponseSchema, ETag
+200 EffectiveFormsResponseSchema, ETag, Cache-Control: private, no-cache   (D-300.21)
+304 on a matching If-None-Match
 ```
 
 ```ts
@@ -75,12 +76,26 @@ export const EffectiveTextSchema = z.discriminatedUnion('source', [
   z.object({ source: z.literal('code'), module: z.string(), key: z.string() }),
   z.object({ source: z.literal('operator'), text: z.record(z.string(), z.string()) }),
 ]);
+/** An operator row on a slot field (D-300.17). Slots have no code layer: every value is the operator's. */
+export const SLOT_OPERATOR_KINDS = ['label', 'help', 'position', 'hidden'] as const;
+export const EffectiveSlotOverrideSchema = z.object({
+  key: z.string(),                                        // wire key '<moduleId>.<localKey>'
+  label: EffectiveTextSchema.optional(),                  // source 'operator'
+  help: EffectiveTextSchema.optional(),                   // source 'operator'
+  position: z.object({ section: z.string().optional(), before: z.string().optional(), after: z.string().optional() }).optional(),
+  hidden: z.boolean(),
+  operatorKinds: z.array(z.string()),
+});
 export const EffectiveFormsResponseSchema = z.object({
-  forms: z.array(z.object({ id: z.string(), fieldSet: z.string(), fields: z.array(EffectiveFieldSchema) })),
+  forms: z.array(z.object({
+    id: z.string(), fieldSet: z.string(), fields: z.array(EffectiveFieldSchema),
+    /** Absent: no operator row on a slot of this form. */
+    slots: z.array(EffectiveSlotOverrideSchema).optional(),
+  })),
 });
 ```
 
-- Only forms of a **present** owner; only overrides of **present** declaring modules (FR-052); a
+- Only forms for which the owner of the form's field set and the module that renders the form are effectively present; only overrides of **present** declaring modules (FR-052); a
   `control` of an absent module resolves to `null`.
 - Computed per process from the sealed `FormRegistry`, `effectiveState` and the operator layer
   (`FormLayoutOverrideSource` port, operator-form-layout.md §4), memoised per (presence snapshot,
@@ -90,8 +105,22 @@ export const EffectiveFormsResponseSchema = z.object({
   (field-slots.md §5 step 1, D-300.14), over the effective `position` of each key: the operator's
   when it set one, else the code override's. An operator move sorts as module `custom_fields`. Same body for every admin; the admin decides read-only for `writePermission` from
   its own session permissions.
-- The admin-kit provider (`packages/admin-kit/src/lib/forms/`) fetches it beside
-  `getModulePresence()` and refreshes with it.
+- **Slot rows (D-300.17).** A stored operator row is a slot row when its key is neither a core key
+  nor a declared family member of the set. It is served when the key's module prefix is effectively
+  present and the owner of the form's field set and the module that renders the form are effectively present. A row that holds a kind outside `SLOT_OPERATOR_KINDS` is
+  not served (`no-longer-accepted`). When a row sets both `section` and `before` or `after`, the
+  `before` or `after` wins and `section` is ignored, because the anchor key's section is implied. A
+  `before` or `after` that names no core key the form shows after code moves, or a `section` the
+  form does not declare, is dropped from `position` (`position-fallback`). The server does not know which slots exist. The kit ignores an entry for a
+  slot it does not render, and applies the rest: operator text replaces the slot's label and help in
+  the reader's language only (FR-092); `hidden` puts the wire key into `formLayout`'s `hidden`;
+  `before`/`after` k becomes the anchor `{ field: k, position }`, and `section` alone becomes
+  `{ section, position: 'end' }`, with the slot's `weight` kept.
+- **Caching (D-300.21).** `Cache-Control: private, no-cache`: the browser stores the response and
+  revalidates it against the `ETag` on every request, and no shared cache stores it. The admin-kit
+  provider (`packages/admin-kit/src/lib/forms/`) does a plain GET beside `getModulePresence()` and
+  refreshes with it. It never sets `If-None-Match` or a fetch `cache` mode itself, because a `304`
+  reaching `apiClient` is an error there.
 
 ## §3 Composition — `FormRegistry.seal` (platform `forms/`, called from `composeModules`)
 
