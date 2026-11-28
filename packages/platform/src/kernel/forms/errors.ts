@@ -31,6 +31,8 @@ export const FORM_COMPOSITION_CODES = [
   'required-not-fillable',
   'override-loosens-rule',
   'override-contradiction',
+  /** A merged tightening rejects a value the owner declares its system paths write (`systemValues`, D-300.31). */
+  'rule-excludes-system-value',
   'override-conflict',
   'control-type-mismatch',
   /** An override's `validation.format` names a format other than its control's own (FR-033). */

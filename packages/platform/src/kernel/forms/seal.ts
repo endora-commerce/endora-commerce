@@ -3,6 +3,7 @@ import {
   PLATFORM_INPUT_CONTROLS,
   SERVER_ENFORCED_OVERRIDES,
   fieldOverrideKinds,
+  isEmptyFieldValue,
   type AdminFormDeclaration,
   type FieldCondition,
   type FieldDeclaration,
@@ -21,8 +22,8 @@ import {
   PackageFormOverrideNotGrantedError,
   type FormCompositionWarning,
 } from './errors.js';
-import { isPlatformFormat } from './formats.js';
-import { byCodePoint, contradictionOf, mergeValidation, type MergedValidation, type ValidationContribution } from './rules.js';
+import { formatValidator, isPlatformFormat } from './formats.js';
+import { byCodePoint, contradictionOf, mergeValidation, violationsOf, type MergedValidation, type ValidationContribution } from './rules.js';
 import type { FieldFormatRegistration, FieldSetWriter } from './types.js';
 
 /**
@@ -362,6 +363,8 @@ export function sealForms(input: FormSealInput): SealedForms {
     }
     formats.set(format.id, { moduleId: format.moduleId, validate: format.validate });
   }
+  // The check's own format validators, for the system-value refusal below.
+  const systemValueFormats = formatValidator(formats);
   const formatOwner = (format: string): string | null | undefined =>
     isPlatformFormat(format) ? null : formats.get(format)?.moduleId;
 
@@ -832,6 +835,25 @@ export function sealForms(input: FormSealInput): SealedForms {
           `the tightenings of ${[...new Set(contributions.map((c) => c.moduleId))].join(' and ')} together admit no value: ${contradiction}`,
           'Make the modules’ rules compatible, or drop one.',
         );
+      }
+      // D-300.31 — a value the owner's system paths write (a personal
+      // organisation's VAT status) must pass the merged rule, or every held
+      // system write would fail at run time: refused here, at boot.
+      for (const value of field.systemValues ?? []) {
+        const broken = isEmptyFieldValue(value)
+          ? merged.required === undefined
+            ? []
+            : [{ ...merged.required, code: 'required' as const }]
+          : violationsOf(field.type, value, merged, systemValueFormats);
+        if (broken.length > 0) {
+          const by = [...new Set(broken.map((violation) => violation.moduleId))];
+          throw new FormCompositionError(
+            'rule-excludes-system-value',
+            { moduleId: by.join(', '), fieldSet: set.id, field: fieldKey },
+            `the tightening of ${by.join(' and ')} rejects ${JSON.stringify(value)} (${broken.map((violation) => violation.code).join(', ')}), a value '${set.ownerModuleId}' writes on a system path`,
+            `Admit ${JSON.stringify(value)} in the rule: the owner writes it itself, and a rule against it would refuse every such write.`,
+          );
+        }
       }
     }
 

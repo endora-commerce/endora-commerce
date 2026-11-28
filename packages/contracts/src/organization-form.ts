@@ -81,6 +81,9 @@ export const ORGANIZATION_FIELD_SET = defineFieldSet({
       options: vatStatusSchema.options,
       required: false,
       accepts: ['label', 'help', 'position', 'validation', 'writePermission'],
+      // D-300.31 — a personal organisation is provisioned `vat_exempt`, so no
+      // deployment rule may exclude it (`rule-excludes-system-value`).
+      systemValues: ['vat_exempt'],
     },
     {
       key: 'orderConfirmationEmails',

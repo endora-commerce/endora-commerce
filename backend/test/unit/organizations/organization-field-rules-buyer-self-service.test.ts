@@ -36,11 +36,15 @@ const ORG_ID = '00000000-0000-4000-8000-000000193f01';
 const CHANNEL = '00000000-0000-4000-8000-000000193f02';
 const ACCOUNT_ID = '00000000-0000-4000-8000-000000193f03';
 
-/** The deployment allows VAT payers only. */
+/**
+ * The deployment refuses reverse-charge customers. It keeps `vat_exempt`: a
+ * personal organisation is provisioned with it, and composition refuses a rule
+ * that excludes a system value (D-300.31).
+ */
 const OVERRIDE: FieldOverride = {
   target: 'organization.vatStatus',
-  validation: { options: ['vat_payer'] },
-  reason: 'This deployment trades with VAT payers only.',
+  validation: { options: ['vat_payer', 'vat_exempt'] },
+  reason: 'This deployment does not trade under reverse charge.',
 };
 
 /** …and caps a name at its ERP's length (D-300.26). */
@@ -74,7 +78,7 @@ function organization(vatStatus: string, name = 'Acme'): Organization {
   } as unknown as Organization;
 }
 
-function harness(options: { readonly buyerSelfServiceActions?: readonly string[] } = {}) {
+function harness(options: { readonly buyerSelfServiceActions?: readonly string[]; readonly overrides?: readonly FieldOverride[] } = {}) {
   const committed: string[] = [];
   let pending: string[] = [];
   const em = {
@@ -100,10 +104,7 @@ function harness(options: { readonly buyerSelfServiceActions?: readonly string[]
   forms.seal({
     fieldSets: [{ moduleId: 'organizations', set: ORGANIZATION_FIELD_SET }],
     adminForms: (manifest.adminForms ?? []).map((form) => ({ moduleId: 'organizations', form })),
-    formOverrides: [
-      { moduleId: 'acme', override: OVERRIDE },
-      { moduleId: 'acme', override: NAME_OVERRIDE },
-    ],
+    formOverrides: (options.overrides ?? [OVERRIDE, NAME_OVERRIDE]).map((override) => ({ moduleId: 'acme', override })),
     inputControls: [],
     hookableActions,
     moduleDependencies,
@@ -138,7 +139,7 @@ const account: Command<CustomerAccountRecord> = {
   run: async () => ({ result: { id: ACCOUNT_ID } as CustomerAccountRecord }),
 };
 
-function register(vatStatus: 'vat_payer' | 'vat_exempt') {
+function register(vatStatus: 'vat_payer' | 'reverse_charge') {
   const command = makeRegisterOrganizationCommand(
     { events: { emit: () => undefined } as never },
     {
@@ -153,7 +154,7 @@ function register(vatStatus: 'vat_payer' | 'vat_exempt') {
   return standIn(command, { organization: organization(vatStatus), customerAccount: { id: ACCOUNT_ID } as CustomerAccountRecord, verificationToken: 'token' });
 }
 
-function create(vatStatus: 'vat_payer' | 'vat_exempt') {
+function create(vatStatus: 'vat_payer' | 'reverse_charge') {
   const command = makeCreateOrganizationCommand(
     { membership: { replaceChannelsForEntity: async () => ({}) as never } },
     {
@@ -184,7 +185,7 @@ async function refusal(run: Promise<unknown>): Promise<{ statusCode?: number; co
 describe('a tightened organization rule and the buyer self-registration (T088, D-300.10)', () => {
   it('binds an operator create', async () => {
     const h = harness();
-    const error = await refusal(as(operator, () => h.bus.run(create('vat_exempt'))));
+    const error = await refusal(as(operator, () => h.bus.run(create('reverse_charge'))));
     expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
     expect(error.details).toEqual([expect.objectContaining({ path: 'vatStatus', code: 'not_an_option' })]);
     expect(h.committed).toEqual([]);
@@ -198,19 +199,19 @@ describe('a tightened organization rule and the buyer self-registration (T088, D
 
   it('binds an anonymous system write that is not declared buyer self-service (fail closed)', async () => {
     const h = harness();
-    const error = await refusal(as(anonymous, () => h.bus.run(create('vat_exempt'))));
+    const error = await refusal(as(anonymous, () => h.bus.run(create('reverse_charge'))));
     expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
   });
 
   it('skips the storefront self-registration, which runs as the anonymous system actor', async () => {
     const h = harness();
-    await as(anonymous, () => h.bus.run(register('vat_exempt')));
+    await as(anonymous, () => h.bus.run(register('reverse_charge')));
     expect(h.committed).toEqual(['organization.register']);
   });
 
   it('ignores the flag under an operator: a registration Command an admin runs is bound', async () => {
     const h = harness();
-    const error = await refusal(as(operator, () => h.bus.run(register('vat_exempt'))));
+    const error = await refusal(as(operator, () => h.bus.run(register('reverse_charge'))));
     expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
   });
 
@@ -257,5 +258,13 @@ describe('a tightened name rule and the personal → company conversion (D-300.2
     const h = harness();
     await as(operator, () => h.bus.run(convert('Acme Sp. z o.o.')));
     expect(h.committed).toEqual(['organization.convert_to_company']);
+  });
+});
+
+describe('a rule against the value provisioning writes (D-300.31)', () => {
+  it('refuses at composition a narrowing of vatStatus that leaves out vat_exempt', () => {
+    expect(() =>
+      harness({ overrides: [{ target: 'organization.vatStatus', validation: { options: ['vat_payer'] }, reason: 'VAT payers only.' }] }),
+    ).toThrow(/rule-excludes-system-value.*vatStatus|vatStatus.*rule-excludes-system-value/su);
   });
 });
