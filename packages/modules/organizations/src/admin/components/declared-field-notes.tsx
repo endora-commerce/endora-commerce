@@ -1,49 +1,47 @@
 import type { ReactNode } from 'react';
-import type { DeclaredFieldInputProps } from '@endora-commerce/admin-kit/components';
+import { AlertCircle } from 'lucide-react';
 
 /**
- * The help an override gives and the error a refused save maps onto a field
- * (`specs/193-admin-form-extensions/` WP-E1), for this module's `{ field }`
- * renderers — the declared form's renderer kind that draws its own label, so
- * the screens keep the markup their tests and their operators know.
+ * The error region of a declared field this module's screens cannot wrap in
+ * the kit's `FormField` (`specs/193-admin-form-extensions/` WP-E1): the
+ * registered address, a fieldset of four inputs, the sales-channel checklist,
+ * a group with a label of its own, and the fulfilment strategy, a section of
+ * its own. Every other declared field is a `FormField`.
  *
- * Both are rendered **only when there is something to say**, so a form with no
- * override and no error is exactly the markup it was before it adopted. The ids
- * are derived from the control's, and {@link describedBy} joins them with the
- * ids the control already had.
+ * It is `FormField`'s error block, to the class: **always mounted**, empty
+ * until there is an error, `aria-live="polite"` — a live region that arrives
+ * carrying its message is not reliably announced (WCAG 2.2 SC 4.1.3) — and the
+ * message paired with an icon, so the state is never colour alone. The
+ * controls name it with {@link declaredErrorId} in `aria-describedby` while it
+ * holds an error.
  */
-export function DeclaredFieldNotes({ id, field }: { readonly id: string; readonly field: Pick<DeclaredFieldInputProps, 'helpOverride' | 'error'> }): ReactNode {
+export function DeclaredFieldError({ id, error }: { readonly id: string; readonly error: string | undefined }): ReactNode {
+  const hasError = error !== undefined;
   return (
-    <>
-      {field.helpOverride !== undefined ? (
-        <p id={`${id}-declared-help`} className="text-xs text-muted-foreground">
-          {field.helpOverride}
-        </p>
+    <p
+      id={declaredErrorId(id)}
+      aria-live="polite"
+      className={hasError ? 'mt-1 flex items-start gap-1 text-xs font-medium text-destructive' : 'text-xs font-medium text-destructive'}
+    >
+      {hasError ? (
+        <>
+          <AlertCircle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
+          <span>{error}</span>
+        </>
       ) : null}
-      {field.error !== undefined ? (
-        <p id={`${id}-declared-error`} role="alert" className="text-xs font-medium text-destructive">
-          {field.error}
-        </p>
-      ) : null}
-    </>
+    </p>
   );
 }
 
-/** `aria-describedby` for a control: the error first, then the override's help, then what it had; `undefined` when none. */
-export function describedBy(
-  id: string,
-  field: Pick<DeclaredFieldInputProps, 'helpOverride' | 'error'>,
-  ...existing: (string | false | null | undefined)[]
-): string | undefined {
-  const ids = [
-    field.error !== undefined ? `${id}-declared-error` : null,
-    field.helpOverride !== undefined ? `${id}-declared-help` : null,
-    ...existing,
-  ].filter((entry): entry is string => typeof entry === 'string' && entry !== '');
-  return ids.length === 0 ? undefined : ids.join(' ');
+/** The id of the error region of the field whose controls share `id` as a prefix. */
+export function declaredErrorId(id: string): string {
+  return `${id}-declared-error`;
 }
 
-/** The control's invalid state, as `aria-invalid` wants it: present only when there is an error. */
-export function invalidOf(field: Pick<DeclaredFieldInputProps, 'error'>): { 'aria-invalid'?: true } {
-  return field.error !== undefined ? { 'aria-invalid': true } : {};
+/** `aria-describedby` for a control: the error while there is one, then what it had; `undefined` when none. */
+export function describedBy(id: string, error: string | undefined, ...existing: (string | false | null | undefined)[]): string | undefined {
+  const ids = [error !== undefined ? declaredErrorId(id) : null, ...existing].filter(
+    (entry): entry is string => typeof entry === 'string' && entry !== '',
+  );
+  return ids.length === 0 ? undefined : ids.join(' ');
 }

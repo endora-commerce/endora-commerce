@@ -194,6 +194,13 @@ export interface DeclaredFormController {
   submission(): DeclaredFormSubmission;
   /** Run the client rules; show and return whether the submission passes them. */
   validate(): boolean;
+  /**
+   * Run the client rules and show them, as {@link validate} does, and return
+   * what they found, field key or slot wire key → message — for a host that
+   * reports them through its save session (`SavePart.validate`'s `fields`),
+   * whose summary names them and focuses the first. Empty when the form passes.
+   */
+  check(): Readonly<Record<string, string>>;
   /** Map a refused save onto the fields. `false` when the error is not one the form can place. */
   applyError(error: unknown): boolean;
   clearErrors(): void;
@@ -516,7 +523,7 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
     return coreKeys.filter((key) => Object.prototype.hasOwnProperty.call(core, key) || (rendered.has(key) && !coreReadOnly(key)));
   };
 
-  const validate = (): boolean => {
+  const check = (): Readonly<Record<string, string>> => {
     const violations = clientFieldViolations({
       mode,
       fieldSet,
@@ -534,8 +541,9 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
           : t('_lifecycle', `fieldRules.${violation.code}`, params);
     }
     setErrors(next);
-    return violations.length === 0;
+    return next;
   };
+  const validate = (): boolean => Object.keys(check()).length === 0;
 
   const applyError = (error: unknown): boolean => {
     const mapped = mapDeclaredFormError(error, [...coreKeys, ...formSlots.map(wireOf)]);
@@ -626,6 +634,7 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
     notices,
     submission,
     validate,
+    check,
     applyError,
     clearErrors: () => setErrors({}),
     sections,
@@ -769,19 +778,26 @@ export interface DeclaredFormProviderProps {
    * The form `declared` was built for, named where the form renders
    * (`contracts/field-slots.md` §3). `check:admin-forms` and `endora generate`
    * read it here to know which forms a host renders (`unrendered-form`,
-   * `undeclared-form`); a form rendered without it is unreadable to them. It
-   * must be the form handed to {@link useDeclaredForm}.
+   * `undeclared-form`). Required (D-300.29), so the type checker reports a
+   * host that forgot it before the check does. It must be the form handed to
+   * {@link useDeclaredForm}; a different one throws on the first render.
    */
-  readonly form?: Pick<AdminFormDeclaration, 'id'>;
+  readonly form: Pick<AdminFormDeclaration, 'id'>;
   readonly children: ReactNode;
 }
 
 export function DeclaredFormProvider({ declared, form, children }: DeclaredFormProviderProps): ReactNode {
-  if (form !== undefined && form.id !== declared.formId) {
-    throw new Error(
+  if (form.id !== declared.formId) {
+    const mismatch = new Error(
       `[declared-form] <DeclaredFormProvider form={…}> names '${form.id}', and its controller was built for '${declared.formId}'. ` +
         'Hand the provider the form useDeclaredForm was given.',
     );
+    // `check:admin-forms` reads the provider's `form` but not the hook's, so it
+    // cannot see a mismatch: the first render in development and in every test
+    // throws (D-300.29). A production screen keeps working on the controller's
+    // form — the one its fields, rules and submission come from — and says so.
+    if (import.meta.env.DEV) throw mismatch;
+    console.error(mismatch);
   }
   return <DeclaredFormContext.Provider value={declared}>{children}</DeclaredFormContext.Provider>;
 }
@@ -789,7 +805,7 @@ export function DeclaredFormProvider({ declared, form, children }: DeclaredFormP
 function useDeclaredFormContext(): DeclaredFormController {
   const declared = useContext(DeclaredFormContext);
   if (declared === null) {
-    throw new Error('[declared-form] DeclaredFormSection was rendered outside <DeclaredFormProvider declared={useDeclaredForm(…)}>.');
+    throw new Error('[declared-form] DeclaredFormSection was rendered outside <DeclaredFormProvider form={…} declared={useDeclaredForm(…)}>.');
   }
   return declared;
 }

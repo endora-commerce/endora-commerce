@@ -8,6 +8,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 
 import { manifest } from '../../../../packages/modules/organizations/src/manifest.js';
+import { makeConvertToCompanyCommand } from '../../../../packages/modules/organizations/src/backend/commands/convert-to-company.command.js';
 import { makeCreateOrganizationCommand } from '../../../../packages/modules/organizations/src/backend/commands/create-organization.command.js';
 import { makeRegisterOrganizationCommand } from '../../../../packages/modules/organizations/src/backend/commands/register-organization.command.js';
 import type { Organization } from '../../../../packages/modules/organizations/src/backend/entities/organization.entity.js';
@@ -42,10 +43,17 @@ const OVERRIDE: FieldOverride = {
   reason: 'This deployment trades with VAT payers only.',
 };
 
-function organization(vatStatus: string): Organization {
+/** …and caps a name at its ERP's length (D-300.26). */
+const NAME_OVERRIDE: FieldOverride = {
+  target: 'organization.name',
+  validation: { maxLength: 20 },
+  reason: 'The ERP holds 20 characters of a name.',
+};
+
+function organization(vatStatus: string, name = 'Acme'): Organization {
   return {
     id: ORG_ID,
-    name: 'Acme',
+    name,
     legalName: null,
     taxId: 'PL5260001246',
     status: 'active',
@@ -92,7 +100,10 @@ function harness(options: { readonly buyerSelfServiceActions?: readonly string[]
   forms.seal({
     fieldSets: [{ moduleId: 'organizations', set: ORGANIZATION_FIELD_SET }],
     adminForms: (manifest.adminForms ?? []).map((form) => ({ moduleId: 'organizations', form })),
-    formOverrides: [{ moduleId: 'acme', override: OVERRIDE }],
+    formOverrides: [
+      { moduleId: 'acme', override: OVERRIDE },
+      { moduleId: 'acme', override: NAME_OVERRIDE },
+    ],
     inputControls: [],
     hookableActions,
     moduleDependencies,
@@ -208,5 +219,43 @@ describe('a tightened organization rule and the buyer self-registration (T088, D
     const error = await refusal(as(anonymous, () => h.bus.run(register('vat_payer'))));
     expect((error as Error).name).toBe('UndeclaredBuyerSelfServiceActionError');
     expect(h.committed).toEqual([]);
+  });
+});
+
+/** `organization.convert_to_company`, run as an operator: the run stands in for the write and names what it changed. */
+function convert(name: string) {
+  const command = makeConvertToCompanyCommand(
+    { accounts: { listByOrganization: async () => [] } },
+    {
+      organizationId: ORG_ID,
+      input: {
+        name,
+        taxId: 'PL5260001246',
+        registeredAddress: { street: 'ul. Prosta 1', city: 'Warszawa', postalCode: '00-001', country: 'PL' },
+        vatStatus: 'vat_payer',
+      },
+    },
+  );
+  // The real run sets `changedFields` before the hooks; the stand-in does what it would.
+  return {
+    ...command,
+    hookData: (org: Organization) => ({ ...(command.hookData!(org) as object), changedFields: ['isPersonal', 'name', 'registeredAddress', 'taxId'] }),
+    run: async () => ({ result: organization('vat_payer', name), before: null, after: { status: 'active' } }),
+  } as Command<Organization>;
+}
+
+describe('a tightened name rule and the personal → company conversion (D-300.26)', () => {
+  it('refuses a conversion whose name breaks the rule', async () => {
+    const h = harness();
+    const error = await refusal(as(operator, () => h.bus.run(convert('A company name far beyond twenty characters'))));
+    expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
+    expect(error.details).toEqual([expect.objectContaining({ path: 'name', code: 'too_long' })]);
+    expect(h.committed).toEqual([]);
+  });
+
+  it('lets a conversion whose name keeps the rule through', async () => {
+    const h = harness();
+    await as(operator, () => h.bus.run(convert('Acme Sp. z o.o.')));
+    expect(h.committed).toEqual(['organization.convert_to_company']);
   });
 });

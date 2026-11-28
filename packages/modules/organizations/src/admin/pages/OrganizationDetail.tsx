@@ -57,7 +57,6 @@ import {
   useDeclaredForm,
   type FulfilmentStrategyValue,
 } from '@endora-commerce/admin-kit/components';
-import { DeclaredFieldNotes, describedBy, invalidOf } from '../components/declared-field-notes.js';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import {
   Alert,
@@ -66,8 +65,8 @@ import {
   Button,
   DetailSkeleton,
   EditorSection,
+  FormField,
   InlineStatus,
-  Label,
   PageHeader,
   RecordTabs,
   Textarea,
@@ -410,39 +409,51 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     readOnly: !canManage,
     render: {
       orderConfirmationEmails: {
+        // `FormField` wires the label, the override's help, the error and an
+        // override's required marker (IX); a replacing control takes the
+        // textarea's place (`input-controls.md` §3).
         field: (p) => (
-          <div className="space-y-2">
-            <Label htmlFor="orderConfEmails">{p.labelOverride ?? own('detail.orderConfirmationEmails')}</Label>
-            <Textarea
-              id="orderConfEmails"
-              className="min-h-20"
-              value={edits.emailsText ?? (org?.orderConfirmationEmails ?? []).join('\n')}
-              placeholder={p.placeholder ?? 'ops@example.com\nsales@example.com'}
-              disabled={busy || !canManage}
-              // An override's read-only, where the operator may otherwise write (D-300.18).
-              readOnly={canManage && p.readOnly}
-              aria-describedby={describedBy('orderConfEmails', p, 'orderConfEmails-hint')}
-              {...invalidOf(p)}
-              onChange={(e): void => p.onChange(e.target.value)}
-            />
-            <p id="orderConfEmails-hint" className="text-xs text-muted-foreground">
-              {p.helpOverride ?? own('detail.orderConfirmationEmailsHint')}
-            </p>
-            <DeclaredFieldNotes id="orderConfEmails" field={{ error: p.error, helpOverride: undefined }} />
-          </div>
+          <FormField
+            id={p.overrideControl != null ? p.control.id : 'orderConfEmails'}
+            label={p.labelOverride ?? own('detail.orderConfirmationEmails')}
+            help={p.helpOverride}
+            error={p.error}
+            required={p.required}
+            describedBy="orderConfEmails-hint"
+          >
+            {(control) => (
+              <>
+                {p.overrideControl ?? (
+                  <Textarea
+                    {...control}
+                    className="min-h-20"
+                    value={edits.emailsText ?? (org?.orderConfirmationEmails ?? []).join('\n')}
+                    placeholder={p.placeholder ?? 'ops@example.com\nsales@example.com'}
+                    disabled={busy || !canManage}
+                    // An override's read-only, where the operator may otherwise write (D-300.18).
+                    readOnly={canManage && p.readOnly}
+                    onChange={(e): void => p.onChange(e.target.value)}
+                  />
+                )}
+                <p id="orderConfEmails-hint" className="mt-1 text-xs text-muted-foreground">
+                  {own('detail.orderConfirmationEmailsHint')}
+                </p>
+              </>
+            )}
+          </FormField>
         ),
       },
       fulfilmentStrategy: {
         field: (p) => (
-          <div>
-            <FulfilmentStrategyPanel
-              value={fulfilmentNow ?? { strategy: null, warehouseOrder: [] }}
-              onChange={(next): void => p.onChange(next)}
-              warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
-              disabled={busy || !canManage || p.readOnly}
-            />
-            <DeclaredFieldNotes id="org-fulfilment" field={{ error: p.error, helpOverride: undefined }} />
-          </div>
+          <FulfilmentStrategyPanel
+            value={fulfilmentNow ?? { strategy: null, warehouseOrder: [] }}
+            onChange={(next): void => p.onChange(next)}
+            warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
+            disabled={busy || !canManage || p.readOnly}
+            {...(p.labelOverride === undefined ? {} : { title: p.labelOverride })}
+            {...(p.helpOverride === undefined ? {} : { description: p.helpOverride })}
+            error={p.error}
+          />
         ),
       },
     },
@@ -544,8 +555,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
    */
   const savePage = async (): Promise<void> => {
     if (org === null) return;
-    // The deployment's tightened rules, before the round trip; the server holds the same ones.
-    if (hostCount > 0 && !declared.validate()) return;
     const staged = edits;
     const stored = restrictionsStored;
     const submission = declared.submission();
@@ -556,7 +565,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             label: own('detail.save.hostPartLabel'),
             blocking: true,
             count: hostCount,
-            validate: async () => ({ fields: {} }),
+            // The deployment's tightened rules, before the round trip (the server holds the same
+            // ones): reported through the session, so its summary names them and "Show" opens the
+            // tab that holds the field and focuses it.
+            validate: async () => ({ fields: declared.check() }),
             save: async () => writeHost(staged, stored, submission),
           }
         : null;

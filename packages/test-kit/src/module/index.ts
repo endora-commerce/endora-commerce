@@ -31,6 +31,7 @@ import { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { TenantContext } from '@endora-commerce/platform/tenancy';
 import {
+  FormRegistry,
   createModuleContext,
   createModuleRegistrationSink,
   createRootContainer,
@@ -61,6 +62,13 @@ export interface ComposeModuleForTestOptions {
    * `eventBus` is registered as the handle's bus unless this supplies one.
    */
   readonly values?: Readonly<Record<string, unknown>>;
+  /**
+   * The form registry the module's `ctx.fieldSets` and `ctx.fieldFormats`
+   * register into (`specs/193-admin-form-extensions/` D-300.30). Absent, a
+   * fresh one, left **unsealed**: sealing judges the whole composition, which
+   * one module is not. A test that wants the field-rule check seals it itself.
+   */
+  readonly formRegistry?: FormRegistry;
 }
 
 /**
@@ -89,6 +97,8 @@ export interface ComposedModule {
   readonly eventBus: EventBus;
   /** The presence switch the module is gated on. */
   readonly registryCache: TestModulePresence;
+  /** The form registry the module registered its field sets and formats into, unsealed unless the test sealed it. */
+  readonly formRegistry: FormRegistry;
   /**
    * Release what the composition holds: the module's subscriptions are
    * unsubscribed and, when this handle seeded presence, nothing is left
@@ -106,6 +116,9 @@ const SILENT_LOG = { info: () => {}, warn: () => {}, error: () => {} };
  */
 export function composeModuleForTest(options: ComposeModuleForTestOptions): ComposedModule {
   const { module, values = {} } = options;
+  // Both real roots mount one, so a module that registers its field set's
+  // writers composes here as it does there (D-300.30).
+  const formRegistry = options.formRegistry ?? new FormRegistry();
   const eventBus = new EventBus();
   const container = createRootContainer();
   registerValues(container, { eventBus, ...values });
@@ -116,6 +129,7 @@ export function composeModuleForTest(options: ComposeModuleForTestOptions): Comp
     eventBus,
     sink: registrations,
     log: SILENT_LOG,
+    formRegistry,
   });
   module.registerModule(context);
 
@@ -138,6 +152,7 @@ export function composeModuleForTest(options: ComposeModuleForTestOptions): Comp
     registrations,
     eventBus,
     registryCache: presence,
+    formRegistry,
     dispose() {
       for (const unsubscribe of registrations.unsubscribes.splice(0)) unsubscribe();
       if (seeded) presence.setEnabled([]);

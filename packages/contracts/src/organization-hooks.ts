@@ -44,11 +44,19 @@ export interface OrganizationUpdateHookData {
 
 /**
  * `organization.convert_to_company` (issue #1057) — an operator turned a
- * personal Organization into a company. **Ids, codes and field names only**
- * (`specs/conventions/audit-state.md` list 1): never the tax ID, the name or the
- * address the conversion wrote.
+ * personal Organization into a company. Hook data is handed in process to
+ * `beforeCommit` hooks and never stored; the outbox data
+ * (`OrganizationConvertToCompanyOutbox`) stays ids, codes and field names
+ * (`specs/conventions/audit-state.md` list 1).
  */
 export interface OrganizationConvertToCompanyHookData {
+  /**
+   * The converted Organization, the after-state on the Command's transaction,
+   * as `OrganizationUpdateHookData` carries it (`specs/193-admin-form-extensions/`
+   * D-300.26): what the field-rule check projects the conversion's `name`,
+   * address and VAT status from.
+   */
+  readonly organization: OrganizationRecord;
   readonly organizationId: string;
   /** The status the conversion kept. */
   readonly status: OrganizationStatus;

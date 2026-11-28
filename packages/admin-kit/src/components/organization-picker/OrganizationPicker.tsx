@@ -29,6 +29,10 @@ export interface OrganizationPickerProps {
   clearable?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
+  /** Ids of the field's hint and, while invalid, its error — forwarded to the input's `aria-describedby`. */
+  describedBy?: string | undefined;
+  /** The field fails validation: `aria-invalid` on the input. */
+  invalid?: boolean;
   id?: string;
   className?: string;
 }
@@ -102,6 +106,8 @@ export function OrganizationPicker(props: OrganizationPickerProps): React.ReactE
       placeholder={props.placeholder ?? t('organizationPicker.placeholder')}
       emptyMessage={props.emptyMessage ?? t('organizationPicker.empty')}
       ariaLabel={props.ariaLabel ?? t('organizationPicker.label')}
+      ariaDescribedBy={props.describedBy}
+      invalid={props.invalid ?? false}
       id={props.id ?? ''}
       className={props.className ?? ''}
       selectedLabel={props.selectedLabel ?? ''}

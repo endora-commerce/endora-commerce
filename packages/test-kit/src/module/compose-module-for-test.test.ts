@@ -8,6 +8,8 @@
  * per test.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { defineFieldSet, hookableAction } from '@endora-commerce/contracts';
+import { FormRegistry } from '@endora-commerce/platform/composition';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { composeModuleForTest, type ComposedModule } from './index.js';
 
@@ -95,5 +97,42 @@ describe('composeModuleForTest', () => {
 
     expect(calls).toBe(0);
     expect(handle.registryCache.isEnabled('probe')).toBe(false);
+  });
+});
+
+describe('composeModuleForTest — the form registry (193 D-300.30)', () => {
+  const SET = defineFieldSet({
+    id: 'widget',
+    ownerModuleId: 'widgets',
+    fields: [{ key: 'code', type: 'string', required: false, bounds: { maxLength: 32 }, accepts: ['validation'] }],
+  });
+  const UPDATE = hookableAction<{ code: string }>('widget.update', 'widget', ['beforeCommit']);
+  const registerModule = (ctx: ModuleContext): void =>
+    ctx.fieldSets([
+      { set: SET, writers: [{ on: UPDATE, mode: 'update', writes: ['code'], project: (data) => ({ after: data as Record<string, unknown>, changed: ['code'] }) }] },
+    ]);
+
+  it('mounts an unsealed form registry by default, so a module registering its field set composes', () => {
+    const { formRegistry } = composed(composeModuleForTest({ module: { id: 'widgets', registerModule } }));
+    expect(formRegistry).toBeInstanceOf(FormRegistry);
+    expect(formRegistry.isSealed).toBe(false);
+    // What the module registered is the test's to seal and read.
+    formRegistry.seal({
+      fieldSets: [{ moduleId: 'widgets', set: SET }],
+      adminForms: [],
+      formOverrides: [{ moduleId: 'acme', override: { target: 'widget.code', validation: { maxLength: 4 }, reason: 'Short codes.' } }],
+      inputControls: [],
+      hookableActions: [{ moduleId: 'widgets', action: 'widget.update', objectType: 'widget', phases: ['beforeCommit'] }],
+      moduleDependencies: { widgets: [], acme: ['widgets'] },
+      permissionCodes: [],
+      origins: { widgets: 'core', acme: 'deployment' },
+      installedPackageNames: {},
+    });
+    expect(formRegistry.fieldRuleCheck('widget.update')).toBeTypeOf('function');
+  });
+
+  it('uses the registry it is given', () => {
+    const given = new FormRegistry();
+    expect(composed(composeModuleForTest({ module: { id: 'widgets', registerModule }, formRegistry: given })).formRegistry).toBe(given);
   });
 });

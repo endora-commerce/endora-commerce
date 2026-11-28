@@ -20,11 +20,11 @@ import type { FieldSetRegistration } from '@endora-commerce/platform/kernel';
  * tightened rule binds the admin form, the admin API, the integration port and
  * a worker alike.
  *
- * `writes` lists only what the projection returns (I-5). That is why
- * `organization.convert_to_company` writes `vatStatus` alone here although the
- * conversion also sets the name, the tax ID and the address: its hook data is
- * ids and codes only (`OrganizationConvertToCompanyHookData`), so the field set
- * invites no server-enforced rule on those three.
+ * `writes` lists only what the projection returns (I-5). The conversion
+ * (`organization.convert_to_company`) projects the name, the address and the VAT
+ * status from its hook data's after-state (D-300.26), but not the tax ID, which
+ * `organization.tax_id.change` cannot project either: `taxId` invites
+ * presentation kinds only.
  *
  * What is deliberately **not** a writer, and why:
  *
@@ -38,6 +38,11 @@ import type { FieldSetRegistration } from '@endora-commerce/platform/kernel';
  *   (`PersonalOrganizationService.provisionFor`) and its anonymisation — system
  *   invariants with fixed values, outside the Command Bus, and buyer
  *   self-service besides (D-300.3).
+ *
+ * None of these three is a writer (D-300.28): merge finalize, provisioning and
+ * anonymisation are not held to the field rules, and the merge's own grant
+ * (`specs/192-organization-merge/`) governs what it copies — a field's
+ * `writePermission` does not bind it.
  */
 
 /** The keys of the organization field set. */
@@ -100,7 +105,7 @@ const ADMIN_PATCH_WRITES = [
   'fulfilmentStrategy',
   'fulfilmentStrategyWarehouseOrder',
 ] as const satisfies readonly OrganizationFieldKey[];
-const CONVERT_WRITES = ['vatStatus'] as const satisfies readonly OrganizationFieldKey[];
+const CONVERT_WRITES = ['name', 'registeredAddress', 'vatStatus'] as const satisfies readonly OrganizationFieldKey[];
 const UPDATE_WRITES = ['name', 'vatStatus', 'registeredAddress', 'orderConfirmationEmails'] as const satisfies readonly OrganizationFieldKey[];
 
 /** What `registerModule` hands `ctx.fieldSets`. */
@@ -147,8 +152,8 @@ export const organizationFieldSetRegistration: FieldSetRegistration = {
       mode: 'update',
       writes: CONVERT_WRITES,
       project: (data) => {
-        const { vatStatus, changedFields } = data as OrganizationConvertToCompanyHookData;
-        return { after: { vatStatus }, changed: changedOf(changedFields, CONVERT_WRITES) };
+        const { organization, changedFields } = data as OrganizationConvertToCompanyHookData;
+        return { after: pick(recordValues(organization), CONVERT_WRITES), changed: changedOf(changedFields, CONVERT_WRITES) };
       },
     },
     {

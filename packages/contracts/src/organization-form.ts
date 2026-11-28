@@ -15,14 +15,17 @@ import { fulfilmentStrategySchema } from './inventory.js';
 import { vatStatusSchema } from './organizations.js';
 
 /**
- * Presentation kinds only. A server-enforced kind (`validation`,
- * `requiredWhen`, `writePermission`) is invited only on a field **every**
- * writer of it projects (`contracts/field-rules.md` §2, I-5):
+ * The presentation kinds of the identity fields. A server-enforced kind
+ * (`validation`, `requiredWhen`, `writePermission`) is invited only on a field
+ * **every** writer of it projects (`contracts/field-rules.md` §2, I-5;
+ * D-300.26):
  *
- * - `name`, `taxId` and `registeredAddress` are also written by
- *   `organization.convert_to_company`, whose hook data is ids and codes only
- *   (it never carries the name, the tax ID or the address), so no rule on them
- *   could bind a conversion;
+ * - `name` adds `validation`: every writer of it — the create, the
+ *   registration, the admin PATCH, the conversion and the integration port —
+ *   projects it;
+ * - `taxId` stays presentation only, because `organization.tax_id.change`
+ *   carries no tax ID (R-9);
+ * - `registeredAddress` is a composite, which admits no tightening;
  * - `parentId` is also written by the hierarchy moves (`organization.set_parent`,
  *   `organization.move`), and `status` by moderation, neither of which is a
  *   declared hookable action.
@@ -34,7 +37,13 @@ export const ORGANIZATION_FIELD_SET = defineFieldSet({
   id: 'organization',
   ownerModuleId: 'organizations',
   fields: [
-    { key: 'name', type: 'string', required: true, bounds: { minLength: 1, maxLength: 255 }, accepts: IDENTITY_ACCEPTS },
+    {
+      key: 'name',
+      type: 'string',
+      required: true,
+      bounds: { minLength: 1, maxLength: 255 },
+      accepts: [...IDENTITY_ACCEPTS, 'validation'],
+    },
     // The tax ID is normalised before its 8 – 32 bound is applied, so the body
     // schema bounds the normalised value and not the input; no core bound is
     // declared on the input here. A tightening is not invited either.

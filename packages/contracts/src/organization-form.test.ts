@@ -26,15 +26,15 @@ describe('ORGANIZATION_FIELD_SET', () => {
   });
 
   it('accepts a server-enforced kind only on the fields every writer projects (I-5)', () => {
-    // `name`, `taxId` and `registeredAddress` are also written by
-    // `organization.convert_to_company`, whose hook data carries none of them,
-    // so a rule on them could not bind that write. The three below are written
-    // only by writers whose hook data carries them.
+    // D-300.26: `taxId` is also written by `organization.tax_id.change`,
+    // which carries no tax ID; `registeredAddress` is a composite, which
+    // admits no tightening; `parentId` and `status` have writers that are not
+    // hookable. Every writer of the four below projects them.
     const enforced = ORGANIZATION_FIELD_SET.fields
       .filter((field) => field.accepts.some((kind) => SERVER_KINDS.has(kind)))
       .map((field) => field.key)
       .sort();
-    expect(enforced).toEqual(['fulfilmentStrategy', 'orderConfirmationEmails', 'vatStatus']);
+    expect(enforced).toEqual(['fulfilmentStrategy', 'name', 'orderConfirmationEmails', 'vatStatus']);
   });
 
   it('never invites hidden on a field required on create', () => {

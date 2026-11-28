@@ -291,7 +291,7 @@ function Host({
   });
   controller = declared;
   return (
-    <DeclaredFormProvider declared={declared}>
+    <DeclaredFormProvider form={mode === 'create' ? FORMS.create : FORMS.edit} declared={declared}>
       <DeclaredFormNotices />
       <section aria-label="identity">
         <DeclaredFormSection section="identity" />
@@ -832,7 +832,7 @@ describe('field-family behaviours', () => {
         },
       });
       return (
-        <DeclaredFormProvider declared={declared}>
+        <DeclaredFormProvider form={form} declared={declared}>
           <DeclaredFormSection section="main" />
         </DeclaredFormProvider>
       );
@@ -886,7 +886,7 @@ describe('platform controls keep FormField’s wiring', () => {
       });
       probe = declared;
       return (
-        <DeclaredFormProvider declared={declared}>
+        <DeclaredFormProvider form={form} declared={declared}>
           <DeclaredFormSection section="main" />
         </DeclaredFormProvider>
       );
@@ -959,6 +959,14 @@ describe('DeclaredFormProvider’s form (193 WP-E1, check:admin-forms)', () => {
   it('renders when it names the controller’s form', async () => {
     mount(<Named form={FORMS.create} />, { forms: { forms: [] } });
     expect(await screen.findByLabelText(/^Tax ID/u)).toBeInTheDocument();
+  });
+
+  it('requires the form, so a host that forgets it is a type error (D-300.29)', () => {
+    function Forgotten({ declared }: { declared: DeclaredFormController }): ReactNode {
+      // @ts-expect-error — `form` is required: check:admin-forms reads it to know what a host renders.
+      return <DeclaredFormProvider declared={declared}>{null}</DeclaredFormProvider>;
+    }
+    expect(Forgotten).toBeTypeOf('function');
   });
 
   it('refuses a form that is not the controller’s', () => {

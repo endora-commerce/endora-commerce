@@ -21,6 +21,8 @@ import {
   Button,
   Card,
   CardContent,
+  FormField,
+  HelpTip,
   Input,
   Label,
   PageHeader,
@@ -29,7 +31,7 @@ import {
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationSalesChannelsClient } from '../api/sales-channels.js';
 import { SalesChannelChecklist } from '../components/SalesChannelChecklist.js';
-import { DeclaredFieldNotes, describedBy, invalidOf } from '../components/declared-field-notes.js';
+import { DeclaredFieldError, describedBy } from '../components/declared-field-notes.js';
 
 /**
  * *New organization* — an operator creates a customer Organization and chooses
@@ -134,11 +136,12 @@ export function OrganizationCreate(): ReactNode {
   const submit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     if (cannotSubmit) return;
+    // A previous attempt's page error is not this one's.
+    setError(null);
     // The deployment's tightened rules, before the round trip; the server holds
     // the same ones whatever the form showed (FR-062).
     if (!declared.validate()) return;
     setSaving(true);
-    setError(null);
     setCustomFieldErrors({});
     // A field the declared form does not submit — hidden, or read-only — is
     // left out, so the create stores the field's default (`field-slots.md` §3).
@@ -177,10 +180,13 @@ export function OrganizationCreate(): ReactNode {
     values,
     onChange: (key, value) => setValues((current) => ({ ...current, [key]: value })),
     render: {
+      // Each field keeps its id and its own copy; `FormField` wires the label,
+      // the override's help, the error and the required marker (IX). A field
+      // core requires keeps its native `required` and shows no marker, as it
+      // did before; a marker appears where an override makes a field required.
       name: {
         field: (p) => (
-          <div className="grid gap-2">
-            <Label htmlFor="org-new-name">{p.labelOverride ?? t('create.field.name')}</Label>
+          <FormField label={p.labelOverride ?? t('create.field.name')} help={p.helpOverride} error={p.error}>
             <Input
               id="org-new-name"
               value={name}
@@ -189,64 +195,89 @@ export function OrganizationCreate(): ReactNode {
               required
               readOnly={p.readOnly}
               placeholder={p.placeholder}
-              aria-describedby={describedBy('org-new-name', p)}
-              {...invalidOf(p)}
             />
-            <DeclaredFieldNotes id="org-new-name" field={p} />
-          </div>
+          </FormField>
         ),
       },
       taxId: {
         field: (p) => (
-          <div className="grid gap-2">
-            <Label htmlFor="org-new-tax-id">{p.labelOverride ?? t('create.field.taxId')}</Label>
-            <Input
-              id="org-new-tax-id"
-              value={taxId}
-              onChange={(e) => p.onChange(e.target.value)}
-              minLength={8}
-              maxLength={32}
-              required
-              readOnly={p.readOnly}
-              placeholder={p.placeholder}
-              aria-describedby={describedBy('org-new-tax-id', p, parentId ? 'org-new-tax-id-hint' : null)}
-              {...invalidOf(p)}
-            />
-            {parentId ? (
-              <p id="org-new-tax-id-hint" className="text-xs text-muted-foreground">
-                {t('create.hint.sharedTaxId')}
-              </p>
-            ) : null}
-            <DeclaredFieldNotes id="org-new-tax-id" field={p} />
-          </div>
+          <FormField
+            id="org-new-tax-id"
+            label={p.labelOverride ?? t('create.field.taxId')}
+            help={p.helpOverride}
+            error={p.error}
+            {...(parentId ? { describedBy: 'org-new-tax-id-hint' } : {})}
+          >
+            {(control) => (
+              <>
+                <Input
+                  {...control}
+                  value={taxId}
+                  onChange={(e) => p.onChange(e.target.value)}
+                  minLength={8}
+                  maxLength={32}
+                  required
+                  readOnly={p.readOnly}
+                  placeholder={p.placeholder}
+                />
+                {parentId ? (
+                  <p id="org-new-tax-id-hint" className="mt-1 text-xs text-muted-foreground">
+                    {t('create.hint.sharedTaxId')}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </FormField>
         ),
       },
       parentId: {
         // Naming a parent is an unscoped administrator's alone (D-260).
         field: (p) =>
           canNameParent ? (
-            <div className="grid gap-2 md:max-w-md">
-              <Label htmlFor="org-new-parent">{p.labelOverride ?? t('create.field.parent')}</Label>
-              <OrganizationPicker
-                id="org-new-parent"
-                ariaLabel={p.labelOverride ?? t('create.field.parent')}
-                value={parentId}
-                onChange={(next) => p.onChange(next)}
-                clearable
-                disabled={saving || p.readOnly}
-              />
-              <p className="text-xs text-muted-foreground">{p.helpOverride ?? t('create.field.parentHelp')}</p>
-              <DeclaredFieldNotes id="org-new-parent" field={{ error: p.error, helpOverride: undefined }} />
-            </div>
+            <FormField
+              id="org-new-parent"
+              className="md:max-w-md"
+              label={p.labelOverride ?? t('create.field.parent')}
+              help={p.helpOverride}
+              error={p.error}
+              required={p.required}
+              describedBy="org-new-parent-help"
+            >
+              {(control) => (
+                <>
+                  <OrganizationPicker
+                    id={control.id}
+                    ariaLabel={p.labelOverride ?? t('create.field.parent')}
+                    value={parentId}
+                    onChange={(next) => p.onChange(next)}
+                    clearable
+                    disabled={saving || p.readOnly}
+                    describedBy={control['aria-describedby']}
+                    invalid={control['aria-invalid'] === true}
+                  />
+                  <p id="org-new-parent-help" className="mt-1 text-xs text-muted-foreground">
+                    {t('create.field.parentHelp')}
+                  </p>
+                </>
+              )}
+            </FormField>
           ) : null,
       },
       registeredAddress: {
+        // A fieldset of four inputs: a group `FormField` cannot wrap. The
+        // error is on each input, and the fieldset carries none (`aria-invalid`
+        // is not supported on a group).
         field: (p) => {
           const change = (part: keyof CreateValues['registeredAddress'], next: string): void =>
             p.onChange({ ...address, [part]: next });
+          const invalid = p.error !== undefined ? { 'aria-invalid': true as const } : {};
+          const describe = (...existing: string[]): string | undefined => describedBy('org-new-address', p.error, ...existing);
           return (
-            <fieldset className="grid gap-2" aria-describedby={describedBy('org-new-address', p)} {...invalidOf(p)}>
-              <legend className="mb-2 text-sm font-medium">{p.labelOverride ?? t('create.field.registeredAddress')}</legend>
+            <fieldset className="grid gap-2">
+              <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+                <span id="org-new-address-legend">{p.labelOverride ?? t('create.field.registeredAddress')}</span>
+                {p.helpOverride !== undefined ? <HelpTip subjectId="org-new-address-legend">{p.helpOverride}</HelpTip> : null}
+              </legend>
               <div className="grid gap-2">
                 <Label htmlFor="org-new-street">{t('create.field.street')}</Label>
                 <Input
@@ -257,6 +288,8 @@ export function OrganizationCreate(): ReactNode {
                   autoComplete="street-address"
                   required
                   readOnly={p.readOnly}
+                  aria-describedby={describe()}
+                  {...invalid}
                 />
               </div>
               <div className="grid gap-2 md:grid-cols-3">
@@ -270,6 +303,8 @@ export function OrganizationCreate(): ReactNode {
                     autoComplete="postal-code"
                     required
                     readOnly={p.readOnly}
+                    aria-describedby={describe()}
+                    {...invalid}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -282,6 +317,8 @@ export function OrganizationCreate(): ReactNode {
                     autoComplete="address-level2"
                     required
                     readOnly={p.readOnly}
+                    aria-describedby={describe()}
+                    {...invalid}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -294,32 +331,30 @@ export function OrganizationCreate(): ReactNode {
                     maxLength={2}
                     pattern="[A-Za-z]{2}"
                     autoComplete="country"
-                    aria-describedby="org-new-country-help"
+                    aria-describedby={describe('org-new-country-help')}
                     required
                     readOnly={p.readOnly}
+                    {...invalid}
                   />
                   <p id="org-new-country-help" className="text-xs text-muted-foreground">
                     {t('create.field.countryHelp')}
                   </p>
                 </div>
               </div>
-              <DeclaredFieldNotes id="org-new-address" field={p} />
+              <DeclaredFieldError id="org-new-address" error={p.error} />
             </fieldset>
           );
         },
       },
       status: {
         field: (p) => (
-          <div className="grid gap-2 md:max-w-xs">
-            <Label htmlFor="org-new-status">{p.labelOverride ?? t('create.field.status')}</Label>
+          <FormField className="md:max-w-xs" label={p.labelOverride ?? t('create.field.status')} help={p.helpOverride} error={p.error}>
             <Select
               id="org-new-status"
               value={status}
               onChange={(e) => p.onChange(e.target.value as Status)}
               // A select has no read-only state (D-300.18).
               disabled={p.readOnly}
-              aria-describedby={describedBy('org-new-status', p)}
-              {...invalidOf(p)}
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -327,18 +362,20 @@ export function OrganizationCreate(): ReactNode {
                 </option>
               ))}
             </Select>
-            <DeclaredFieldNotes id="org-new-status" field={p} />
-          </div>
+          </FormField>
         ),
       },
       salesChannelIds: {
+        // A checklist with a label of its own (`SalesChannelChecklist`'s group):
+        // the error region is `FormField`'s, linked from the group.
         field: (p) => (
           <div className="grid gap-2">
-            <p id="org-new-channels-label" className="text-sm font-medium">
-              {p.labelOverride ?? t('salesChannels.title')}
+            <p id="org-new-channels-label" className="flex items-center gap-1.5 text-sm font-medium">
+              <span>{p.labelOverride ?? t('salesChannels.title')}</span>
+              {p.helpOverride !== undefined ? <HelpTip subjectId="org-new-channels-label">{p.helpOverride}</HelpTip> : null}
             </p>
             <p id="org-new-channels-help" className="text-xs text-muted-foreground">
-              {p.helpOverride ?? t('salesChannels.description')}
+              {t('salesChannels.description')}
             </p>
             {optionsError ? (
               <Alert variant="destructive">
@@ -364,9 +401,7 @@ export function OrganizationCreate(): ReactNode {
                 disabled={saving || p.readOnly}
                 idPrefix="org-new-channel"
                 labelledBy="org-new-channels-label"
-                describedBy={
-                  noChannel ? 'org-new-channels-help org-new-channels-error' : 'org-new-channels-help'
-                }
+                describedBy={describedBy('org-new-channels', p.error, 'org-new-channels-help', noChannel && 'org-new-channels-error')}
                 invalid={noChannel || p.error !== undefined}
               />
             )}
@@ -375,7 +410,7 @@ export function OrganizationCreate(): ReactNode {
                 {t('salesChannels.atLeastOne')}
               </p>
             ) : null}
-            <DeclaredFieldNotes id="org-new-channels" field={{ error: p.error, helpOverride: undefined }} />
+            <DeclaredFieldError id="org-new-channels" error={p.error} />
           </div>
         ),
       },
@@ -395,7 +430,7 @@ export function OrganizationCreate(): ReactNode {
           <form className="grid gap-4" onSubmit={(e) => void submit(e)}>
             <DeclaredFormProvider form={ORGANIZATION_FORMS.create} declared={declared}>
               <DeclaredFormNotices />
-              <DeclaredFormSection section="identity" className="grid gap-2 space-y-0 md:grid-cols-2" />
+              <DeclaredFormSection section="identity" className="grid gap-x-2 gap-y-4 space-y-0 md:grid-cols-2" />
               <DeclaredFormSection section="parent" className="empty:hidden" />
               <DeclaredFormSection section="address" />
               <DeclaredFormSection section="access" />

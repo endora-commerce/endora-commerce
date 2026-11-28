@@ -162,6 +162,21 @@ describe('the writers organizations registers (T042, I-5)', () => {
       before: null,
       after: { name: 'Acme', salesChannelIds: [CHANNEL] },
     });
+    const conversion = organizationFieldSetRegistration.writers.find((writer) => writer.on.action === 'organization.convert_to_company')!;
+    expect(
+      conversion.project({
+        organizationId: ORG_ID,
+        status: 'active',
+        vatStatus: 'vat_payer',
+        changedFields: ['isPersonal', 'legalName', 'name', 'registeredAddress', 'taxId', 'vatStatus'],
+        approvalStamped: false,
+        organization: organization(),
+      }),
+    ).toEqual({
+      // D-300.26 — the name, the address and the VAT status, from the after-state; never the tax ID.
+      after: { name: 'Acme', registeredAddress: organization().registeredAddress, vatStatus: 'vat_payer' },
+      changed: ['name', 'registeredAddress', 'vatStatus'],
+    });
     const patch = organizationFieldSetRegistration.writers.find((writer) => writer.on.action === 'organization.admin_patch')!;
     expect(patch.project({ organization: organization(), changedFields: ['orderConfirmationEmails', 'status'], changedCustomFields: ['tier'] })).toMatchObject({
       after: { orderConfirmationEmails: ['ops@example.com'] },

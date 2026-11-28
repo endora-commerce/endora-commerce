@@ -12,10 +12,11 @@ import {
   type FieldSlotProps,
   type OrganizationSalesChannelOptionsResponse,
 } from '@endora-commerce/contracts';
-import { EffectiveFormsProvider } from '@endora-commerce/admin-kit/lib';
+import { ApiError, EffectiveFormsProvider } from '@endora-commerce/admin-kit/lib';
 import { Input } from '@endora-commerce/admin-kit/ui';
 import { adminSession, modulePresence, renderWithSession } from '../../helpers/render-with-session';
 import { organizationSalesChannelsAnswer } from '../../helpers/organization-sales-channels';
+import { expectNoAxeViolations } from '../../helpers/axe';
 
 /**
  * `specs/193-admin-form-extensions/` WP-E1 (T044, T045; FR-013, FR-016,
@@ -57,6 +58,7 @@ vi.mock('../../../../packages/modules/organizations/src/admin/panels/VatValidati
 vi.mock('../../../../packages/modules/organizations/src/admin/panels/ApplicablePriceListsPanel', () => ({ ApplicablePriceListsPanel: () => null }));
 vi.mock('../../../../packages/modules/organizations/src/admin/components/OrganizationSalesRepsTab', () => ({ OrganizationSalesRepsTab: () => null }));
 
+const { ApiError: RealApiError } = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>('@endora-commerce/admin-kit/lib');
 const { OrganizationCreate } = await import('../../../../packages/modules/organizations/src/admin/pages/OrganizationCreate');
 const { OrganizationDetail } = await import('../../../../packages/modules/organizations/src/admin/pages/OrganizationDetail');
 
@@ -262,12 +264,14 @@ describe('New organization — the declared form organization.create', () => {
 });
 
 describe('the Organization page — the declared form organization.edit', () => {
-  function renderDetail(present: readonly string[]): void {
+  function renderDetail(present: readonly string[], forms: EffectiveFormsResponse = { forms: [] }): void {
     renderWithSession(
       <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
-        <Routes>
-          <Route path="/organizations/:id" element={<OrganizationDetail />} />
-        </Routes>
+        <EffectiveFormsProvider initial={forms}>
+          <Routes>
+            <Route path="/organizations/:id" element={<OrganizationDetail />} />
+          </Routes>
+        </EffectiveFormsProvider>
       </MemoryRouter>,
       {
         session: adminSession({ permissions: ['*'] }),
@@ -302,5 +306,113 @@ describe('the Organization page — the declared form organization.edit', () => 
     fireEvent.click(save);
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy).toHaveBeenCalledWith(ORG_URL, { extensions: { acme_erp: { erpCode: 'E-1' } }, expectedUpdatedAt: UPDATED_AT });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Override, client-rule and refused-save paths (#2037 UI review)
+// ---------------------------------------------------------------------------
+
+const EDIT = ORGANIZATION_FORMS.edit.id;
+const editForm = (emails: Partial<EffectiveField> = {}, fulfilment: Partial<EffectiveField> = {}): EffectiveFormsResponse => ({
+  forms: [
+    {
+      id: EDIT,
+      fieldSet: 'organization',
+      fields: [field('orderConfirmationEmails', 'notifications', 0, emails), field('fulfilmentStrategy', 'fulfilment', 1, fulfilment)],
+    },
+  ],
+});
+const EMAILS = en['detail.orderConfirmationEmails']!;
+const show = (): Promise<HTMLElement> => screen.findByRole('button', { name: new RegExp(bundle.core['saveSession.summary.show']!) });
+
+function renderPage(forms: EffectiveFormsResponse): void {
+  renderWithSession(
+    <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
+      <EffectiveFormsProvider initial={forms}>
+        <Routes>
+          <Route path="/organizations/:id" element={<OrganizationDetail />} />
+        </Routes>
+      </EffectiveFormsProvider>
+    </MemoryRouter>,
+    { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['organizations'] }), contributions: [], bundle },
+  );
+}
+
+const refusal = (path: string, message: string): ApiError =>
+  new RealApiError(422, {
+    error: { code: 'FIELD_RULE_VIOLATION', message: 'One or more fields break a rule.', requestId: 'r', details: [{ path, code: 'pattern', message }] },
+  } as never) as ApiError;
+
+describe('the Organization page — a client rule that fails (review item 1)', () => {
+  it('reports it in the save summary from a hidden tab, and "Show" opens the tab and focuses the field', async () => {
+    renderPage(editForm({ validation: { pattern: '^[^@]+@example\\.com$' } }));
+    const emails = await screen.findByLabelText(EMAILS);
+    fireEvent.change(emails, { target: { value: 'ops@elsewhere.test' } });
+    // The operator moves to another tab before saving: the field is hidden there.
+    fireEvent.click(screen.getByRole('tab', { name: en['detail.tabs.overview']! }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save 1 change' }));
+    fireEvent.click(await show());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(EMAILS)));
+    expect(screen.getByLabelText(EMAILS)).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(EMAILS)).toHaveAccessibleDescription(new RegExp(bundle._lifecycle['fieldRules.pattern']!.slice(0, 12)));
+    expect(patchSpy).not.toHaveBeenCalled();
+    await expectNoAxeViolations(document.body);
+  });
+});
+
+describe('the Organization page — a refused fulfilment strategy (review item 3)', () => {
+  it('ties the error to the strategy select, and "Show" focuses it', async () => {
+    patchSpy.mockRejectedValue(refusal('fulfilmentStrategy', 'Not offered here.'));
+    renderPage(editForm());
+    const strategy = await screen.findByLabelText(bundle.core['fulfilment.label']!);
+    fireEvent.change(strategy, { target: { value: 'any' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Save 1 change' }));
+    fireEvent.click(await show());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(bundle.core['fulfilment.label']!)));
+    const select = screen.getByLabelText(bundle.core['fulfilment.label']!);
+    expect(select).toHaveAttribute('aria-invalid', 'true');
+    expect(select).toHaveAccessibleDescription(/Not offered here\./u);
+  });
+
+  it('applies an override’s label and help to the fulfilment section', async () => {
+    renderPage(editForm({}, { label: { source: 'operator', text: { en: 'Picking order' } }, help: { source: 'operator', text: { en: 'Which warehouse ships first.' } } }));
+    fireEvent.click(await screen.findByRole('tab', { name: en['detail.tabs.commerce']! }));
+    expect(await screen.findByRole('region', { name: 'Picking order' })).toHaveAccessibleDescription('Which warehouse ships first.');
+  });
+});
+
+describe('the order-confirmation e-mails under an override (review item 7)', () => {
+  it('marks a field an override makes required, on the label and the control', async () => {
+    renderPage(editForm({ validation: { required: true } }));
+    const emails = await screen.findByLabelText(new RegExp(`^${EMAILS}`));
+    expect(emails).toHaveAttribute('aria-required', 'true');
+    expect(document.querySelector('label[for="orderConfEmails"]')?.textContent).toContain('*');
+  });
+
+  it('renders a replacing control in place of the host’s textarea', async () => {
+    renderPage(editForm({ control: 'platform.textarea' }));
+    const replaced = await screen.findByLabelText(EMAILS);
+    expect(replaced.id).not.toBe('orderConfEmails');
+    expect(document.getElementById('orderConfEmails')).toBeNull();
+  });
+});
+
+describe('New organization — a refused registered address (review item 5)', () => {
+  it('marks each address input invalid and describes it by the error, never the fieldset', async () => {
+    postSpy.mockRejectedValue(refusal('registeredAddress.postalCode', 'Postal codes here have five digits.'));
+    renderCreate({ present: [] });
+    await waitFor(() => expect((screen.getByRole('checkbox', { name: /Retail/ }) as HTMLInputElement).checked).toBe(true));
+    fillCreate();
+    fireEvent.click(screen.getByRole('button', { name: en['create.submit']! }));
+    await waitFor(() => expect(screen.getByLabelText(en['create.field.street']!)).toHaveAttribute('aria-invalid', 'true'));
+    for (const key of ['create.field.street', 'create.field.postalCode', 'create.field.city', 'create.field.country']) {
+      const input = screen.getByLabelText(en[key]!);
+      expect(input, key).toHaveAttribute('aria-invalid', 'true');
+      expect(input, key).toHaveAccessibleDescription(/Postal codes here have five digits\./u);
+    }
+    expect(screen.getByLabelText(en['create.field.country']!)).toHaveAccessibleDescription(new RegExp(en['create.field.countryHelp']!.slice(0, 10)));
+    expect(screen.getByRole('group', { name: en['create.field.registeredAddress']! })).not.toHaveAttribute('aria-invalid');
+    await expectNoAxeViolations(document.body);
   });
 });

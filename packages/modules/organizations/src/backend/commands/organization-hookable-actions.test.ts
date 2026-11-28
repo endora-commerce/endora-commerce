@@ -439,8 +439,14 @@ const conversionInput = {
   vatStatus: 'vat_payer' as const,
 };
 
-/** Neither tax ID, name nor address reaches what a hook is handed. */
+/** Neither tax ID, name nor address reaches what a hook is handed (the tax-ID correction's hook data). */
 function expectNoValuesHanded(data: unknown): void {
+  const serialised = JSON.stringify(data);
+  for (const sentinel of TAX_SENTINELS) expect(serialised, sentinel).not.toContain(sentinel);
+}
+
+/** Neither tax ID, name nor address reaches what is stored for an `afterCommit` handler. */
+function expectNoValuesStored(data: unknown): void {
   const serialised = JSON.stringify(data);
   for (const sentinel of TAX_SENTINELS) expect(serialised, sentinel).not.toContain(sentinel);
 }
@@ -452,10 +458,13 @@ describe('organization.convert_to_company is hookable (#1057)', () => {
     const converted = { ...company(), convertedToCompanyAt: new Date() } as unknown as Organization;
     const command = makeConvertToCompanyCommand(deps, { organizationId: ORG_ID, input: conversionInput });
     expectHookableCommand(command, ORG.convertToCompany, { result: converted, sentinels: TAX_SENTINELS });
-    expectNoValuesHanded(command.hookData!(converted));
+    // `specs/193-admin-form-extensions/` D-300.26 — the in-process hook data carries the
+    // after-state; the stored outbox data stays ids, codes and field names.
+    expect(command.hookData!(converted)).toMatchObject({ organization: { id: ORG_ID } });
+    expectNoValuesStored(command.outboxData!(converted));
   });
 
-  it('hands a hook ids, codes and the names of what changed — never the tax ID — and merges its notes', async () => {
+  it('hands a hook the after-state, ids, codes and the names of what changed, and merges its notes', async () => {
     const recording = recordingCommandHooks();
     const h = taxIdHarness(personal(), [
       {
@@ -476,13 +485,14 @@ describe('organization.convert_to_company is hookable (#1057)', () => {
     expect(recording.calls).toHaveLength(1);
     const data = recording.calls[0]!.data as OrganizationConvertToCompanyHookData;
     expect(data).toEqual({
+      // D-300.26 — the converted Organization, which the field-rule check projects.
+      organization: expect.objectContaining({ id: ORG_ID, name: conversionInput.name, isPersonal: false }),
       organizationId: ORG_ID,
       status: 'active',
       vatStatus: 'vat_payer',
       changedFields: ['isPersonal', 'legalName', 'name', 'registeredAddress', 'taxId', 'vatStatus'],
       approvalStamped: true,
     });
-    expectNoValuesHanded(data);
     expect(recording.calls[0]!.extension).toEqual({ creditLimitCode: 'C-1' });
     expect(h.audits).toHaveLength(1);
     expect(h.audits[0]!['stateAfter']).toMatchObject({ extensions: { acme_erp: { changedFields: ['kyc_status'] } } });

@@ -52,6 +52,10 @@ export interface FulfilmentStrategyPickerProps {
   disabled?: boolean;
   /** Disambiguates element ids when several pickers share a page. */
   idPrefix?: string;
+  /** Ids of a description and, while invalid, an error rendered by the caller — added to the strategy select's `aria-describedby`. */
+  describedBy?: string | undefined;
+  /** The strategy fails validation: `aria-invalid` on its select. */
+  invalid?: boolean;
 }
 
 
@@ -62,6 +66,8 @@ export function FulfilmentStrategyPicker({
   allowInherit = false,
   disabled = false,
   idPrefix = 'fulfilment',
+  describedBy,
+  invalid = false,
 }: FulfilmentStrategyPickerProps): ReactNode {
   const t = useTranslation('core');
   const order = value.warehouseOrder ?? [];
@@ -91,6 +97,8 @@ export function FulfilmentStrategyPicker({
           id={`${idPrefix}-strategy`}
           value={value.strategy ?? ''}
           disabled={disabled}
+          aria-describedby={describedBy}
+          {...(invalid ? { 'aria-invalid': true } : {})}
           onChange={(e): void => setStrategy(e.target.value)}
         >
           {allowInherit ? <option value="">{t('fulfilment.inherit')}</option> : null}

@@ -12,6 +12,7 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { assertMergeWritable } from '@endora-commerce/platform/tenancy';
 import { Organization } from '../entities/organization.entity.js';
+import { toOrganizationRecord } from '../services/organization-details-port.js';
 import { predefinedRoleIdOn } from '../services/organization-role-store.js';
 import { taxIdConflictOf } from '../services/tax-id-conflict.js';
 import { TaxIdScopeService } from '../services/tax-id-scope-service.js';
@@ -66,9 +67,10 @@ const CONVERTED_FIELDS = ['isPersonal', 'legalName', 'name', 'registeredAddress'
  * a network call does not belong inside the transaction (D-290 / OD-2).
  *
  * Hookable (issue #1057, `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany`): a
- * hook is handed the id, the kept status, the VAT classification, the names of
- * the converted fields and whether the approval was stamped — never the tax ID,
- * the name or the address.
+ * hook is handed the converted Organization's after-state (D-300.26), the id,
+ * the kept status, the VAT classification, the names of the converted fields
+ * and whether the approval was stamped. The outbox row stays ids, codes and
+ * field names.
  */
 export function makeConvertToCompanyCommand(
   deps: ConvertToCompanyCommandDeps,
@@ -89,6 +91,8 @@ export function makeConvertToCompanyCommand(
     objectId: organizationId,
     ...(params.extensions ? { extensions: params.extensions } : {}),
     hookData: (org): OrganizationConvertToCompanyHookData => ({
+      // D-300.26 — the after-state, for the field-rule check's projection.
+      organization: toOrganizationRecord(org),
       organizationId: org.id,
       status: org.status,
       vatStatus: org.vatStatus,
