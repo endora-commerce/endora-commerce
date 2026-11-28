@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hookableAction } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
-import { expectHookableCommand, recordingCommandHooks } from './index.js';
+import { expectHookableCommand, recordingCommandHooks, sealedCommandHookRegistry } from './index.js';
 
 /**
  * `specs/176-command-hooks-outbox/` T027 (FR-023): the owner-side proof that a
@@ -101,5 +101,19 @@ describe('sealedCommandHookRegistry', () => {
         hooks: [{ moduleId: 'acme_probe', entries: [recording.on(BEFORE, { id: 'other' })] }],
       }),
     ).toThrow(/no composed module declares/);
+  });
+});
+
+describe('sealedCommandHookRegistry — buyer self-service actions (193 D-300.10)', () => {
+  const base = { hookableActions: [], moduleDependencies: {}, hooks: [] };
+
+  it('seals the owners’ buyer self-service actions, so the bus admits the flag on them', () => {
+    const registry = sealedCommandHookRegistry({ ...base, buyerSelfServiceActions: [{ moduleId: 'widgets', action: 'widget.register' }] });
+    expect(registry.isBuyerSelfServiceAction('widget.register')).toBe(true);
+    expect(registry.isBuyerSelfServiceAction('widget.create')).toBe(false);
+  });
+
+  it('declares none when none are given', () => {
+    expect(sealedCommandHookRegistry(base).isBuyerSelfServiceAction('widget.register')).toBe(false);
   });
 });

@@ -1,0 +1,10 @@
+---
+'@endora-commerce/mod-organizations': minor
+---
+
+**Organizations is the first adopter of admin form extensions** (`specs/193-admin-form-extensions/` WP-E1, FR-013, FR-080, FR-081).
+
+- The manifest declares `fieldSets: [ORGANIZATION_FIELD_SET]` and `adminForms` (`organization.create`, `organization.edit`). The backend registers the field set's writers with `ctx.fieldSets`: `organization.create`, `organization.register`, `organization.admin_patch`, `organization.set_custom_field_values` and `organization.convert_to_company`. A deployment's tightened field rule therefore binds the admin form, the admin API, the integration port and a worker alike. `organization.update` (the integration port's `update`) also registers, as a rule-check-only writer: it now supplies hook data, it stays non-hookable, and a hook registered on it is refused at composition.
+- `POST /api/v1/admin/organizations` and `PATCH /api/v1/admin/organizations/:id` accept `extensions`, per module id, and hand it to `organization.create` and `organization.admin_patch` unchanged. A hook module on the action receives its own slice inside the one transaction. A key no present hook module claims is answered `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written. Without `extensions` both routes behave as before.
+- *New organization* and the Organization page render their fields through the admin kit's declared form. A module may add a slot field at an anchor, and the field's value is saved in the host's one request. The page reads it back on `?extensions=`, asking only for the modules whose slots it renders. Effective overrides (label, help, placeholder, position, hidden, read-only) apply. With no slot and no override, both screens are unchanged.
+- `organization.register` declares `buyerSelfService: true`, and the manifest lists it in `buyerSelfServiceActions` (D-300.10). A storefront self-registration, which runs as the anonymous system actor, is not bound by a deployment's tightened rule (D-300.3). An operator's create is. The invitation acceptance asks the account owner to create the invitee as a buyer's write.

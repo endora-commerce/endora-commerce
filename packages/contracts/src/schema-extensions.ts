@@ -40,6 +40,25 @@ export const ExtensionsQuerySchema = z.object({
 });
 export type ExtensionsQuery = z.infer<typeof ExtensionsQuerySchema>;
 
+/** At most this many module keys in one write's `extensions` (FR-013). */
+export const ENTITY_EXTENSIONS_INPUT_MAX = 8;
+
+/**
+ * `extensions` on an adopting host's admin create and update bodies
+ * (`specs/193-admin-form-extensions/` FR-013, `contracts/field-slots.md` §4):
+ * per module id, that module's slice — its slot fields' values keyed by local
+ * key — forwarded unchanged to the host Command's `extensions`. Each slice is
+ * validated by its own module's hook (`fieldSlotHook`); a key no present hook
+ * module on the action claims is refused `422 COMMAND_EXTENSION_UNCLAIMED`
+ * before anything is written. At most {@link ENTITY_EXTENSIONS_INPUT_MAX} keys.
+ */
+export const EntityExtensionsInputSchema = z
+  .record(extensionModuleIdSchema, z.unknown())
+  .refine((extensions) => Object.keys(extensions).length <= ENTITY_EXTENSIONS_INPUT_MAX, {
+    message: `At most ${ENTITY_EXTENSIONS_INPUT_MAX} module keys.`,
+  });
+export type EntityExtensionsInput = z.infer<typeof EntityExtensionsInputSchema>;
+
 /**
  * `extensions` on a host record: per requested module, its declared columns'
  * keys and their values, or its side-table loader's object keyed by field

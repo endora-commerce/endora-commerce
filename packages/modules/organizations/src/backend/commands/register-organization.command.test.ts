@@ -22,6 +22,8 @@ import {
   type RegisterOrganizationRequest,
 } from '@endora-commerce/contracts';
 import { CommandBus, type Command } from '@endora-commerce/platform/commands';
+import { sealedCommandHookRegistry } from '@endora-commerce/test-kit/command-hooks';
+import { manifest } from '../../manifest.js';
 import { EventBus, type EventBase } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -30,6 +32,18 @@ import { EmailVerificationToken } from '../entities/email-verification-token.ent
 import { Organization } from '../entities/organization.entity.js';
 import { OrganizationRole } from '../entities/organization-role.entity.js';
 import { RegistrationService, type OrganizationEventBus } from '../services/registration-service.js';
+
+// `specs/193-admin-form-extensions/` D-300.10 — `organization.register` is a
+// buyer self-service write, and the bus admits the flag only on an action a
+// manifest lists, so the bus is composed with this module's list.
+const buyerSelfService = {
+  hooks: sealedCommandHookRegistry({
+    hookableActions: [],
+    moduleDependencies: {},
+    hooks: [],
+    buyerSelfServiceActions: (manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: 'organizations', action })),
+  }),
+};
 
 const ROLE_ID = '00000000-0000-4000-8000-000000176a01';
 const ACCOUNT_ID = '00000000-0000-4000-8000-000000176a02';
@@ -109,7 +123,7 @@ function harness(options: { failAccount?: Error; failToken?: Error } = {}): Harn
       dispatched.push({ name, payload: payload as unknown as Record<string, unknown> });
     });
   }
-  const commandBus = new CommandBus(orm, audit, events);
+  const commandBus = new CommandBus(orm, audit, events, buyerSelfService);
   const accounts: CustomerAccountMemberCommandPort = {
     prepareCreate: async (input: CustomerAccountCreatePreparation) => {
       steps.push('hash');

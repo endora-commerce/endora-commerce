@@ -94,6 +94,7 @@ import { OrganizationRestrictionService } from './services/organization-restrict
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import { TaxIdScopeService } from './services/tax-id-scope-service.js';
 import { OrganizationCommandService } from './services/organization-command-port.js';
+import { organizationFieldSetRegistration } from './forms/organization-field-set.js';
 import { OrganizationMergeHost } from './merge/organization-merge-host.js';
 import { OrganizationMergeService } from './merge/organization-merge-service.js';
 import { createOrganizationMergeNotifier } from './merge/organization-merge-notifier.js';
@@ -1065,6 +1066,11 @@ export function registerModule(ctx: ModuleContext): void {
       return out;
     },
   });
+  // `specs/193-admin-form-extensions/` WP-E1 (FR-041, FR-081) — every write of
+  // the organization field set, so a deployment's tightened field rule binds
+  // the admin form, the admin API, the integration port and a worker alike.
+  ctx.fieldSets([organizationFieldSetRegistration]);
+
   ctx.merge.host(
     'organization',
     new OrganizationMergeHost({

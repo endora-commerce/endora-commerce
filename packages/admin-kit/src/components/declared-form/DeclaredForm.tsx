@@ -33,7 +33,7 @@
  * // on save: if (!declared.validate()) return;
  * //          const { core, extensions } = declared.submission();
  * //          try { await save({ ...core, ...(extensions ? { extensions } : {}) }) } catch (e) { if (!declared.applyError(e)) throw e }
- * <DeclaredFormProvider declared={declared}>
+ * <DeclaredFormProvider form={ORGANIZATION_FORMS.edit} declared={declared}>
  *   <DeclaredFormNotices />
  *   <EditorSection title={t('sections.identity')}><DeclaredFormSection section="identity" /></EditorSection>
  * </DeclaredFormProvider>
@@ -78,8 +78,8 @@ import { mapDeclaredFormError } from '../../lib/forms/errors.js';
 import { declaredFormLayout } from '../../lib/forms/layout.js';
 import { clientFieldViolations, fieldValueChanged, isEffectivelyRequired } from '../../lib/forms/rules.js';
 import { declaredFormSubmission, type DeclaredFormSubmission } from '../../lib/forms/submission.js';
-import { useModulePresence } from '../../lib/module-presence/ModulePresenceProvider.js';
-import { useSurfaceVisibility } from '../../lib/surface-visibility.js';
+import { useOptionalModulePresence } from '../../lib/module-presence/ModulePresenceProvider.js';
+import { isSurfaceVisible, type GatedSurface } from '../../lib/surface-visibility.js';
 import { cn } from '../../lib/utils.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { FormField, type FormFieldControlProps } from '../../ui/form-field.js';
@@ -253,6 +253,9 @@ function loadBehaviour(load: AdminComponentFactory): Promise<FieldBehaviourModul
 // The hook
 // ---------------------------------------------------------------------------
 
+const NO_MODULE_PRESENT = (): boolean => false;
+const NOTHING_TO_REFRESH = (): Promise<void> => Promise.resolve();
+
 const own = (values: Readonly<Record<string, unknown>> | null | undefined, key: string): unknown =>
   values != null && Object.prototype.hasOwnProperty.call(values, key) ? values[key] : undefined;
 
@@ -296,9 +299,14 @@ export function useDeclaredForm<F extends AdminFormDeclaration>(options: UseDecl
   const mode = form.mode;
   const { form: effective } = useEffectiveForm(form.id);
   const contributions = useAdminFormContributions();
-  const isVisible = useSurfaceVisibility();
   const { hasPermission } = useAuth();
-  const { isPresent, refresh: refreshPresence } = useModulePresence();
+  // Without a presence provider no module is present: no slot, no module
+  // control, no behaviour — the declaration alone, as with no effective forms
+  // (`EffectiveFormsProvider`'s header). A host screen renders either way.
+  const presence = useOptionalModulePresence();
+  const isPresent = presence?.isPresent ?? NO_MODULE_PRESENT;
+  const refreshPresence = presence?.refresh ?? NOTHING_TO_REFRESH;
+  const isVisible = (surface: GatedSurface): boolean => isSurfaceVisible(surface, { hasPermission, isModulePresent: isPresent });
   const { t, language } = useTranslationContext();
 
   const firstValues = useRef(options.values);
@@ -757,10 +765,24 @@ const DeclaredFormContext = createContext<DeclaredFormController | null>(null);
 
 export interface DeclaredFormProviderProps {
   readonly declared: DeclaredFormController;
+  /**
+   * The form `declared` was built for, named where the form renders
+   * (`contracts/field-slots.md` §3). `check:admin-forms` and `endora generate`
+   * read it here to know which forms a host renders (`unrendered-form`,
+   * `undeclared-form`); a form rendered without it is unreadable to them. It
+   * must be the form handed to {@link useDeclaredForm}.
+   */
+  readonly form?: Pick<AdminFormDeclaration, 'id'>;
   readonly children: ReactNode;
 }
 
-export function DeclaredFormProvider({ declared, children }: DeclaredFormProviderProps): ReactNode {
+export function DeclaredFormProvider({ declared, form, children }: DeclaredFormProviderProps): ReactNode {
+  if (form !== undefined && form.id !== declared.formId) {
+    throw new Error(
+      `[declared-form] <DeclaredFormProvider form={…}> names '${form.id}', and its controller was built for '${declared.formId}'. ` +
+        'Hand the provider the form useDeclaredForm was given.',
+    );
+  }
   return <DeclaredFormContext.Provider value={declared}>{children}</DeclaredFormContext.Provider>;
 }
 

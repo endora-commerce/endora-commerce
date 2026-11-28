@@ -21,7 +21,7 @@ import {
  */
 export type AdminOrganizationPatch = Omit<
   z.infer<typeof adminPatchOrganizationRequestSchema>,
-  'customFieldValues' | 'expectedUpdatedAt' | 'status'
+  'customFieldValues' | 'expectedUpdatedAt' | 'status' | 'extensions'
 >;
 
 /**

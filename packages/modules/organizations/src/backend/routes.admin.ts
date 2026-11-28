@@ -608,7 +608,9 @@ export async function registerOrganizationsAdminRoutes(
     },
     async (request) => {
       const body = adminPatchOrganizationRequestSchema.parse(request.body);
-      const { customFieldValues: patchValues, expectedUpdatedAt, ...changes } = body;
+      // `specs/193-admin-form-extensions/` FR-013 — `extensions` is the slot
+      // fields' values, handed to the Command's hooks unchanged.
+      const { customFieldValues: patchValues, expectedUpdatedAt, extensions, ...changes } = body;
       // One Command, `organization.admin_patch`: the version check, the column
       // changes and the custom-field merge on one transaction, with the one
       // audit entry this edit has always recorded — naming what changed, never
@@ -647,6 +649,7 @@ export async function registerOrganizationsAdminRoutes(
           changes,
           assertCurrent: (current) => assertVersion(current.updatedAt, expectedUpdatedAt),
           mergeCustomFieldValues,
+          extensions,
         }),
       );
       return { data: serializeOrg(org) };
@@ -766,7 +769,9 @@ export async function registerOrganizationsAdminRoutes(
           schema: { body: AdminOrganizationCreateBodySchema },
         },
         async (request, reply) => {
-          const body = AdminOrganizationCreateBodySchema.parse(request.body);
+          // `specs/193-admin-form-extensions/` FR-013 — `extensions` is the
+          // slot fields' values, handed to the Command's hooks unchanged.
+          const { extensions, ...body } = AdminOrganizationCreateBodySchema.parse(request.body);
           // `specs/177-tax-id-scope/` FR-018 — naming a parent is parentage, the
           // tenancy graph: an unscoped administrator only (D-260, as the parent
           // route below).
@@ -782,6 +787,7 @@ export async function registerOrganizationsAdminRoutes(
                 ...(customFieldValues ? { customFieldValues } : {}),
               },
               body,
+              extensions ? { extensions } : {},
             ),
             () => taxIdExistsRefusal(),
           );

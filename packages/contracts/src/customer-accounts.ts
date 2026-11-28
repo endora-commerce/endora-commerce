@@ -378,6 +378,19 @@ export interface CustomerAccountCreateInput {
    * direct-create, which has no buyer request to read it from.
    */
   preferredLanguage?: string | null;
+  /**
+   * `specs/193-admin-form-extensions/` D-300.10 — this create is a buyer's
+   * own storefront write: the invitation acceptance, which runs anonymously.
+   * The owner puts it on the `customer_account.create` Command it runs
+   * (`Command.buyerSelfService`), so a deployment's tightened field rule does
+   * not refuse the invitee (D-300.3). Ignored under an operator or an API key,
+   * as the flag is. Never set it on an operator path.
+   *
+   * **Honoured from WP-E3**, which declares the action in `customer_accounts`'
+   * manifest `buyerSelfServiceActions` together with the `customer_account`
+   * field set it matters for; until then the owner ignores it.
+   */
+  buyerSelfService?: true;
 }
 
 /** Absent fields are left unchanged. */

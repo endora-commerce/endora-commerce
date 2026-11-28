@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MODULES } from '../../../src/composition.generated.js';
 import { generatedListCommandHooks } from '../../helpers/generated-list-command-hooks.js';
+import { generatedListForms } from '../../helpers/generated-list-forms.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 import { composeModules } from '@endora-commerce/platform/composition';
@@ -1019,8 +1020,11 @@ describe('T055 — the remaining module set still composes', () => {
       emFactory: () => undefined,
     });
     const hooks = generatedListCommandHooks();
+    const surviving = MODULES.filter((entry) => entry.id !== removed);
+    // `specs/193-admin-form-extensions/` WP-E1 — `organizations` registers its field set's writers.
+    const forms = generatedListForms(surviving.map((entry) => entry.id));
     return composeModules(
-      MODULES.filter((entry) => entry.id !== removed),
+      surviving,
       {
         container,
         eventBus: new EventBus(),
@@ -1028,6 +1032,8 @@ describe('T055 — the remaining module set still composes', () => {
         interceptorRegistry: newInterceptorRegistry(),
         commandHookRegistry: hooks.registry,
         commandHooks: hooks.data,
+        formRegistry: forms.registry,
+        forms: forms.data,
       },
     );
   }
@@ -1043,8 +1049,10 @@ describe('T055 — the remaining module set still composes', () => {
     const container = createRootContainer();
     registerValues(container, { redis: undefined });
     const hooks = generatedListCommandHooks();
+    const surviving = MODULES.filter((entry) => entry.id !== SUBJECT);
+    const forms = generatedListForms(surviving.map((entry) => entry.id));
     composeModules(
-      MODULES.filter((entry) => entry.id !== SUBJECT),
+      surviving,
       {
         container,
         eventBus: new EventBus(),
@@ -1052,6 +1060,8 @@ describe('T055 — the remaining module set still composes', () => {
         interceptorRegistry: newInterceptorRegistry(),
         commandHookRegistry: hooks.registry,
         commandHooks: hooks.data,
+        formRegistry: forms.registry,
+        forms: forms.data,
       },
     );
     // Not `undefined` reaching business logic — the property `composition.ts`

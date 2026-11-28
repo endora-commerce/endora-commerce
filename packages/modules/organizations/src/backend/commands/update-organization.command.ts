@@ -4,12 +4,14 @@ import {
   ERROR_CODES,
   isUuidShape,
   type DictionaryWriteMode,
+  type OrganizationUpdateHookData,
   type OrganizationWriteUpdatePatch,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
 import { changedKeys } from '../services/organization-audit-state.js';
+import { toOrganizationRecord } from '../services/organization-details-port.js';
 
 /** The fields `organization.update` may change, compared to name what changed — never recorded themselves. */
 interface OrganizationIdentityState {
@@ -80,15 +82,29 @@ function versionConflict(currentVersion: number | null): HttpError {
  * writable here — a correction is `organization.tax_id.change`.
  *
  * Callers validate the patch's shape before running it; this Command trusts it.
+ *
+ * **Rule-check-only** (`specs/193-admin-form-extensions/` FR-113, WP-E1): not a
+ * hookable action, so no module hook runs on it, but it is a writer of the
+ * organization field set. It supplies hook data — the after-state and the names
+ * of what changed, as `organization.admin_patch` does — for the platform's
+ * field-rule check alone, so a deployment's tightened rule binds the
+ * integration write as it binds the operator's.
  */
 export function makeUpdateOrganizationCommand(
   deps: UpdateOrganizationCommandDeps,
   input: UpdateOrganizationInput,
 ): Command<Organization> {
+  // What `run` changed, for the hook data — set before the field-rule check runs.
+  let changedFields: string[] = [];
   return {
     action: 'organization.update',
     objectType: 'organization',
     objectId: input.organizationId,
+    hookData: (org): OrganizationUpdateHookData => ({
+      organization: toOrganizationRecord(org),
+      changedFields,
+      changedCustomFields: [],
+    }),
     run: async ({ em }) => {
       if (!isUuidShape(input.organizationId)) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -150,10 +166,11 @@ export function makeUpdateOrganizationCommand(
         if (err instanceof OptimisticLockError) throw versionConflict(null);
         throw err;
       }
+      changedFields = changedKeys(before, after);
       return {
         result: org,
         before: { vatStatus: before.vatStatus },
-        after: { vatStatus: org.vatStatus, changedFields: changedKeys(before, after) },
+        after: { vatStatus: org.vatStatus, changedFields },
       };
     },
   };

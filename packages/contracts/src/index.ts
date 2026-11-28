@@ -247,6 +247,7 @@ export * from './command-middleware.js';
 // `specs/187-side-table-extensions/` B1 — `include: ['extensions.<moduleId>']` on host read ports.
 export * from './entity-extensions.js';
 export * from './organization-hooks.js';
+export * from './organization-form.js';
 // `specs/186-aggregate-ports/` — the options and the custom-field merge every aggregate write port shares.
 export * from './aggregate-ports.js';
 // `specs/192-organization-merge/` — the platform's merge vocabulary and the Organization host's shapes.

@@ -115,6 +115,11 @@ export function makeRegisterOrganizationCommand(
     // Organization and its first account on this transaction — never the raw
     // verification token, which only the caller's result carries.
     ...(input.extensions ? { extensions: input.extensions } : {}),
+    // `specs/193-admin-form-extensions/` D-300.10 — a buyer's own storefront
+    // write, run under the anonymous `system` actor. The field-rule check
+    // skips it and the child `customer_account.create`, which inherits the
+    // flag (D-300.3); the manifest lists the action in `buyerSelfServiceActions`.
+    buyerSelfService: true,
     hookData: (result): OrganizationRegisterHookData => ({
       organization: toOrganizationRecord(result.organization),
       customerAccountId: result.customerAccount.id,

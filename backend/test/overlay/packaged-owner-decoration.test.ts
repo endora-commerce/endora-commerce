@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MODULES } from '../../src/composition.generated.js';
 import { generatedListCommandHooks } from '../helpers/generated-list-command-hooks.js';
+import { generatedListForms } from '../helpers/generated-list-forms.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { composeModules, type ModuleEntry } from '@endora-commerce/platform/composition';
 import { createRootContainer } from '@endora-commerce/platform/composition';
@@ -199,6 +200,8 @@ function withDecoratedName(entry: ModuleEntry, extra: Partial<ModuleEntry> = {})
 function compose(entries: readonly ModuleEntry[]): { cradle: Record<string, unknown> } {
   const container = createRootContainer();
   const hooks = generatedListCommandHooks();
+  // `specs/193-admin-form-extensions/` WP-E1 — a module of the list registers its field set's writers.
+  const forms = generatedListForms(entries.map((entry) => entry.id));
   composeModules(entries, {
     container,
     eventBus: new EventBus(),
@@ -210,6 +213,8 @@ function compose(entries: readonly ModuleEntry[]): { cradle: Record<string, unkn
     // A module of the generated list registers command hooks (`related_payers`).
     commandHookRegistry: hooks.registry,
     commandHooks: hooks.data,
+    formRegistry: forms.registry,
+    forms: forms.data,
     // `specs/189-command-middleware/` — the overlay module contributes an
     // `observe` command middleware, which a root with no middleware registry
     // refuses. Sealed against its own manifest's declaration.

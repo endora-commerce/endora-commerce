@@ -141,6 +141,13 @@ export interface SealedCommandHookRegistryInput {
   readonly commandHookOrder?: Readonly<Record<string, readonly string[]>>;
   /** Presence per call; defaults to every module present. */
   readonly isPresent?: (moduleId: string) => boolean;
+  /**
+   * The owners' `buyerSelfServiceActions`, as `buyerSelfServiceActionsFrom(manifests)`
+   * derives them (`specs/193-admin-form-extensions/` D-300.10, #2027). The bus
+   * refuses `Command.buyerSelfService` on any action not listed here, so an
+   * owner whose Command sets it passes its manifest's list.
+   */
+  readonly buyerSelfServiceActions?: ReadonlyArray<{ readonly moduleId: string; readonly action: string }>;
 }
 
 /**
@@ -156,6 +163,7 @@ export function sealedCommandHookRegistry(input: SealedCommandHookRegistryInput)
     hookableActions: input.hookableActions.map((declaration) => ({ ...declaration, phases: [...declaration.phases] })),
     moduleDependencies: input.moduleDependencies,
     commandHookOrder: input.commandHookOrder ?? {},
+    ...(input.buyerSelfServiceActions === undefined ? {} : { buyerSelfServiceActions: input.buyerSelfServiceActions }),
   });
   return registry;
 }

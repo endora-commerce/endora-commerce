@@ -8,6 +8,7 @@ import { createRootContainer } from '@endora-commerce/platform/composition';
 import { composeModules } from '@endora-commerce/platform/composition';
 import { MODULES } from '../../../src/composition.generated.js';
 import { generatedListCommandHooks } from '../../helpers/generated-list-command-hooks.js';
+import { generatedListForms } from '../../helpers/generated-list-forms.js';
 import { codeOnly } from '../../../scripts/lib/source-text.js';
 
 /**
@@ -69,6 +70,8 @@ function composeGeneratedList(): { ids: string[]; registrations: string[] } {
   const before = new Set(Object.keys(container.registrations));
   // A module of the list registers command hooks (`related_payers`), as both real roots allow.
   const hooks = generatedListCommandHooks();
+  // `specs/193-admin-form-extensions/` WP-E1 — a module of the list registers its field set's writers.
+  const forms = generatedListForms(entries.map((entry) => entry.id));
   const composed = composeModules(entries, {
     container,
     eventBus,
@@ -76,6 +79,8 @@ function composeGeneratedList(): { ids: string[]; registrations: string[] } {
     interceptorRegistry: new ApiInterceptorRegistry(),
     commandHookRegistry: hooks.registry,
     commandHooks: hooks.data,
+    formRegistry: forms.registry,
+    forms: forms.data,
   });
   const registrations = Object.keys(container.registrations)
     .filter((name) => !before.has(name))

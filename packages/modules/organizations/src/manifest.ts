@@ -1,4 +1,6 @@
 import {
+  ORGANIZATION_FIELD_SET,
+  ORGANIZATION_FORMS,
   ORGANIZATION_HOOKABLE_ACTIONS,
   defineModuleManifest,
   defineModuleSettingsManifest,
@@ -923,6 +925,26 @@ export const manifest = defineModuleManifest({
     // `specs/192-organization-merge/` FR-061 — a deployment may veto a merge.
     ORGANIZATION_HOOKABLE_ACTIONS.mergeStart,
   ].map(toHookableActionDeclaration),
+  /**
+   * `specs/193-admin-form-extensions/` D-300.10 (issue #2027) — the storefront
+   * self-registration runs anonymously, under a `system` actor nothing can
+   * tell apart from a worker, so its Command says it is a buyer's own write
+   * (`buyerSelfService: true`) and the field-rule check skips it and the
+   * account it creates (D-300.3). The bus refuses the flag on an action no
+   * manifest lists here.
+   */
+  buyerSelfServiceActions: ['organization.register'],
+  /**
+   * `specs/193-admin-form-extensions/` WP-E1 (FR-001, FR-080) — the first
+   * adopter. The organization field set, whose writers the backend registers
+   * with `ctx.fieldSets`, and the two forms this module's screens render
+   * through the admin kit's declared form: *New organization* and the fields
+   * the Organization page's one Save writes. A module may add a slot field to
+   * either at an anchor, and a deployment may override what each field's
+   * `accepts` invites (`ORGANIZATION_FIELD_SET`).
+   */
+  fieldSets: [ORGANIZATION_FIELD_SET],
+  adminForms: [ORGANIZATION_FORMS.create, ORGANIZATION_FORMS.edit],
   /**
    * `specs/192-organization-merge/` — this module hosts the `organization`
    * record type (`contracts/merge-mechanism.md` §1), and declares what its own

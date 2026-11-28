@@ -172,6 +172,9 @@ function resolve(key: string, root: ZodSchemaLike): { readonly schema: ZodSchema
     if (child._zod.optin === 'optional') optional = true;
     current = unwrap(child);
   }
+  // A key the schema refuses outright (`z.never()`, as a PATCH refusing a field
+  // only another write sets) carries nothing: it is not this schema's field.
+  if (defOf(current).type === 'never') return null;
   return { schema: current, optional };
 }
 

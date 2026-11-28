@@ -91,6 +91,8 @@ function harness(hooks: ReadonlyArray<{ moduleId: string; entries: readonly Comm
     hookableActions: (manifest.hookableActions ?? []).map((declaration) => ({ moduleId: 'organizations', ...declaration })),
     moduleDependencies: { acme_erp: ['organizations'] },
     hooks,
+    // `specs/193-admin-form-extensions/` D-300.10 — `organization.register` sets `buyerSelfService`.
+    buyerSelfServiceActions: (manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: 'organizations', action })),
   });
   const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>(), { hooks: registry });
   return { bus, audits, stored, em: em as unknown as EntityManager };
@@ -421,6 +423,8 @@ function taxIdHarness(
     hookableActions: (manifest.hookableActions ?? []).map((declaration) => ({ moduleId: 'organizations', ...declaration })),
     moduleDependencies: { acme_erp: ['organizations'] },
     hooks,
+    // `specs/193-admin-form-extensions/` D-300.10 — `organization.register` sets `buyerSelfService`.
+    buyerSelfServiceActions: (manifest.buyerSelfServiceActions ?? []).map((action) => ({ moduleId: 'organizations', action })),
   });
   const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>(), { hooks: registry });
   const accounts = { listByOrganization: async () => [{ id: ACCOUNT_ID, organizationRoleId: ADMIN_ROLE }] as never };
