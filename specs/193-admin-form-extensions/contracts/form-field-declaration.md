@@ -33,6 +33,12 @@ export interface FieldDeclaration<K extends string = string> {
   /** For `reference`: the referenced entity, informational (e.g. 'organization'). */
   readonly references?: string;
   readonly accepts: readonly FieldOverrideKind[];
+  /**
+   * D-300.31: the fixed values the owner's system paths write (e.g. `['vat_exempt']` on the
+   * organization's `vatStatus`). Composition refuses a tightening that rejects one
+   * (`rule-excludes-system-value`).
+   */
+  readonly systemValues?: readonly unknown[];
   /** Owner-declared write permission (FR-060); a deployment may add one, never remove. */
   readonly writePermission?: string;
   /** Renamed keys still accepted for one release (FR-071). */

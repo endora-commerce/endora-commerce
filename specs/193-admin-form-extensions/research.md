@@ -821,6 +821,11 @@ Children inherit it from the lineage the bus already threads, so `customer_accou
 - *Keep WP-B's fail-closed behaviour.* It refuses a buyer's registration because of an
   operator-side rule, which is the exact case D-300.3 excludes.
 
+**Amended (D-300.31, R-26.6).** The flag is set per call by the caller that knows it is a buyer,
+not by the Command type: the storefront registration is a `createStandalone` call, so
+`createStandalone`'s options carry `buyerSelfService?: true`, as
+`CustomerAccountMemberWritePort.create`'s input does.
+
 ### R-24.3: Non-retroactivity covers every rule kind (D-300.11)
 
 **Decision.** WP-B's reading is confirmed. On an update the check holds a field only when the write
@@ -1369,11 +1374,27 @@ XV and D-300.3 already say.
 - **At finalize.** `organization.merge.finalize` becomes a rule-check-only writer (D-300.27). Its
   Command supplies hook data (`organization`, the survivor's after-state, and `changedFields`).
   This is the backstop XV requires, because a deployment could redeploy with a new rule while a
-  merge is in flight. A refusal there leaves the merge *needs attention*, as any failing step does
-  (192 FR-007). The refusal's field and code are shown on the merge, and *resume* finalizes once the
-  rule admits the value. The start-time check makes this need a rule change during a running merge.
-- **A system actor.** `organizationCommandPort.startMerge`, once it exists, runs as a system actor.
-  It is held to validation and, as FR-043 says of every system write, not to `writePermission`.
+  merge is in flight. The merge runner runs the finalize inside `enterSystemScope`
+  (`packages/platform/src/kernel/merge/runtime.ts`), so its actor is `system`, and its check is
+  validation only. `writePermission` is decided once, at start, under the admin who chose. A
+  refusal at finalize leaves the merge *needs attention*, as any failing step does (192 FR-007).
+  This is a new cause of that state. The refusal's field and code are shown on the merge, and
+  *resume* finalizes once the rule admits the value. The start-time check makes this need a rule
+  change during a running merge.
+- **The e-mail union.** `orderConfirmationEmails` is never a choice: the survivor always takes the
+  union of both lists (192 `contracts/organization-merge.md`). It is in `survivor.changed` whenever
+  the loser adds a recipient, and it is held like every other changed field, because XV binds the
+  validation and the deployment's `writePermission` exists precisely to control who changes the
+  recipients. The remedies differ from a choice row's:
+  - a validation refusal (`format`, `pattern`, a bound) names the offending recipient's field. The
+    operator corrects the loser's or the survivor's recipient list on its own page, where the same
+    rule holds, and starts again;
+  - a `writePermission` refusal means the merge adds recipients the admin may not change. The
+    screen shows it on a read-only *Order confirmation e-mails (combined)* row, naming the
+    permission, and the remedy is that an admin who holds it starts the merge.
+- **`startMerge` on the port.** `organizationCommandPort.startMerge`, once it exists, runs with the
+  ambient actor (192 FR-062). An admin is held exactly as on the screen. A system actor is held to
+  validation and, as FR-043 says of every system write, not to `writePermission`.
 - **Later improvement, not the control.** The merge screen could lock up front a choice the admin
   may not make. That needs the preview to carry each offered field's effective `writePermission`,
   which is a new read on the sealed registry. It is recorded as a follow-up issue. The server
@@ -1455,9 +1476,18 @@ showed that to be inaccurate.
 - The name is derived from the first name, last name and e-mail (`personalName`), not fixed.
 - `customerAccountCommandPort.createStandalone` is a published port that a system actor can call,
   and it is not buyer self-service.
-- Other paths reach the same service: the federated sign-in seam in `customer_accounts`
-  (`index.ts`), and the detach-to-personal path (`provisionPersonalOrganizationFor`, on its own
-  `EntityManager`) behind the admin customer screen.
+- The storefront registration *is* a `createStandalone` call:
+  `customers/src/backend/services/customer-registration-service.ts` calls it with no options. So a
+  flag on the Command type would either bind the storefront or skip every system caller.
+- Other paths reach the same service.
+  - The federated sign-in seam in `customer_accounts` (`index.ts`) runs
+    `withSystemScope(…, () => bus.run(() => emFactory().transactional(…)))`. `bus.run` is a scope,
+    not a Command, so there is no root Command there.
+  - The detach-to-personal path is `provisionPersonalOrganizationFor`, on its own
+    `EntityManager`, which `customers`' `unassign` calls under the operator.
+  - The repair path is `ensureForCustomerAccountId`, behind the published
+    `personalOrganizationPort.ensureForCustomerAccount`, under whatever actor its caller has. Since
+    D-178 it provisions only for an account written before that ruling.
 - The fixed values are `status: 'active'`, `vatStatus: 'vat_exempt'`, `taxId: null` and a
   placeholder address. Of these, only `vatStatus` accepts a server-enforced kind (`options`).
 
@@ -1465,19 +1495,39 @@ showed that to be inaccurate.
 - **One Command.** Every path runs `organization.personal.provision`, an `organizations` Command
   (mode `create`, hook data `{ organization: OrganizationRecord }`) registered as a rule-check-only
   writer (D-300.27). `writes` lists `name`, `status`, `vatStatus`, `registeredAddress` and `taxId`.
-  - Inside a caller's Command it runs as a child through that Command's `run`, on the same
+  The check holds only the keys a writer writes (`guardedKeys` in `field-rule-check.ts`), so a
+  tightened `required` on `orderConfirmationEmails` or `fulfilmentStrategy`, which provisioning
+  leaves empty, never reaches it.
+  - Inside `register_standalone` it runs as a child through that Command's `run`, on the same
     transaction. The internal provisioning port that `organizations` hands `customer_accounts`
-    therefore takes `{ em, run }` instead of `em`.
-  - Where there is no caller Command (the detach-to-personal path, and the federated seam if it
-    runs outside one), it runs as a root Command with the request's actor.
-- **Who is bound.** The lineage decides (D-300.10).
-  - The storefront registration and the federated sign-in are a buyer acting for itself. Their
-    root sets `buyerSelfService`, so the check skips them.
-  - The flag is set by the storefront caller of `register_standalone`, not by the Command type, so
-    `createStandalone` called by a system actor is bound. This brings forward the
-    `register_standalone` half of T088 into WP-E1, because the new writer would otherwise bind the
-    storefront registration until WP-E3 landed.
-  - The detach-to-personal path runs with the operator's actor and is bound.
+    therefore takes `{ em, run }` instead of `em`. As a child it answers `skipAudit`, because the
+    caller's entry already records the account and its organisation. Registration's audit is
+    unchanged.
+  - The federated seam runs it as the root Command, under its system actor, inside the seam's
+    transaction, with `buyerSelfService: true` set by the seam.
+  - The repair (`ensureForCustomerAccountId`) and the detach-to-personal
+    (`provisionPersonalOrganizationFor`) run it as a root Command with their caller's actor. Each
+    records one names-only entry, because no caller entry covers them.
+  - The stale `command-coverage-ignore` on `provisionFor` goes, because the write is now a Command.
+- **Who is bound.** The lineage decides (D-300.10 as amended).
+  - The flag is set per call. `createStandalone`'s options gain `buyerSelfService?: true`,
+    following `CustomerAccountMemberWritePort.create`'s input (`hookable-writers.md` §1).
+    `customers`' storefront registration passes it, and `register_standalone` puts it on the
+    Command. This brings forward the `register_standalone` half of T088 into WP-E1, because the
+    new writer would otherwise bind the storefront registration until WP-E3 landed.
+  - The storefront registration and the federated sign-in are therefore skipped. A system
+    `createStandalone` call without the flag is bound, and so are the repair and the detach.
+  - Server code running as a `system` actor can declare itself buyer self-service. D-300.10's guard
+    stops admin, API-key and impersonated actors only. The flag is a statement in server code, and
+    the storefront-route inventory test of T088 is what holds it to the storefront.
+- **`writePermission` and fixed values.** A root `create` has `changed` equal to every non-empty
+  field, so the detach would refuse an operator who lacks a deployment's `writePermission` on
+  `vatStatus`, for `'vat_exempt'`, a value the operator never chose. The provisioning writer
+  therefore returns `{ after, changed: ['name'] }`. `name` is the one value derived
+  from the person, and `changed` names what the actor chose. The check holds every written field to
+  validation on a create whatever `changed` says (`touched = isCreate`), and it uses `changed` for
+  `writePermission` only. XV binds validation, not `writePermission`. No platform change is needed,
+  and a merge that chooses `'vat_exempt'` is still held, because its `changed` is the merge's.
   - A derived name that breaks a deployment's `name` rule therefore refuses that integration call
     or that detach with `422 FIELD_RULE_VIOLATION` on `name`. That is "every write", and the
     documentation (WP-DOC) tells a deployment that tightens `name` that personal organisations are
@@ -1492,8 +1542,9 @@ showed that to be inaccurate.
   needs no entry.
 
 **Rationale.** The XV MUST holds without an exception. A refusal can only come from a rule the
-deployment chose, on a value the request supplied (the person's name). A fixed value can never be
-refused, because composition will not admit a rule against it.
+deployment chose, on the one value the request supplied (the person's name). A fixed value can never
+be refused, because composition will not admit a rule against it. A field provisioning does not
+write is never held, because the check holds only written keys.
 
 **Rejected.**
 - *Keep provisioning unregistered.* It is a bus write, and its name is derived input, so this would
@@ -1502,24 +1553,43 @@ refused, because composition will not admit a rule against it.
   name another module's action. That inverts the dependency, and it would not cover the other
   paths.
 - *Exempt personal organisations from `name` rules.* That is an exception XV does not give.
+- *Skip `writePermission` platform-wide for a value in `systemValues`.* A merge that chose the
+  loser's `'vat_exempt'` would then escape a deployment's `writePermission` on `vatStatus`. The
+  exemption belongs to the writer whose value is fixed, not to the value.
+- *Extend `systemValues` to the fields provisioning leaves empty.* The narrow `writes` already
+  keeps them out of the check, with no declaration.
 
 ### R-26.7: Anonymisation (D-300.32)
 
-**Measured.** `PersonalOrganizationService`'s scrub is the retention sweep's cascade over a
-member-less personal organisation. It runs in `em.transactional`, outside the Command Bus, under a
-recorded `command-coverage-ignore` with a null-actor audit. It writes `ANONYMIZED_ORGANIZATION_NAME`
-(`'Deleted customer'`), placeholder address fields and an empty `orderConfirmationEmails`.
+**Measured.** `PersonalOrganizationService.anonymizeIfOrphaned` is the retention sweep's cascade
+over a member-less personal organisation. It runs in `em.transactional`, outside the Command Bus,
+and records its own entry through `auditLog.recordWithin` (`organization.anonymized`, null actor,
+names and counts only). It writes:
+- `name` = `ANONYMIZED_ORGANIZATION_NAME` (`'Deleted customer'`);
+- `legalName` = `null`;
+- `orderConfirmationEmails` = `[]`;
+- `customFieldValues` = `{}`;
+- `blockedReason` and `rejectedReason` = `null`;
+- placeholder street, city and postal code, keeping the country;
+- `deletedAt`, when not already set.
+
+Its `command-coverage-ignore` reason, "a system-initiated scrub on a timer, audited below with the
+null actor that fact deserves", is not one of the recognised escape-hatch categories
+(`docs/docs/architecture/command-bus.md` § *Auditable write vs. escape hatch*). An erasure of a
+durable domain record is an audited domain write, so this is a standing deviation from Principle
+XIII, which is non-negotiable. It predates this feature and is tracked in #2039.
 
 **Decision.** Anonymisation is an erasure. It stays outside the bus and is held to no rule, and
-nothing changes in code.
-- XV's MUST covers "every write the Command Bus runs", so no exception is needed and none is
-  claimed.
+this feature changes nothing in its code.
+- XV's MUST covers "every write the Command Bus runs", so XV itself needs no exception. That
+  conclusion **rests on the XIII deviation above**. When the scrub moves onto the bus, as XIII
+  requires, XV will bind it.
 - A scrubbed row that breaks a rule added later is a stored value, and stored values are tolerated
   (D-300.4, D-300.11). The row stays editable in its other fields.
-- Moving anonymisation onto the bus would bring it under XV. That move needs an architect ruling
-  first, and the ruling must keep erasure unrefusable, for example by declaring its fixed values as
-  `systemValues` and accepting the rules that would then be refused. `field-rules.md` §2 records
-  this.
+- Moving the scrub onto the bus therefore needs a decision first, which must keep erasure
+  unrefusable. #2039 carries it as an owner question, with the recommendation: an explicit erasure
+  carve-out in XV, worded so that an erasure Command a module declares as such is held to no
+  narrowed validation rule and stays audited through the bus. `field-rules.md` §2 records this.
 
 **Rationale.** Erasure is a legal obligation. A tightened rule must not be able to refuse it.
 Outside the bus nothing can.

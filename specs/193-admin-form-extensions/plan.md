@@ -21,7 +21,8 @@ kinds build on those declarations.
 Rules that must hold are enforced by one platform **field-rule check**, which runs first in every
 declared writer's `beforeCommit` phase, and at the same point on rule-check-only writers: any
 Command of the entity that is not a declared hookable action, reversible or not (D-300.27). Every
-write the Command Bus runs for the entity is a writer (XV, D-300.28, D-300.31). Those rules are
+bus write of a field that accepts a server-enforced kind is a writer of it (XV, I-5, D-300.28,
+D-300.31). Those rules are
 tightened validation, conditional required-ness, control formats and per-field write permissions.
 The check binds operator, API-key and system writes. It does not bind buyer self-service writes
 (D-300.3), and a field is held only when the write changes it (D-300.4, D-300.11). Composition

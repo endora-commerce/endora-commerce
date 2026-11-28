@@ -97,6 +97,7 @@ touched, errors }`; layout per field-slots §5; submission splits into `{ core, 
 | I-11 | An operator override sets only presentation kinds the field accepts; it never hides a required field, never clears a code hidden/read-only | `custom_fields.form_layout.set` validation (FORM_LAYOUT_OVERRIDE_INVALID) |
 | I-12 | An operator relabel resolves in every supported admin language, never in another language's text | `language-missing` refusal; fallback to code/core per language |
 | I-13 | A product rule applies at every saved scope; `required` binds only the global value | field-rule check scoped mode |
+| I-14 | No effective tightening rejects a value the owner's system paths write | composition (`rule-excludes-system-value` over `systemValues`, D-300.31) |
 
 ## 4. State transitions
 

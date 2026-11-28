@@ -110,7 +110,12 @@ the rejected alternatives are in R-24.
   acceptance set it, and every child Command they run (`customer_account.create` included)
   inherits it. The flag is honoured only on an actor with no acting admin whose kind is `system` or
   `customer`. On an admin or API-key actor, and under impersonation, it is ignored. Without the
-  flag a `system` actor stays bound (R-24.2).
+  flag a `system` actor stays bound (R-24.2). *Amended by D-300.31:* the flag is set per call, by
+  the caller that knows it is a buyer, not by the Command type. `createStandalone`'s options and
+  `CustomerAccountMemberWritePort.create`'s input carry `buyerSelfService?: true`, and only the
+  storefront callers pass it. Server code running as a `system` actor can therefore declare itself
+  buyer self-service. The guard stops admin, API-key and impersonated actors only, so the flag is
+  a statement that server code makes and review holds it to.
 - **D-300.11** *(architect ruling, raised by WP-B)*: D-300.4's non-retroactivity applies to every
   rule kind, not only to `required`. On an update a field is held to its rules only when the write
   changed or cleared it. `requiredWhen` is also held when the write changed a field its condition
@@ -216,13 +221,17 @@ unregistered. The reasoning and the rejected alternatives are in R-26.
     `survivor: { after, changed }`, the survivor's field values after the operator's choices,
     computed by the finalize's own rules. A chosen value that breaks a tightened rule is refused
     at start with `422 FIELD_RULE_VIOLATION`, before anything moves. A changed field whose
-    `writePermission` the admin lacks is refused with `403 FIELD_WRITE_FORBIDDEN`.
-  - `organization.merge.finalize` becomes a rule-check-only writer, as the backstop.
+    `writePermission` the admin lacks is refused with `403 FIELD_WRITE_FORBIDDEN`. The e-mail
+    union is not a choice but is held all the same, with its own remedy.
+  - `organization.merge.finalize` becomes a rule-check-only writer, as the backstop. It runs in a
+    system scope, so it is held to validation only.
   - The merge screen maps a refusal's `details[].path` onto that field's choice and offers the
     survivor's value.
-  - A system actor (`organizationCommandPort.startMerge`) is held to validation and, as FR-043
-    says, not to `writePermission`.
+  - `organizationCommandPort.startMerge` runs with the ambient actor (192 FR-062): an admin is
+    held as on the screen, and a system actor is held to validation and, as FR-043 says, not to
+    `writePermission`.
   - The up-front lock of a choice the admin may not make is a later improvement, not the control.
+
   This goes into WP-E1 (R-26.3).
 - **D-300.29** *(architect ruling, raised by WP-E1)*: `DeclaredFormProvider` takes a **required**
   `form` prop, the form its `declared` controller was built for, and throws when the ids differ.
@@ -237,21 +246,30 @@ unregistered. The reasoning and the rejected alternatives are in R-26.
   provisioning is held like any other write.
   - Every provisioning path runs one `organizations` Command, `organization.personal.provision`.
     It runs as a child of the caller's Command where there is one, and as a root Command
-    otherwise. It is a rule-check-only writer.
-  - The storefront registration and the federated sign-in are buyer self-service through their
-    root's `buyerSelfService`, so they are skipped (D-300.3, D-300.10).
-  - `customerAccountCommandPort.createStandalone`, called by a system actor, and the operator's
+    otherwise: in the federated sign-in seam (under its system actor) and on the repair and
+    detach paths. It is a rule-check-only writer, and it writes `name`, `status`, `vatStatus`,
+    `registeredAddress` and `taxId` only, so no rule on another field can refuse it.
+  - The storefront registration passes `buyerSelfService` on its `createStandalone` call, and the
+    federated seam sets it on its root, so both are skipped (D-300.3, D-300.10 as amended). A
+    system `createStandalone` call without the flag, the repair port and the operator's
     detach-to-personal are bound.
+  - The writer reports only the derived `name` as what the actor chose. A fixed value is never
+    checked against `writePermission`, so an operator's detach is never refused for
+    `'vat_exempt'`. Validation still holds every field the writer writes.
   - A field declaration gains `systemValues`: the fixed values a system path writes (`vatStatus`
     `'vat_exempt'`). Composition refuses a tightening that rejects one
-    (`rule-excludes-system-value`), so a deployment cannot configure a rule that every bound
-    provisioning would break.
+    (`rule-excludes-system-value`). With the writer's narrow `writes`, no deployment rule can
+    refuse a provisioning on a value it did not derive from the person.
+
   This goes into WP-E1 (R-26.6).
 - **D-300.32** *(architect ruling, raised by the review of WP-E1)*: Anonymisation is an erasure.
   It runs outside the Command Bus and is held to no rule, so XV's MUST does not reach it and erasure
-  can never be refused. A scrubbed row that breaks a later rule is tolerated, as any stored value
-  is (D-300.4). Moving it onto the bus would need an architect ruling first, which must keep
-  erasure unrefusable. No code change (R-26.7).
+  can never be refused. That rests on an existing Principle XIII deviation: the scrub writes and
+  audits outside the bus under a `command-coverage-ignore` category the escape-hatch list does not
+  recognise. The deviation is tracked in #2039, together with the owner question it raises. A
+  scrubbed row that breaks a later rule is tolerated, as any stored value is (D-300.4). Moving the
+  scrub onto the bus, as XIII requires, needs that owner decision first, and it must keep erasure
+  unrefusable. No code change (R-26.7).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -665,8 +683,9 @@ they are, with the same props. The four PIM modules render their protection togg
   `condition-foreign-field`, `default-on-hidden`, `required-not-fillable` (a field that is
   effectively required on a create form while being hidden there; the read-only case is
   `check:admin-forms`', FR-012, D-300.12),
-  `foreign-override` and `override-owner-not-a-dependency`. Each refusal MUST name the module, the
-  field set, the field and the remedy.
+  `foreign-override`, `override-owner-not-a-dependency` and `rule-excludes-system-value` (a
+  tightening rejects a value the field declares in `systemValues`, D-300.31). Each refusal MUST
+  name the module, the field set, the field and the remedy.
 - **FR-022**: The tightened `validation` vocabulary MUST be: `required`, `minLength`, `maxLength`,
   `min`, `max`, `pattern`, `options` (a subset of the core enum) and `format`. Each value MUST be
   checked against the core bounds, and only a narrowing is admitted.
@@ -848,8 +867,9 @@ they are, with the same props. The four PIM modules render their protection togg
   queued path alike, and never as `product.update`. The summary entry `product.bulk_update` is an
   audit row, not a Command, and is not a writer (D-300.8). Any other Command that is not a declared
   hookable action MAY likewise be a rule-check-only writer, reversible or not. In `organizations`,
-  `organization.update` (the integration port's write) is one, so that a rule binds the port as it
-  binds the form and the API (SC-002, D-300.27).
+  `organization.update` (the integration port's write), `organization.merge.finalize` and
+  `organization.personal.provision` are, so that a rule binds the port, the merge and the
+  provisioning as it binds the form and the API (SC-002, D-300.27, D-300.28, D-300.31).
 - **FR-114**: Each new action MUST have `expectHookableCommand` tests, be listed in its owner's
   manifest `hookableActions`, and be announced in a changeset (additive).
 
