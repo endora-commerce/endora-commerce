@@ -5,7 +5,7 @@
 **Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
 **D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-26); the
 phase 2 rulings D-300.9 to D-300.16 (2026-11-27) and the phase 3 and 4 rulings D-300.17 to
-D-300.32 (2026-11-28) are architect rulings too, recorded below. No question is open. The
+D-300.34 (2026-11-28) are architect rulings too, recorded below. No question is open. The
 constitution amendment this feature drafted (XV, 4.6.0) was approved by the owner on 2026-11-27 and
 merged in #2007 (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
@@ -193,7 +193,7 @@ alternatives are in R-25.
   answers `null` under its key, as the 187 read ports do. An absent key still means that the module
   is not served there: not requested, not opted in, absent or switched off (R-25.9).
 
-### Phase 4 architect rulings *(D-300.26 to D-300.32, 2026-11-28, raised by WP-E1)*
+### Phase 4 architect rulings *(D-300.26 to D-300.34, 2026-11-28, raised by WP-E1)*
 
 None of these changes an owner answer, so none needs one. D-300.28 and D-300.31 apply D-300.3 and
 constitution 4.6.0 XV ("every write the Command Bus runs for that entity") to writes WP-E1 had left
@@ -270,6 +270,19 @@ unregistered. The reasoning and the rejected alternatives are in R-26.
   scrubbed row that breaks a later rule is tolerated, as any stored value is (D-300.4). Moving the
   scrub onto the bus, as XIII requires, needs that owner decision first, and it must keep erasure
   unrefusable. No code change (R-26.7).
+- **D-300.33** *(architect ruling, raised by WP-E1's implementation)*: The federated sign-in seam is
+  now a Command, `customer_account.register_social`. It declares `buyerSelfService` and runs
+  `organization.personal.provision` as its child. This is ratified as D-300.31's first branch (a
+  child where there is a caller Command), and the seam is no longer a write outside the bus. The
+  action is already listed in `customer_accounts`' manifest `buyerSelfServiceActions`, and nothing
+  more is declared. It joins the D-300.10 roots in `contracts/hookable-writers.md` §1 and the T088
+  inventory. Like `register_standalone`, it writes the `customer_account` record itself, so WP-E3
+  registers both registration Commands as writers of the `customer_account` field set (R-26.8).
+- **D-300.34** *(architect ruling, raised by WP-E1's implementation)*:
+  `PersonalOrganizationService.provisionFor(em, input)` is removed. A public method that writes an
+  Organization with no rule check and no audit is a standing XIII trap, whatever its comment says.
+  The tests that used it run `provisionCommand(input, { child: true }).run({ em })` through a
+  module-local helper beside them that the package does not export. This goes into WP-E1 (R-26.8).
 
 ## User Scenarios & Testing *(mandatory)*
 

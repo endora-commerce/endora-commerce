@@ -1242,7 +1242,7 @@ matches the ports, so a module author learns one rule.
 **Rejected.** *Omit the key.* That merges "no value" with "module off", which XVII keeps distinct
 everywhere else on this wire.
 
-## R-26: Phase 4 rulings (D-300.26 to D-300.32, architect rulings, 2026-11-28)
+## R-26: Phase 4 rulings (D-300.26 to D-300.34, architect rulings, 2026-11-28)
 
 WP-E1 (`organizations`, the first adopter, branch `feat/193-e1`) raised five points. The review
 of the first rulings (PR #2038) showed that the first D-300.28 contradicted constitution 4.6.0 XV,
@@ -1597,3 +1597,46 @@ Outside the bus nothing can.
 **Rejected.** *Declare the scrub's values as `systemValues` now.* That would refuse legitimate
 company-name rules (a `minLength` of 20, a pattern) to protect rows that no write is checked
 against. It would also forbid `required` on `orderConfirmationEmails`, which the scrub empties.
+
+### R-26.8: What WP-E1's implementation of D-300.31 changed (D-300.33, D-300.34)
+
+**The federated seam (D-300.33).** R-26.6 assumed the seam had no Command, so provisioning would be
+its root. WP-E1 found that a root provision Command could not join the seam's transaction, because
+a root run opens its own (`em.fork().transactional`), and the account and its organisation must
+commit together (D-178). It made the seam a Command, `customer_account.register_social`, which
+declares `buyerSelfService` and runs the provision as its child.
+- **Ratified.** The outcome is the one D-300.31 asked for: the provision runs on the bus, it is
+  skipped as buyer self-service, and it commits with the account. It is D-300.31's own first branch,
+  a child where there is a caller Command. The seam stops being a write outside the bus, which XIII
+  wanted anyway.
+- **Declarations.** The action is already in `customer_accounts`' manifest
+  `buyerSelfServiceActions`, the list that the bus honours the flag for. That is the declaration,
+  and nothing else needs one. The action joins the D-300.10 roots in `hookable-writers.md` §1, and
+  the T088 inventory test lists it among the callers that set the flag.
+- **A consequence for WP-E3.** Both registration Commands write the `customer_account` record
+  directly. Under XV as `field-rules.md` §2 words it, they are writers of the `customer_account`
+  field set for every field that accepts a server-enforced kind. WP-E3 registers them as
+  rule-check-only writers (they are skipped under the flag, and bound when a system caller omits
+  it).
+- **Rejected.** *Make the provision a root that reuses the seam's `EntityManager`.* A root Command
+  that joins a transaction it did not open would be a new bus mode, needed only to avoid a Command
+  the seam should have had anyway.
+
+**The test convenience (D-300.34).** `PersonalOrganizationService.provisionFor(em, input)` runs the
+provision Command's `run` directly, outside the bus: no rule check, no audit. No production path
+calls it.
+- **Decision: remove it.** A public method on a service that writes an Organization while
+  bypassing the check and the audit is a trap for the next caller, and its comment cannot stop one.
+  The tests that used it (`personal-organization-service.link.test.ts`,
+  `personal-organization-channel.test.ts`) call `provisionCommand(input, { child: true }).run({ em })`
+  through a helper in a module-local, unexported test file beside them.
+- **Rejected.** *Rename it (`provisionWithoutBusForTests`).* The name warns, but the bypass stays
+  reachable from production code through the container.
+
+**Blocked lifecycle tests.** The merge tests that need the database, namely (a) a rule added
+mid-merge puts the merge in *needs attention* and *resume* completes it, and (b) a refused choice
+leaves nothing frozen or enqueued, cannot run in WP-E1. The harness's
+`useFieldRuleCheck` refuses a second rule source, and only a composed module can contribute a
+tightening. They move to WP-G, whose `form_extension_fixture` composes a real tightening on the
+organization set (T109). Test (a) changes the rule between start and finalize by switching that
+fixture module off and on, which is the presence path a deployment has.
