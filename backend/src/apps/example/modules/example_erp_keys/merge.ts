@@ -84,10 +84,14 @@ export interface ExampleErpKeysMergeParticipantDeps {
 export class ExampleErpKeysOrganizationMergeParticipant implements MergeParticipant<'organization'> {
   readonly host = 'organization' as const;
 
-  constructor(private readonly deps: ExampleErpKeysMergeParticipantDeps) {}
+  readonly #deps: ExampleErpKeysMergeParticipantDeps;
+
+  constructor(deps: ExampleErpKeysMergeParticipantDeps) {
+    this.#deps = deps;
+  }
 
   async preview(input: MergePreviewInput): Promise<MergeParticipantPreview> {
-    const [row] = await this.deps.emFactory().execute<Array<{ moves: boolean }>>(
+    const [row] = await this.#deps.emFactory().execute<Array<{ moves: boolean }>>(
       `select ${SURVIVOR_HAS_NO_KEY} as "moves" from "${EXAMPLE_ERP_KEYS_TABLE}" where "organization_id" = ?`,
       [input.survivorId, input.loserId],
     );
@@ -101,7 +105,7 @@ export class ExampleErpKeysOrganizationMergeParticipant implements MergeParticip
   }
 
   async applyBatch(input: MergeStepInput): Promise<{ moved: number }> {
-    const { moved } = await this.deps.commandBus().run(makeExampleErpKeysMergeReassignCommand(input));
+    const { moved } = await this.#deps.commandBus().run(makeExampleErpKeysMergeReassignCommand(input));
     return { moved };
   }
 }

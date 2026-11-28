@@ -10,7 +10,6 @@
 // surface; nothing here has to be replaced for that, only widened.
 
 import { z } from 'zod';
-import { hookableAction } from './command-hooks.js';
 import type { CustomerAccountRecord } from './customer-accounts.js';
 
 /**
@@ -131,13 +130,8 @@ export type CustomerAccountOrganizationChangeOutbox = {
   readonly organizationId: string;
 };
 
-export const CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS = {
-  changeOrganization: hookableAction<CustomerAccountOrganizationChangeHookData, CustomerAccountOrganizationChangeOutbox>(
-    'customer_account.organization.change',
-    'customer_account',
-    ['beforeCommit', 'afterCommit'],
-  ),
-} as const;
+// The membership move's hookable-action ref is `CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS.changeOrganization`,
+// beside the account's other hookable writes in `customer-account-hooks.ts`.
 
 export const CUSTOMER_ACCOUNT_ORGANIZATION_CHANGED_EVENT = 'customer_account.organization_changed.v1' as const;
 

@@ -470,6 +470,8 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "command-hook",
       "command-middleware",
       "decoration",
+      "form-override",
+      "form-override-grant",
       "interceptor",
       "omission",
       "port-consumed",
@@ -511,6 +513,10 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       {
         "seam": "an overlay module's own entities and migrations",
         "why": "a table an overlay module creates is its own surface, migrated under the foreign-schema guard with no exemption, so it cannot touch a table it does not own; what it declares on another module's table is recorded, as a column extension"
+      },
+      {
+        "seam": "an admin layer's slot fields (`AdminContributions.fields`)",
+        "why": "a slot field is the module's own value, stored in its own side table or its own columns and written by its own hook on the host's write — the hook is recorded, as a command hook, and any change to the host form's own fields is recorded, as a form override"
       },
       {
         "seam": "a port an overlay module consumes from a sibling overlay module",

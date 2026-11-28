@@ -23,6 +23,7 @@ import {
   type OpportunityDetail,
   type OpportunityDocumentKind,
   type OpportunityExcludedDocument,
+  type OpportunityHookData,
   type OpportunityLink,
   type OpportunityListQuery,
   type OpportunitySource,
@@ -68,6 +69,7 @@ import { storedReferencesOf, type ReferenceService, type ReferenceSource } from 
 import type { TagService } from './tag-service.js';
 import { mergeOpportunityCustomFields } from './opportunity-custom-fields.js';
 import { auditSnapshot, opportunityValues, recordValueChange } from './opportunity-audit-state.js';
+import { opportunityHookData, opportunityOutboxData } from './opportunity-hook-data.js';
 import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -173,6 +175,47 @@ interface CreateOptions {
 
 /** What an edit that changed the assignee hands on: the announcement, and whom to tell. */
 type ReassignedOpportunity = Parameters<typeof assignedEvent>[0] & { number: string };
+
+/** The unique index that keeps a document to one Opportunity (`crm_init` migration). */
+const DOCUMENT_LINK_UNIQUE = 'crm_opportunity_links_document_unique';
+
+/**
+ * Whether `error` is the document link's unique index refusing a second
+ * Opportunity for the same document — `createForDocument`'s `already-linked`.
+ * Named by constraint, not by exception class: `crm.opportunity.create` is
+ * hookable (`specs/193-admin-form-extensions/` FR-111), and a `beforeCommit`
+ * hook's own write may violate another unique constraint, which must fail the
+ * creation rather than cancel it as if it were a duplicate.
+ */
+function isDocumentAlreadyLinked(error: unknown): boolean {
+  if (!(error instanceof UniqueConstraintViolationException)) return false;
+  let cursor: unknown = error;
+  for (let depth = 0; cursor !== null && cursor !== undefined && depth < 5; depth += 1) {
+    const named = (cursor as { constraint?: unknown }).constraint;
+    if (typeof named === 'string') return named === DOCUMENT_LINK_UNIQUE;
+    const wrapped = cursor as { previous?: unknown; cause?: unknown };
+    cursor = wrapped.previous ?? wrapped.cause;
+  }
+  return false;
+}
+
+/**
+ * The edit Command's refusal when the locked Opportunity's custom-field bag is
+ * no longer the one the edit was validated against. Private to this service:
+ * `update` catches it, validates again against `current` and retries.
+ */
+class StaleCustomFieldValues extends Error {
+  constructor(readonly current: Record<string, unknown>) {
+    super('The opportunity custom-field values changed since they were validated.');
+    this.name = 'StaleCustomFieldValues';
+  }
+}
+
+/** What the edit Command answers: the reassignment to announce, and the hook data of the write. */
+interface UpdateOutcome {
+  reassigned: ReassignedOpportunity | null;
+  hook: OpportunityHookData;
+}
 
 const FALLBACK_LANGUAGE = 'en';
 /** How many times an edit validates its custom fields again before it answers a conflict. */
@@ -323,9 +366,15 @@ export class OpportunityService {
    * belongs to at most one Opportunity by a unique constraint, so when the
    * same event is handled twice — delivered again, or two handlers racing —
    * the second Command's link is refused and its Opportunity is rolled back
-   * with it. That refusal is the answer `already-linked`, not an error; the
-   * Command reads no other module's port, so nothing else can be mistaken for
-   * it.
+   * with it. That refusal — the link's unique index, by name — is the answer
+   * `already-linked`, not an error. Any other unique violation, a
+   * `crm.opportunity.create` hook's own write among them, fails the creation.
+   *
+   * The Opportunity is created in `computed` value mode and its figure is
+   * recalculated after the commit, so a `crm.opportunity.create` hook sees
+   * `value` before that recalculation (the stored figure, `0.00` for a new
+   * row); an `afterCommit` handler that re-reads it through the read port may
+   * already see the recalculated one.
    *
    * Runs in the caller's scope — a subscriber's system scope — with the
    * Organization given explicitly. Nobody is the creator, so the default
@@ -387,7 +436,7 @@ export class OpportunityService {
           ),
         );
       } catch (error) {
-        if (error instanceof UniqueConstraintViolationException) return 'already-linked';
+        if (isDocumentAlreadyLinked(error)) return 'already-linked';
         if (attempt === 0 && isStartStatusGone(error)) continue;
         throw error;
       }
@@ -414,7 +463,7 @@ export class OpportunityService {
     input: CreateOpportunityRequest,
     initialStatusCode: string,
     options: CreateOptions = { source: 'manual' },
-  ): Command<{ id: string; organizationId: string; number: string }> {
+  ): Command<{ id: string; organizationId: string; number: string; hook: OpportunityHookData }> {
     const id = randomUUID();
     return {
       action: 'crm.opportunity.create',
@@ -488,7 +537,12 @@ export class OpportunityService {
           after: opportunityValues(opportunity, tags.map((tag) => tag.name)),
         });
         return {
-          result: { id, organizationId: opportunity.organizationId, number: opportunity.number },
+          result: {
+            id,
+            organizationId: opportunity.organizationId,
+            number: opportunity.number,
+            hook: opportunityHookData(opportunity, start.kind, null, values),
+          },
           before: null,
           after: {
             ...auditSnapshot(opportunity),
@@ -512,6 +566,9 @@ export class OpportunityService {
         };
         return { eventName: CRM_EVENTS.CREATED, payload };
       },
+      // Hookable (`specs/193-admin-form-extensions/` FR-111): the record and the names it was given.
+      hookData: (result) => result.hook,
+      outboxData: (result) => opportunityOutboxData(result.hook),
     };
   }
 
@@ -760,31 +817,31 @@ export class OpportunityService {
     const mentioned: { saved: SavedMentions | null } = { saved: null };
     let reassigned: ReassignedOpportunity | null = null;
     for (let attempt = 0; ; attempt += 1) {
-      const stale: { current: Record<string, unknown> | null } = { current: null };
-      reassigned = await this.#updateCommand(
-        id,
-        patch,
-        ifMatch,
-        {
-          customFieldValues,
-          validatedAgainst,
-          onStale: (bag) => {
-            stale.current = bag;
+      try {
+        reassigned = await this.#updateCommand(
+          id,
+          patch,
+          ifMatch,
+          {
+            customFieldValues,
+            validatedAgainst,
+            onBecameComputed: () => {
+              becameComputed = true;
+            },
+            onMentioned: (saved) => {
+              mentioned.saved = saved;
+            },
           },
-          onBecameComputed: () => {
-            becameComputed = true;
-          },
-          onMentioned: (saved) => {
-            mentioned.saved = saved;
-          },
-        },
-        caller,
-      );
-      if (stale.current === null) break;
-      if (attempt + 1 >= MAX_CUSTOM_FIELD_REVALIDATIONS) {
-        throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The opportunity was updated concurrently.');
+          caller,
+        );
+        break;
+      } catch (error) {
+        if (!(error instanceof StaleCustomFieldValues)) throw error;
+        if (attempt + 1 >= MAX_CUSTOM_FIELD_REVALIDATIONS) {
+          throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The opportunity was updated concurrently.');
+        }
+        validatedAgainst = error.current;
       }
-      validatedAgainst = stale.current;
       customFieldValues = await mergeOpportunityCustomFields(
         this.deps.customFields,
         validatedAgainst,
@@ -815,7 +872,7 @@ export class OpportunityService {
       id,
       {},
       null,
-      { customFieldValues: {}, validatedAgainst: {}, merge, onStale: ignored, onBecameComputed: ignored, onMentioned: ignored },
+      { customFieldValues: {}, validatedAgainst: {}, merge, onBecameComputed: ignored, onMentioned: ignored },
       caller,
     );
   }
@@ -823,12 +880,14 @@ export class OpportunityService {
   /**
    * The edit Command. `custom` carries the custom-field bag the caller merged
    * and validated outside the transaction, and the bag it was validated
-   * against: when the locked Opportunity holds another, nothing is written and
-   * `onStale` is handed the bag it holds now. `custom.merge`, when given, is
+   * against: when the locked Opportunity holds another, the Command throws
+   * {@link StaleCustomFieldValues} carrying the bag it holds now, so the bus
+   * rolls it back before any hook runs or any outbox row is written, and the
+   * caller validates again and retries. `custom.merge`, when given, is
    * the port's values-only write instead: run over the locked bag, its answer
    * stored.
    */
-  #updateCommand(
+  async #updateCommand(
     id: string,
     patch: UpdateOpportunityRequest,
     ifMatch: number | null,
@@ -837,14 +896,13 @@ export class OpportunityService {
       validatedAgainst: Record<string, unknown>;
       /** The port's read-modify-write of the bag; `patch.customFieldValues` is then absent. */
       merge?: CustomFieldMerge;
-      onStale: (current: Record<string, unknown>) => void;
       onBecameComputed: () => void;
       /** Handed the people the saved description mentions and the one it replaces did not. */
       onMentioned: (saved: SavedMentions) => void;
     },
     caller: CallerOptions,
   ): Promise<ReassignedOpportunity | null> {
-    return this.deps.commandBus.run(withCallerOptions<ReassignedOpportunity | null>({
+    const outcome = await this.deps.commandBus.run(withCallerOptions<UpdateOutcome>({
       action: 'crm.opportunity.update',
       objectType: 'crm_opportunity',
       objectId: id,
@@ -855,6 +913,10 @@ export class OpportunityService {
         if (ifMatch !== null && ifMatch !== opportunity.version) {
           throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The opportunity was updated concurrently.');
         }
+        // What the hook data calls the status — an edit never moves it. A status
+        // the workflow no longer holds closes nothing: `open`, as the read port says.
+        const statusKind =
+          (await em.findOne(CrmOpportunityStatus, { code: opportunity.statusCode }))?.kind ?? 'open';
         if (patch.salesChannelId && (await em.count(SalesChannel, { id: patch.salesChannelId })) === 0) {
           throw invalid('The sales channel does not exist.');
         }
@@ -862,8 +924,9 @@ export class OpportunityService {
           patch.customFieldValues !== undefined &&
           !isDeepStrictEqual(opportunity.customFieldValues ?? {}, custom.validatedAgainst)
         ) {
-          custom.onStale({ ...(opportunity.customFieldValues ?? {}) });
-          return { result: null, skipAudit: true };
+          // Thrown, not answered: an answered no-op would still run the hooks
+          // and write outbox rows for an edit that never happened.
+          throw new StaleCustomFieldValues({ ...(opportunity.customFieldValues ?? {}) });
         }
         const before = auditSnapshot(opportunity);
         // Absent means "leave the tags as they are"; present replaces the set.
@@ -911,23 +974,30 @@ export class OpportunityService {
         const assignedAdminUserId = opportunity.assignedAdminUserId ?? null;
         if (before.valueMode !== 'computed' && opportunity.valueMode === 'computed') custom.onBecameComputed();
         return {
-          result:
-            previousAdminUserId === assignedAdminUserId
-              ? null
-              : {
-                  opportunityId: opportunity.id,
-                  organizationId: opportunity.organizationId,
-                  number: opportunity.number,
-                  title: opportunity.title,
-                  assignedAdminUserId,
-                  previousAdminUserId,
-                },
+          result: {
+            reassigned:
+              previousAdminUserId === assignedAdminUserId
+                ? null
+                : {
+                    opportunityId: opportunity.id,
+                    organizationId: opportunity.organizationId,
+                    number: opportunity.number,
+                    title: opportunity.title,
+                    assignedAdminUserId,
+                    previousAdminUserId,
+                  },
+            hook: opportunityHookData(opportunity, statusKind, before, values),
+          },
           before,
           after: { ...auditSnapshot(opportunity), ...values },
         };
       },
-      event: (result) => (result ? assignedEvent(result) : undefined),
+      event: (result) => (result.reassigned ? assignedEvent(result.reassigned) : undefined),
+      // Hookable (`specs/193-admin-form-extensions/` FR-111): the after-state and what changed.
+      hookData: (result) => result.hook,
+      outboxData: (result) => opportunityOutboxData(result.hook),
     }, caller));
+    return outcome.reassigned;
   }
 
   async delete(id: string, caller: CallerOptions = {}): Promise<void> {

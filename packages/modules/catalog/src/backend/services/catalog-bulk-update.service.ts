@@ -26,8 +26,10 @@ import type { ScopeWriteOptions } from './product-scopes.service.js';
  *  - Per-product atomicity (each product writes inside its own transaction).
  *  - No batch abort: a single failure does NOT roll back other products.
  *  - One summary `audit_logs` row per bulk operation; each product's write
- *    is the single-product `product.update` Command
- *    (`CatalogAdminService.updateProductAudited`, issue #241), or the Archive /
+ *    is the `product.bulk_update.item` Command
+ *    (`CatalogAdminService.updateProductForBulkEdit`: the single-product
+ *    `product.update` write under an action no module hook can attach to,
+ *    `specs/193-admin-form-extensions/` D-300.8; issue #241), or the Archive /
  *    Restore Command for `fields.archived` (feature 163) — its own audit entry,
  *    none when it changed nothing.
  */
@@ -290,7 +292,7 @@ export class CatalogBulkUpdateService {
       touchedAny = true;
     }
     // Feature 155 (FR-003) — "Set returnable". Audited per product by the
-    // `product.update` Command below, whose before/after carry the flag.
+    // `product.bulk_update.item` Command below, whose before/after carry the flag.
     if (fields.returnable !== undefined) {
       partial.returnable = fields.returnable;
       touchedAny = true;
@@ -357,18 +359,19 @@ export class CatalogBulkUpdateService {
       }
     }
 
-    // The `product.update` Command (status / visibility / returnable / categories /
+    // The `product.bulk_update.item` Command (status / visibility / returnable / categories /
     // attributeValues): one transaction and one audit entry per product, as a
-    // single edit — never the unaudited `updateProduct` (issue #241, Principle XIII).
+    // single edit — never the unaudited `updateProduct` (issue #241, Principle XIII) — and
+    // never `product.update`, whose module hooks must not see a reversible bulk edit (D-300.8).
     // Its actor is the ambient one: the admin on the inline path, the requester the
     // worker acts for on the queued one (S-W2).
     let changedFields: string[] = [];
     const warnings: ScopeWarning[] = [];
     if (touchedAny) {
       try {
-        await this.catalogAdmin.updateProductAudited(
+        await this.catalogAdmin.updateProductForBulkEdit(
           productId,
-          partial as unknown as Parameters<CatalogAdminService['updateProductAudited']>[1],
+          partial as unknown as Parameters<CatalogAdminService['updateProductForBulkEdit']>[1],
           { completeness, warnings },
         );
         // The service tracks changedFields internally; from the caller's

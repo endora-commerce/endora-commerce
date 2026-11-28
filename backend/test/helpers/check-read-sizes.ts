@@ -6933,6 +6933,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     sites: 38,
     sources: ['manifest-index', 'contracts-barrel'],
   },
+  'backend/scripts/check-admin-forms.ts': {
+    prefix: '[admin-forms]',
+    run: { kind: 'tsx', path: 'scripts/check-admin-forms.ts', args: [] },
+    // **`specs/193-admin-form-extensions/` T033, measured 2026-11-27 in the
+    // branch's own worktree, cut from `origin/master` that day and holding none
+    // of its files in the walked roots (`git status --ignored` empty there).**
+    // `files` is every module admin layer's index the generated registry names,
+    // every host source under those layers and under the admin application's
+    // host roots (tests excluded: a fixture rendering a form is not a host), and
+    // each deployment's overlay manifests and admin sources. `sites` is the
+    // declarations judged — field sets, forms, input controls, slots, controls
+    // and renders — and is **0** because no module declares a field set until
+    // the first adopter (WP-E1), whose merge request moves it by design.
+    // `deployment-admin` counts the overlay layers the generated deployment
+    // registries import, and is omitted rather than printed `0/0` when no
+    // deployment ships one.
+    files: 894,
+    sites: 0,
+    sources: ['manifest-index', 'module-admin'],
+    conditionalSources: ['deployment-admin'],
+  },
   'backend/scripts/check-admin-zones.ts': {
     prefix: '[admin-zones]',
     run: { kind: 'tsx', path: 'scripts/check-admin-zones.ts', args: [] },

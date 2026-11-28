@@ -558,8 +558,12 @@ customer-facing route.
   `GET …/products/:id/scoped-values`); `update` and `setCustomFieldValues`
   refuse a product that has moved on with `409 VERSION_CONFLICT`. Every other
   method ignores it.
-- `extensions` — no catalog write is declared hookable yet, so any key is
-  refused with `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
+- `extensions` — input for the command hooks on the write, keyed by hook
+  module id (see *Hookable actions* below). `create`, `update`,
+  `setCustomFieldValues` and `applyScopedValues` pass it on, and a key no
+  present hook module claims is refused with `422 COMMAND_EXTENSION_UNCLAIMED`
+  before anything is written. The other methods run writes that are not
+  hookable, so they refuse any key before anything is written.
 
 **Not offered**: bundle slots, grouped items, links, the gallery, attachments,
 packaging units, URL keys and redirects (each has its own admin screen),
@@ -573,6 +577,57 @@ above; `listAttributes` and `listAttributesByFlag` to `catalogAttributeReadPort`
 and `catalogProductScopeWritePort.applyScopes` (to `applyScopedValues`, with the
 same cells and `source`). Both delegate to the new ports meanwhile, so their
 entries and refusals are unchanged.
+
+### Hookable actions
+
+Four product writes are declared hookable, so another module — a deployment's
+overlay module or an installed package — can take part in them. Register a
+command hook against the ref in `PRODUCT_HOOKABLE_ACTIONS`
+(`@endora-commerce/contracts`) and list `catalog` in your manifest
+`dependencies`. A `beforeCommit` hook runs inside the write's transaction and
+may refuse it with a code of its own, which rolls the write back. An
+`afterCommit` handler is delivered through the platform's outbox after the
+commit, at least once. How hooks run is on the *Command Bus* architecture page.
+
+| Action | Ref | Written by |
+| --- | --- | --- |
+| `product.create` | `PRODUCT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/catalog/products`, `PUT /api/v1/catalog/products/by-sku/:sku` for a new SKU, and `catalogProductCommandPort.create` |
+| `product.update` | `PRODUCT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/catalog/products/:id`, `PUT /api/v1/catalog/products/by-sku/:sku` for an existing SKU, `catalogProductCommandPort.update` and `catalogProductCommandPort.setCustomFieldValues` |
+| `product.scoped_values.save` | `PRODUCT_HOOKABLE_ACTIONS.scopedValuesSave` | the product editor's save of one scope, `PUT /api/v1/admin/catalog/products/:id/scoped-values` |
+| `product.scoped_values.import` | `PRODUCT_HOOKABLE_ACTIONS.scopedValuesImport` | `catalogProductCommandPort.applyScopedValues`, the deprecated `catalogProductScopeWritePort.applyScopes`, and each product of a products import |
+
+All four offer both phases. A `beforeCommit` hook is handed:
+
+- on `product.create`, `product` — the product as the write leaves it, not yet
+  committed, in the shape `catalogProductReadPort` answers — and `categoryIds`,
+  the categories the create linked;
+- on `product.update`, `product` as the write leaves it, `changedFields`, the
+  names of the fields whose value changed, and `categoryIds` when the write
+  named the product's category set;
+- on the two scoped writes, `productId` and `scopes`: one entry per scope the
+  write saved, with the `scope`, `after` (the values the write left there, by
+  field path — `name`, `attribute:<key>`, `seo:<field>` …, where `null` is an
+  empty override and `{ inherit: true }` a removed one) and `changedFields`.
+
+The outbox row carries `productId` and `changedFields` only, never a value. A
+product belongs to no Organization, so its handler runs in system scope.
+
+- **A `product.update` that changes nothing** still commits the product's
+  editor version, so its hooks run once with `changedFields: []`, and an
+  `afterCommit` handler gets a row with `changedFields: []`. The two scoped
+  writes roll a write that changes nothing back, and their hooks do not run.
+- **A bulk edit is not hookable.** Each product a bulk edit writes, on the
+  inline and the queued path, runs as `product.bulk_update.item`, which is never
+  declared hookable, and its undo writes no product action at all. A
+  `product.update` hook therefore never sees a bulk edit or its undo, and the
+  bulk edit's per-product audit entries are recorded under
+  `product.bulk_update.item` beside its `product.bulk_update` summary. To react
+  to bulk edits, listen to `product.updated.v1`, which both the bulk edit and
+  its undo emit for every product they change.
+- **Every other product write is not hookable** — archive and restore,
+  deletion, variants, settings per sales channel, URL keys, content, media,
+  attachments, packaging units and copying a value to other channels. A hook
+  registered on one of them is refused at startup.
 
 ## Order rules: minimum order quantity and returnable
 

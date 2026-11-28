@@ -32,7 +32,7 @@ import {
  *  - `POST /api/v1/admin/catalog/products` applies the same type rule;
  *  - `returnable` is writable on every type and `false` on a product nobody set;
  *  - the Command's audit row carries both keys (FR-005);
- *  - the bulk edit's "set returnable" writes one `product.update` audit row per
+ *  - the bulk edit's "set returnable" writes one `product.bulk_update.item` audit row per
  *    product with the old and new value, on the synchronous and the queued
  *    path, and the queued path's undo restores the flag (FR-003, analyze F3);
  *  - documents already holding the product are untouched by the change
@@ -258,7 +258,7 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
       }
       for (const id of ids) {
         const own = byObject.get(id) ?? [];
-        expect(own, `one product.update row for ${id}`).toHaveLength(1);
+        expect(own, `one product.bulk_update.item row for ${id}`).toHaveLength(1);
         const row = own[0]!;
         expect((row.stateBefore as Record<string, unknown>)['returnable']).toBe(false);
         expect((row.stateAfter as Record<string, unknown>)['returnable']).toBe(true);
@@ -292,7 +292,8 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
       }
       expect(await returnableOf(ids)).toEqual(ids.map(() => true));
 
-      const rows = await h.em().find(AuditLogEntry, { action: 'product.update', objectId: { $in: ids } });
+      // D-300.8 — a bulk edit's product write is `product.bulk_update.item`, not `product.update`.
+      const rows = await h.em().find(AuditLogEntry, { action: 'product.bulk_update.item', objectId: { $in: ids } });
       assertPerProductAudit(rows, ids);
       const summary = await h
         .em()
@@ -320,7 +321,7 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
       const audit = h.auditLogService;
       const commandBus = new CommandBus(h.orm, audit, events);
       // Issue #241 — the worker's admin service carries the bus: each product is the
-      // `product.update` Command, which is what writes its audit entry.
+      // `product.bulk_update.item` Command (D-300.8), which is what writes its audit entry.
       const catalogAdmin = new CatalogAdminService(em, events as CatalogEventBus, audit, undefined, commandBus);
       const bulkUpdate = new CatalogBulkUpdateService(em, catalogAdmin, undefined, audit);
       const bulkOps = new BulkOperationService(em, bulkUpdate, {}, commandBus);
@@ -331,7 +332,7 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
       expect(op?.succeeded).toBe(200);
       expect(await returnableOf(ids)).toEqual(ids.map(() => true));
 
-      const rows = await h.em().find(AuditLogEntry, { action: 'product.update', objectId: { $in: ids } });
+      const rows = await h.em().find(AuditLogEntry, { action: 'product.bulk_update.item', objectId: { $in: ids } });
       assertPerProductAudit(rows, ids, op!.requestedByAdminUserId);
 
       const summaries = (

@@ -380,6 +380,11 @@ quality:
     # a file the module does not own — which no other instrument here can see, because
     # `check:module-boundary` reads import specifiers and a string names none.
     - pnpm --filter backend run check:admin-zones
+    # Feature 193 (FR-002, FR-012, FR-031) — field slots, admin forms and input
+    # controls across bare core and every deployment: the admin half that the
+    # platform's `FormRegistry.seal` cannot see. A slot anchored on a key nobody
+    # declares renders nowhere with no error anywhere; this is where it fails.
+    - pnpm --filter backend run check:admin-forms
     # Feature 072 (FR-020) — every non-HTTP entry point (CLI script, BullMQ
     # consumer, repeating-timer sweep) establishes a scope explicitly. The timer
     # class was `setInterval(` as a string until issue #128, so `search`'s

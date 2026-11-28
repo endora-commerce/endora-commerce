@@ -170,6 +170,13 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { withCallerOptions, type CallerOptions } from '../commands/caller-options.js';
+import {
+  PRODUCT_BULK_UPDATE_ITEM_ACTION,
+  productCreateHookData,
+  productOutbox,
+  productUpdateHookData,
+} from '../commands/product-hook-data.js';
+import { isProductSkuUniqueViolation } from './sku-unique-violation.js';
 // D-77 — the apply seam is named once in this module, by `attribute-commands.ts`
 // (see the re-export there for why it is a re-export and not a local
 // declaration). This file takes it as it is: since T053(b) the write path
@@ -509,7 +516,9 @@ export class CatalogAdminService {
     try {
       product = await this.#runCommand(this.#createProductCommand(productId, req), caller);
     } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
+      // Only the SKU index: a hook on `product.create` writes on this transaction, and its own
+      // unique violation is not a taken SKU (`specs/193-admin-form-extensions/` FR-112).
+      if (isProductSkuUniqueViolation(err)) {
         throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, `SKU "${req.sku}" already exists.`);
       }
       throw err;
@@ -607,6 +616,9 @@ export class CatalogAdminService {
           sku: product.sku,
         },
       }),
+      // `specs/193-admin-form-extensions/` FR-112 — `PRODUCT_HOOKABLE_ACTIONS.create`.
+      hookData: (product) => productCreateHookData(product, [...new Set(req.categoryIds ?? [])]),
+      outboxData: (product) => productOutbox(product.id, []),
     };
   }
 
@@ -699,6 +711,22 @@ export class CatalogAdminService {
   }
 
   /**
+   * `specs/193-admin-form-extensions/` D-300.8 — one product's write of a bulk edit (inline
+   * and queued): the {@link updateProductAudited} write under its own action,
+   * `product.bulk_update.item`, which is not hookable. The same `run`, audit state,
+   * `product.updated.v1` and hook data (for the field-rule check); no outbox data, since no
+   * `afterCommit` handler can exist for it. Not reachable from `catalogProductCommandPort`,
+   * and it takes no caller options: a bulk edit carries no `extensions`.
+   */
+  async updateProductForBulkEdit(id: string, req: UpdateProductRequest, gate?: ProductUpdateGate): Promise<Product> {
+    await this.#refuseContentAttributeValues(req.attributeValues as Record<string, unknown> | undefined);
+    if (!this.commandBus) {
+      throw new Error('CatalogAdminService: a bulk edit needs the Command Bus to audit its product writes.');
+    }
+    return this.commandBus.run(this.#updateProductCommand(id, req, gate, undefined, PRODUCT_BULK_UPDATE_ITEM_ACTION));
+  }
+
+  /**
    * `specs/186-aggregate-ports/` (#1825, research R-19.2) — the product's custom-field values
    * are its attribute values: `catalogProductCommandPort.setCustomFieldValues` runs the admin
    * `PATCH`'s own Command, `product.update`, with the bag `merge` answers for the stored one.
@@ -724,10 +752,12 @@ export class CatalogAdminService {
     req: UpdateProductRequest,
     gate?: ProductUpdateGate,
     merge?: CustomFieldMerge,
+    /** `product.update`, or the bulk edit's `product.bulk_update.item` (D-300.8), which has no outbox data. */
+    action: 'product.update' | typeof PRODUCT_BULK_UPDATE_ITEM_ACTION = 'product.update',
   ): Command<Product> {
     let changedFields: string[] = [];
     return {
-      action: 'product.update',
+      action,
       objectType: 'product',
       objectId: id,
       run: async ({ em }) => {
@@ -754,6 +784,10 @@ export class CatalogAdminService {
                 changedFields,
               },
             },
+      // `specs/193-admin-form-extensions/` FR-112 — `PRODUCT_HOOKABLE_ACTIONS.update`. The
+      // categories are the set this write stored, when it named one (`categoryIds` is canonical).
+      hookData: (product) => productUpdateHookData(product, changedFields, req.categoryIds),
+      ...(action === 'product.update' ? { outboxData: (product: Product) => productOutbox(product.id, changedFields) } : {}),
     };
   }
 

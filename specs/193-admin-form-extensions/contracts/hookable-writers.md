@@ -21,7 +21,12 @@ export const CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS = {
 ```
 
 `customer_account.create` is also run by the buyer self-registration Commands as a child Command.
-For those runs the field-rule check skips the buyer actor (D-300.3). Slot hooks still run, and they
+For those runs the field-rule check skips the buyer actor (D-300.3). The registration runs
+anonymously under a `system` actor, so the root Command declares `buyerSelfService: true`, and the
+child inherits it through the bus's lineage (D-300.10). The roots are `organization.register`,
+`customer_account.register_standalone`, and the invitation acceptance's `customer_account.create`.
+That last one is run through `CustomerAccountMemberWritePort.create`, whose input gains an optional
+`buyerSelfService?: true` for it. Slot hooks still run, and they
 see no `extensions`.
 
 ## §2 `crm`, in `opportunity-hooks.ts`

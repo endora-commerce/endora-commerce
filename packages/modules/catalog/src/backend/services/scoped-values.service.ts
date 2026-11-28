@@ -1,4 +1,3 @@
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
@@ -9,6 +8,7 @@ import type {
   ScopedValuesData,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import { isProductSkuUniqueViolation } from './sku-unique-violation.js';
 
 import {
   planCopy,
@@ -72,7 +72,7 @@ export class ScopedValuesService {
       rethrowIfModuleDisabled(error);
       if (error instanceof ScopedSaveNothingChanged) {
         result = error.result;
-      } else if (error instanceof UniqueConstraintViolationException && body.changes.product?.sku !== undefined) {
+      } else if (isProductSkuUniqueViolation(error) && body.changes.product?.sku !== undefined) {
         // A SKU taken between the step-3a check and the write (code review 1): the same answer.
         throw new HttpError(409, ERROR_CODES.SKU_ALREADY_EXISTS, 'This SKU already exists.', { field: 'product.sku' });
       } else {

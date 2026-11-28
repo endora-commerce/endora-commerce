@@ -326,6 +326,10 @@ describe('InputControlDeclarationSchema and PLATFORM_INPUT_CONTROLS (193 T013, i
     expect(InputControlDeclarationSchema.safeParse({ id: 'acme_erp.region', outputType: 'enum', optionsFromField: true }).success).toBe(true);
   });
 
+  it('accepts a control of a `_`-prefixed module, as moduleIdRe does (D-300.16, #2020)', () => {
+    expect(InputControlDeclarationSchema.safeParse({ id: '_lifecycle.x', outputType: 'string' }).success).toBe(true);
+  });
+
   it.each([
     ['an id without a module part', { id: 'nip', outputType: 'string' }],
     ['an upper-case module part', { id: 'Acme.nip', outputType: 'string' }],

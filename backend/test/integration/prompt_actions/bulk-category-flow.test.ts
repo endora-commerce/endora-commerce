@@ -336,7 +336,7 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
       '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js'
     );
     // Issue #241 — the worker's admin service carries the bus: a bulk edit refuses to
-    // run without it, since each product is the audited `product.update` Command.
+    // run without it, since each product is the audited `product.bulk_update.item` Command (D-300.8).
     const commandBus = new CommandBus(h.orm, h.auditLogService, h.eventBus as never);
     const adminService = new CatalogAdminService(h.em, h.eventBus as never, h.auditLogService, undefined, commandBus);
     const updater = new CatalogBulkUpdateService(h.em, adminService, undefined, h.auditLogService);

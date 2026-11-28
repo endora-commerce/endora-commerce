@@ -3,7 +3,8 @@
 **Feature Branch**: `spec/193-admin-form-extensions`
 **Created**: 2026-11-27
 **Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
-**D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-23). No
+**D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-24); the
+phase 2 rulings D-300.9 to D-300.16 (2026-11-27) are architect rulings too, recorded below. No
 question is open. The constitution amendment this feature drafts (XV, 4.6.0) is pending the owner's
 sign-off (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
@@ -89,6 +90,55 @@ without editing core and without a rule that the UI enforces and the API ignores
   state behind. A module that must observe bulk edits and their undo listens to
   `product.updated.v1`, which both emit. An invariant that must bind bulk edits is a field rule.
   The reasoning is in R-22 § *The bulk edit (D-300.8)*.
+
+### Phase 2 architect rulings *(D-300.9 to D-300.16, 2026-11-27, raised by WP-B and WP-D)*
+
+None of these changes an owner answer, so none needs one. D-300.11 extends D-300.4's reasoning to
+the other rule kinds and is flagged for the owner, who may overrule it. The reasoning and the
+rejected alternatives are in R-24.
+
+- **D-300.9** *(architect ruling, raised by WP-B)*: The effective forms are served at
+  `GET /api/v1/admin/effective-forms`. `/api/v1/admin/forms` and `/:id` beneath it are the `forms`
+  module's form list (`specs/170-forms-module/`), and a second owner of the path refuses the boot
+  (`FST_ERR_DUPLICATED_ROUTE`). FR-023 and `contracts/field-overrides.md` §2 are amended (R-24.1).
+- **D-300.10** *(architect ruling, raised by WP-B)*: A write is buyer self-service when its actor is
+  a customer acting for itself (`kind: 'customer'`, no acting admin), or when it runs as, or below,
+  a Command that declares `buyerSelfService: true`. An anonymous storefront request resolves to a
+  `system` actor, which the check cannot tell apart from a worker or an integration callback, so
+  the storefront's root Command states what it is. The registration Commands and the invitation
+  acceptance set it, and every child Command they run (`customer_account.create` included)
+  inherits it. The flag is honoured only on an actor with no acting admin whose kind is `system` or
+  `customer`. On an admin or API-key actor, and under impersonation, it is ignored. Without the
+  flag a `system` actor stays bound (R-24.2).
+- **D-300.11** *(architect ruling, raised by WP-B)*: D-300.4's non-retroactivity applies to every
+  rule kind, not only to `required`. On an update a field is held to its rules only when the write
+  changed or cleared it. `requiredWhen` is also held when the write changed a field its condition
+  reads. A create holds every field it sets, and `required` on every field. The admin form holds the
+  same set (R-24.3).
+- **D-300.12** *(architect ruling, raised by WP-B)*: `required-not-fillable` is split by what each
+  instrument can see. Composition refuses `hidden` on a field that is effectively required on a
+  create form, with no exemption, because a hidden field is never submitted. `check:admin-forms`
+  refuses `readOnly` there unless a `fieldBehaviours` entry of the module that sets `readOnly`
+  targets the field on that form. The admin form submits a read-only field that a present
+  derivation targets. No data flag is added (R-24.4).
+- **D-300.13** *(architect ruling, raised by WP-B)*: `ModuleContext.fieldSets` and
+  `ModuleContext.fieldFormats` are required members. They ship as `minor`, with a
+  **Breaking change** paragraph in the platform changeset, as `entityExtensionLoaders` did (#1835,
+  owner ruling on #1983) (R-24.5).
+- **D-300.14** *(architect ruling, raised by WP-D)*: The layout algorithm (`contracts/field-slots.md`
+  §5) has one implementation, `formLayout` in `@endora-commerce/contracts`, beside
+  `evaluateFieldCondition`. Its step 1 is exported on its own as `applyFieldMoves`. The CLI check,
+  the platform's effective-forms response and the admin kit all call it. Every comparison in it is
+  by code point, never `localeCompare` (R-24.6).
+- **D-300.15** *(architect ruling, raised by WP-D)*: WP-D's readings of `contracts/field-slots.md` §6
+  are ratified, with two conditions. `unknown-anchor` names the cycle's members when it reports an
+  anchor cycle. `duplicate-slot-key` also fires on disjoint forms when the contributions disagree on
+  `type` or `writePermission` (R-24.7).
+- **D-300.16** *(architect ruling, issue #2020)*: `inputControlIdRe` gains `_?`, the `defineFieldSet`
+  comment is corrected, and `formOverrideGrants[].reason` is capped at 280. All three go into WP-D's
+  merge request. The declaration-level refusals the spec did not list are kept and are now listed.
+  `minLength > maxLength` stays a composition refusal (`override-contradiction`). The CLI reader of
+  `formOverrideGrants` is WP-D's and is done (R-24.8).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -405,7 +455,11 @@ they are, with the same props. The four PIM modules render their protection togg
 - **A deployment that tightens `required` on a field that existing records lack.** The rule does not
   apply retroactively (D-300.4). A write that does not touch the field succeeds, and a write that
   clears it is refused.
-- **Buyer self-service writes, such as storefront registration.** Not bound (D-300.3).
+- **Buyer self-service writes, such as storefront registration.** Not bound (D-300.3). An anonymous
+  registration runs under a `system` actor, so its root Command declares `buyerSelfService: true`
+  and its children inherit it (D-300.10).
+- **A deployment adds `maxLength` to a field that existing records exceed.** An update that does not
+  touch the field succeeds. An update that sets it must satisfy the rule (D-300.11).
 - **An operator and a deployment override set the same label.** The operator's wins. Reset returns to
   the deployment's value (FR-094).
 - **An operator override survives a deploy that removes `label` from a field's `accepts`.** The
@@ -458,7 +512,9 @@ they are, with the same props. The four PIM modules render their protection togg
   repository as `check:admin-forms`, judged for bare core and for each deployment on disk, and in an
   instance from `endora generate`. It MUST refuse `unknown-field-set`, `unknown-form`,
   `unknown-anchor`, `foreign-slot-anchor`, `position-anchor-mismatch`, `duplicate-slot-key` and
-  `slot-owner-not-a-dependency`. It MUST report `ambiguous-slot-order` as a warning.
+  `slot-owner-not-a-dependency`. It MUST also refuse `required-not-fillable` for a field that is
+  effectively required on a create form while read-only there with no derivation (D-300.12). It MUST
+  report `ambiguous-slot-order` as a warning.
 - **FR-013**: A slot field's value MUST travel in the host Command's `extensions.<moduleId>`, as an
   object keyed by local key. The adopting host's admin create and update bodies MUST accept an
   optional `extensions` object (at most 8 module keys) and forward it to the Command, which makes this
@@ -491,13 +547,14 @@ they are, with the same props. The four PIM modules render their protection togg
   (two modules set one presentation attribute of one field), `override-contradiction`,
   `unknown-field`, `unknown-section`, `control-type-mismatch`, `format-without-validator`,
   `condition-foreign-field`, `default-on-hidden`, `required-not-fillable` (a field that is
-  effectively required on a create form while being hidden or read-only there with no derivation),
+  effectively required on a create form while being hidden there; the read-only case is
+  `check:admin-forms`', FR-012, D-300.12),
   `foreign-override` and `override-owner-not-a-dependency`. Each refusal MUST name the module, the
   field set, the field and the remedy.
 - **FR-022**: The tightened `validation` vocabulary MUST be: `required`, `minLength`, `maxLength`,
   `min`, `max`, `pattern`, `options` (a subset of the core enum) and `format`. Each value MUST be
   checked against the core bounds, and only a narrowing is admitted.
-- **FR-023**: `_lifecycle` MUST serve `GET /api/v1/admin/forms`. It returns the effective overrides
+- **FR-023**: `_lifecycle` MUST serve `GET /api/v1/admin/effective-forms` (D-300.9). It returns the effective overrides
   of every declared form, filtered by presence and computed from the composition (§2 of
   `contracts/field-overrides.md`). It is gated by an authenticated admin with no permission code, on
   `/api/v1/admin/module-presence`'s terms. The admin MUST take every override from it and MUST NOT
@@ -542,15 +599,20 @@ they are, with the same props. The four PIM modules render their protection togg
   audit entry.
 - **FR-043**: `writePermission` MUST be checked only for fields whose value the Command changed,
   comparing the projection's before-state with its after-state. It is checked against the admin's
-  permissions (the kernel's `AdminPermissionChecker`) or an API key's scopes. A violation refuses with
-  `403 FIELD_WRITE_FORBIDDEN`. A system actor is not subject to it.
+  permissions (the kernel's `AdminPermissionChecker`) or an API key's scopes. Until a key's scopes
+  reach the Command, a bound API key that changes such a field is refused (R-12). A violation
+  refuses with `403 FIELD_WRITE_FORBIDDEN`. A system actor is not subject to it.
 - **FR-044**: Masks and derivations MUST be admin-layer code (`AdminContributions.fieldBehaviours`)
   that constrains the UI only. A mask MUST declare in the override, as data, whether it has a
   server-side `pattern`. A derivation MUST pre-fill only while the target is untouched, and the server
-  MUST NOT recompute it.
+  MUST NOT recompute it. A read-only field that a present derivation targets is submitted with its
+  derived value (D-300.12).
 - **FR-045**: The field-rule check MUST bind every operator, API-key and system write, and MUST skip
-  buyer self-service writes (D-300.3). A tightened `required` MUST be checked on create, and on an
-  update only when the update changes or clears the field (D-300.4).
+  buyer self-service writes (D-300.3): a customer acting for itself, or a write run as or below a
+  Command that declares `buyerSelfService: true` under an actor with no acting admin (D-300.10). On
+  create every rule MUST be checked. On an update a field MUST be checked only when the update
+  changes or clears it, and `requiredWhen` also when the update changes a field its condition reads
+  (D-300.4, D-300.11).
 
 ### Trust tiers, presence and permissions
 
@@ -610,7 +672,8 @@ they are, with the same props. The four PIM modules render their protection togg
 - **FR-091**: An operator override MUST carry only the kinds `label`, `help`, `placeholder`,
   `position` (section, before or after), `hidden` and `readOnly`. Each kind MUST be in the field's
   `accepts`. `hidden` MUST NOT be set on a core-required field, and neither `hidden` nor `readOnly`
-  may be set where `required-not-fillable` would follow. Slot fields accept `label`, `help`,
+  may be set on a field that is effectively required on a create form. The operator layer cannot
+  see a derivation, so this refusal has no exemption (D-300.12). Slot fields accept `label`, `help`,
   `position` and `hidden`.
 - **FR-092**: `label`, `help` and `placeholder` MUST be per-language maps over the supported admin
   languages (`en`, `pl`), all present. Each is at most 200 characters, and `help` follows the

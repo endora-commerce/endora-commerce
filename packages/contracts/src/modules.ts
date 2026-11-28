@@ -40,6 +40,7 @@ import {
   MAX_FORM_OVERRIDES_PER_MODULE,
   assertAdminFormManifestRules,
   fieldSetIdRe,
+  type FieldOverrideKind,
 } from './admin-forms.js';
 
 // ---------------------------------------------------------------------------
@@ -649,7 +650,8 @@ export const DeploymentDivergenceDeclarationSchema = z.object({
           z.strictObject({
             moduleId: z.string().regex(moduleIdRe),
             packageName: z.string().min(1),
-            reason: z.string().min(1),
+            // The same cap as `FieldOverride.reason` (D-300.16).
+            reason: z.string().min(1).max(280),
           }),
         )
         .min(1),
@@ -671,7 +673,7 @@ export type DeploymentDivergenceDeclaration = z.infer<
  * One kind of divergence a deployment's tree can hold
  * (`specs/107-override-report-and-ladder/data-model.md` §2.3).
  *
- * Twelve. Eleven are one seam of `ModuleContext` each — nine read off the
+ * Fourteen. Eleven are one seam of `ModuleContext` each — nine read off the
  * members themselves (`command-middleware`, `ctx.commandMiddleware`, is the
  * ninth: `specs/189-command-middleware/` FR-034), plus `port-consumed` (which is
  * `lazyPort` over the cradle rather than a member) and `omission` (which comes
@@ -680,6 +682,11 @@ export type DeploymentDivergenceDeclaration = z.infer<
  * (`specs/190-overlay-full-modules/` FR-047) — exported schema rather than a
  * seam call, and a divergence because the table is not the overlay's. An
  * overlay's **own** entities and migrations are not one, for the reason below.
+ * The last two are `specs/193-admin-form-extensions/` FR-070's: `form-override`,
+ * a manifest `formOverrides` entry on another module's field set, and
+ * `form-override-grant`, a deployment's `formOverrideGrants` entry letting an
+ * installed package override one (D-300.2). A module's slot fields are its own
+ * surface and are not one.
  * `routes`, `ungatedRoutes`, `onBoot` and the manifest
  * declarations are deliberately absent for one uniform reason: each is a module
  * acting on its **own** surface, which is not a divergence from core. They are
@@ -698,7 +705,9 @@ export type DivergenceKind =
   | 'worker'
   | 'command-hook'
   | 'command-middleware'
-  | 'column-extension';
+  | 'column-extension'
+  | 'form-override'
+  | 'form-override-grant';
 
 /**
  * `<kind>:<module>:<subject>` — the three facts that identify a divergence
@@ -774,6 +783,22 @@ export type DivergenceDetail =
       readonly dataRung: 'D2';
       /** The physical `x_<module>_*` columns the declaration adds, sorted. */
       readonly columns: readonly string[];
+    }
+  | {
+      readonly kind: 'form-override';
+      /**
+       * The override kinds this module sets on the field, across every override
+       * it declares on it, in `FIELD_OVERRIDE_KINDS` order
+       * (`specs/193-admin-form-extensions/contracts/field-overrides.md` §5).
+       */
+      readonly kinds: readonly FieldOverrideKind[];
+      /** True when every kind is presentation: no API write path changes. */
+      readonly presentationOnly: boolean;
+    }
+  | {
+      readonly kind: 'form-override-grant';
+      /** The installed package name the grant matches, beside the module id (D-300.2). */
+      readonly packageName: string;
     }
   | { readonly kind: 'omission' };
 

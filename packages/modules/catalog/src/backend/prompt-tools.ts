@@ -68,7 +68,7 @@ export interface CatalogPromptToolsDeps {
    * confirming request. Without it those two tools are not contributed: the
    * service's bus-less fallback writes no audit entry. Since issue #241 the
    * four older mutations run their per-product writes through it too (the
-   * `product.update` Command), and without it no mutation tool is contributed.
+   * `product.bulk_update.item` Command, D-300.8), and without it no mutation tool is contributed.
    */
   commandBus?: CommandBus;
 }
@@ -151,8 +151,8 @@ function buildBulkServices(deps: CatalogPromptToolsDeps): {
   bulkUpdateService: CatalogBulkUpdateService;
 } {
   // Issue #241 — the bus is what audits each product a bulk mutation writes: the
-  // bulk edit runs the `product.update` Command per product, and without a bus that
-  // Command falls back to the unaudited write.
+  // bulk edit runs the `product.bulk_update.item` Command per product (D-300.8), and without a
+  // bus the bulk edit refuses to run rather than write unaudited.
   const adminService = new CatalogAdminService(
     deps.emFactory,
     deps.events as CatalogEventBus,

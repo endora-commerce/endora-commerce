@@ -148,6 +148,7 @@ jobs:
           pnpm --filter backend run check:module-boundary
           pnpm --filter backend run check:admin-surface
           pnpm --filter backend run check:admin-zones
+          pnpm --filter backend run check:admin-forms
           pnpm --filter backend run check:entry-scope
           pnpm --filter backend run check:container-imports
           pnpm --filter backend run check:entity-decorators

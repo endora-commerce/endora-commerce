@@ -158,6 +158,7 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   dependencies: ['organizations'],
   commandMiddleware: [{ id: 'legal-hold', phase: 'admit', actions: ['organization.'] }],
+  formOverrides: [{ target: 'organization.taxId', labelKey: 'fields.nip', reason: 'Polish buyers know it as NIP.' }],
 });
 `;
 
@@ -170,7 +171,11 @@ export function registerModule(ctx: ModuleContext): void {
 }
 `;
 
-/** The twelve keys the fixture's own tree derives, with a sentence each. */
+/**
+ * The thirteen keys the fixture's own tree derives, with a sentence each. Its
+ * fourteenth entry, the `form-override-grant`, carries its reason where the
+ * grant is written, as an omission does (193 FR-051).
+ */
 export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'registration:acme_overlay:acmeRebateService':
     'Core registers no rebate service; this one is Acme’s own and exists to hold the ' +
@@ -205,6 +210,9 @@ export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'column-extension:acme_overlay:organizations':
     'Core keys an Organization by its own id; Acme’s ERP keys it by a code, kept in one declared ' +
     'column on the host so every Organization read can carry it.',
+  'form-override:acme_overlay:organization.taxId':
+    'Core labels the field "Tax ID"; Acme’s Polish buyers know it as NIP, and the label is the ' +
+    'only thing this override changes.',
   'omission:core:blog':
     'Acme publishes its editorial content from its own CMS and ships no blog, so nothing in ' +
     'this deployment would ever create a post.',
@@ -258,12 +266,20 @@ export function fixtureDivergence(options: FixtureOptions = {}): DivergenceResul
     owners: options.owners ?? DEFAULT_OWNERS,
     rootSupplied: options.rootSupplied ?? new Set(['commandBus', 'auditLogService']),
     actionOwners: new Map([['organization.create', 'organizations']]),
+    // `specs/193-admin-form-extensions/` FR-070 — the owner of the field set
+    // the override and the grant name.
+    fieldSetOwners: new Map([['organization', 'organizations']]),
     declaration: {
       omittedModules: options.omittedModules ?? [
         { moduleId: 'blog', reason: FIXTURE_REASONS['omission:core:blog'] as string },
       ],
       decorationOrder: options.decorationOrder ?? {},
       reasons: options.reasons ?? FIXTURE_REASONS,
+      formOverrideGrants: {
+        organization: [
+          { moduleId: 'pim_tax', packageName: '@acme/pim-tax', reason: 'The PIM tax package relabels the tax id field.' },
+        ],
+      },
     },
     seams: options.seams ?? moduleContextSeams(MODULE_CONTEXT_SOURCE),
   };

@@ -148,6 +148,8 @@ export interface DivergenceEnvironment {
   readonly seams: readonly string[];
   /** Hookable action → the module whose manifest declares it (176), the owner of a `command-hook` entry. */
   readonly actionOwners: ReadonlyMap<string, string>;
+  /** Field-set id → the module that declares it (193). */
+  readonly fieldSetOwners: ReadonlyMap<string, string>;
   /** Files opened building all of the above — the run's `files`, half of it. */
   readonly filesRead: number;
   /** Every module source the walk opened — issue #215's floor, as its input. */
@@ -339,7 +341,11 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
   const index = (await import(pathToFileURL(layout.manifestIndexPath).href)) as {
     DISCOVERED_MANIFESTS?: ReadonlyArray<{
       manifestPath?: string;
-      manifest?: { id?: string; hookableActions?: ReadonlyArray<{ action: string }> };
+      manifest?: {
+        id?: string;
+        hookableActions?: ReadonlyArray<{ action: string }>;
+        fieldSets?: ReadonlyArray<{ id: string }>;
+      };
     }>;
   };
   const manifestLocations = (index.DISCOVERED_MANIFESTS ?? [])
@@ -353,6 +359,14 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
     if (moduleId === undefined) continue;
     for (const declaration of entry.manifest?.hookableActions ?? []) actionOwners.set(declaration.action, moduleId);
   }
+  // `specs/193-admin-form-extensions/` FR-070 — who declares each field set, from
+  // the same index: the owner a `form-override` or `form-override-grant` names.
+  const fieldSetOwners = new Map<string, string>();
+  for (const entry of index.DISCOVERED_MANIFESTS ?? []) {
+    const moduleId = entry.manifest?.id;
+    if (moduleId === undefined) continue;
+    for (const set of entry.manifest?.fieldSets ?? []) fieldSetOwners.set(set.id, moduleId);
+  }
 
   return {
     layout,
@@ -361,6 +375,7 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
     routes: routeIdentities(routeSources),
     seams: moduleContextSeams(seamSource),
     actionOwners,
+    fieldSetOwners,
     filesRead: routeSources.length,
     moduleFiles,
     moduleIdOfFile: (file) => moduleOf(file, layout.hostResidentModules),
@@ -409,6 +424,10 @@ async function loadDeclaration(deployment: string | null): Promise<{
   // `specs/189-command-middleware/` FR-031 — the derivation's
   // `stale-middleware-order` / `incomplete-middleware-order` read it.
   commandMiddlewareOrder?: readonly string[] | undefined;
+  // `specs/193-admin-form-extensions/` FR-051 — the `form-override-grant` entries.
+  formOverrideGrants?:
+    | Readonly<Record<string, ReadonlyArray<{ moduleId: string; packageName: string; reason: string }>>>
+    | undefined;
 }> {
   const empty = { omittedModules: [], decorationOrder: {}, reasons: {} };
   if (deployment === null) return empty;
@@ -465,6 +484,7 @@ export async function renderDivergence(
       owners: shared.owners,
       rootSupplied: shared.rootSupplied,
       actionOwners: shared.actionOwners,
+      fieldSetOwners: shared.fieldSetOwners,
       declaration: await loadDeclaration(deployment),
       seams: shared.seams,
     },

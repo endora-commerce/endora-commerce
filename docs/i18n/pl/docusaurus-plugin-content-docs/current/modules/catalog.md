@@ -534,9 +534,12 @@ dla trasy dostępnej dla klienta.
 - `expectedVersion` — odczytana wersja edytora produktu (`version` z
   `GET …/products/:id/scoped-values`); `update` i `setCustomFieldValues` odrzucają produkt, który
   zmienił się w międzyczasie, z `409 VERSION_CONFLICT`. Pozostałe metody ją pomijają.
-- `extensions` — żaden zapis katalogu nie jest jeszcze zadeklarowany jako dostępny dla hooków,
-  więc każdy klucz jest odrzucany z `422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie
-  zapisane.
+- `extensions` — dane wejściowe dla hooków poleceń zapisu, z kluczami będącymi identyfikatorami
+  modułów hooków (zob. *Akcje dostępne dla hooków* poniżej). `create`, `update`,
+  `setCustomFieldValues` i `applyScopedValues` przekazują je dalej, a klucz, którego nie
+  przejmuje żaden obecny moduł hooka, jest odrzucany z `422 COMMAND_EXTENSION_UNCLAIMED`, zanim
+  cokolwiek zostanie zapisane. Pozostałe metody wykonują zapisy niedostępne dla hooków, więc
+  odrzucają każdy klucz, zanim cokolwiek zostanie zapisane.
 
 **Czego nie ma**: slotów zestawów, elementów produktów grupowanych, powiązań, galerii,
 załączników, jednostek opakowania, kluczy URL i przekierowań (każde ma własny ekran w panelu),
@@ -549,6 +552,55 @@ zapis przechodzi do metody tej samej operacji powyżej; `listAttributes` i `list
 do `catalogAttributeReadPort`) oraz `catalogProductScopeWritePort.applyScopes` (do
 `applyScopedValues`, z tymi samymi komórkami i `source`). Do tego czasu oba delegują do nowych
 portów, więc ich wpisy i odmowy się nie zmieniają.
+
+### Akcje dostępne dla hooków
+
+Cztery zapisy produktu są zadeklarowane jako dostępne dla hooków, więc inny moduł — moduł
+nakładki wdrożenia albo zainstalowany pakiet — może w nich uczestniczyć. Zarejestruj hook
+polecenia na referencji z `PRODUCT_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) i dopisz
+`catalog` do `dependencies` w manifeście. Hook `beforeCommit` działa w transakcji zapisu i może go
+odrzucić własnym kodem, co wycofuje zapis. Handler `afterCommit` jest dostarczany przez outbox
+platformy po zatwierdzeniu, co najmniej raz. Sposób działania hooków opisuje strona architektury
+*Command Bus*.
+
+| Akcja | Referencja | Kto zapisuje |
+| --- | --- | --- |
+| `product.create` | `PRODUCT_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/catalog/products`, `PUT /api/v1/catalog/products/by-sku/:sku` dla nowego SKU oraz `catalogProductCommandPort.create` |
+| `product.update` | `PRODUCT_HOOKABLE_ACTIONS.update` | `PATCH /api/v1/admin/catalog/products/:id`, `PUT /api/v1/catalog/products/by-sku/:sku` dla istniejącego SKU, `catalogProductCommandPort.update` i `catalogProductCommandPort.setCustomFieldValues` |
+| `product.scoped_values.save` | `PRODUCT_HOOKABLE_ACTIONS.scopedValuesSave` | zapis jednego zakresu w edytorze produktu, `PUT /api/v1/admin/catalog/products/:id/scoped-values` |
+| `product.scoped_values.import` | `PRODUCT_HOOKABLE_ACTIONS.scopedValuesImport` | `catalogProductCommandPort.applyScopedValues`, przestarzałe `catalogProductScopeWritePort.applyScopes` oraz każdy produkt importu produktów |
+
+Wszystkie cztery oferują obie fazy. Hook `beforeCommit` dostaje:
+
+- przy `product.create` — `product`, produkt w stanie po zapisie, jeszcze niezatwierdzony, w
+  kształcie zwracanym przez `catalogProductReadPort`, oraz `categoryIds`, kategorie powiązane przy
+  utworzeniu;
+- przy `product.update` — `product` w stanie po zapisie, `changedFields`, nazwy pól, których
+  wartość się zmieniła, oraz `categoryIds`, gdy zapis podał zestaw kategorii produktu;
+- przy obu zapisach zakresów — `productId` i `scopes`: po jednym wpisie na każdy zapisany zakres,
+  z `scope`, `after` (wartości pozostawione przez zapis w tym zakresie, według ścieżki pola —
+  `name`, `attribute:<key>`, `seo:<field>` …, gdzie `null` to puste nadpisanie, a
+  `{ inherit: true }` usunięte) oraz `changedFields`.
+
+Wiersz outboxu zawiera wyłącznie `productId` i `changedFields`, nigdy wartości. Produkt nie należy
+do żadnej Organizacji, więc jego handler działa w zakresie systemowym.
+
+- **`product.update`, który niczego nie zmienia**, mimo to zatwierdza wersję edytora produktu,
+  więc jego hooki działają raz z `changedFields: []`, a handler `afterCommit` dostaje wiersz z
+  `changedFields: []`. Oba zapisy zakresów wycofują zapis, który niczego nie zmienia, i ich hooki
+  nie działają.
+- **Edycja masowa nie jest dostępna dla hooków.** Każdy produkt zapisywany przez edycję masową,
+  w trybie bezpośrednim i w kolejce, przechodzi jako `product.bulk_update.item`, która nigdy nie
+  jest deklarowana jako dostępna dla hooków, a jej cofnięcie nie zapisuje żadnej akcji produktu.
+  Hook `product.update` nigdy więc nie widzi edycji masowej ani jej cofnięcia, a wpisy audytu
+  edycji masowej dla poszczególnych produktów są zapisywane pod `product.bulk_update.item` obok
+  podsumowania `product.bulk_update`. Aby reagować na edycje masowe, nasłuchuj
+  `product.updated.v1`, które edycja masowa i jej cofnięcie emitują dla każdego zmienionego
+  produktu.
+- **Żaden inny zapis produktu nie jest dostępny dla hooków** — archiwizacja i przywrócenie,
+  usunięcie, warianty, ustawienia według kanału sprzedaży, klucze URL, treść, media, załączniki,
+  jednostki opakowania i kopiowanie wartości do innych kanałów. Hook zarejestrowany na którymś z
+  nich jest odrzucany przy starcie.
 
 ## Zasady zamawiania: minimalna ilość zamówienia i zwroty
 

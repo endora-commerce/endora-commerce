@@ -626,6 +626,7 @@
   "errors.URL_KEY_REDIRECT_TAKEOVER_REQUIRED": "Ten klucz URL nadal przekierowuje do innego produktu. Potwierdź, że chcesz go przejąć — tamten produkt straci to przekierowanie.",
   "errors.URL_REDIRECT_NOT_FOUND": "To przekierowanie już nie istnieje. Odśwież stronę, aby zobaczyć aktualne przekierowania produktu.",
   "auditLog.product.update": "Zaktualizowano produkt",
+  "auditLog.product.bulk_update.item": "Produkt zaktualizowany w edycji zbiorczej",
   "auditLog.product.archive": "Zarchiwizowano produkt",
   "auditLog.product.restore": "Przywrócono produkt",
   "auditLog.product.scopes.update": "Zaktualizowano ustawienia produktu w kanałach sprzedaży",

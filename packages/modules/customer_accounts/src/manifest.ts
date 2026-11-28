@@ -214,6 +214,13 @@ export const manifest = defineModuleManifest({
     { code: 'CUSTOMER_NOT_FOUND' },
     { code: 'CUSTOMER_RESTORE_WINDOW_ELAPSED' },
   ],
+  // `specs/193-admin-form-extensions/` FR-110, FR-114 (D-300): the account's
+  // creation, profile edit and custom-field edit, both phases. None of the
+  // three is reversible (176 R-20), which `customer-account-hookable-actions.test.ts`
+  // holds. And the membership move (`specs/191-membership-join-requests/` §4,
+  // `specs/192-organization-merge/` T069): a deployment may veto or follow it,
+  // and tell a merge from a move by its `mode`.
+  hookableActions: Object.values(CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS).map(toHookableActionDeclaration),
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   // Feature 076 (D-79) — the customer-group admin surface came here with the
@@ -239,13 +246,6 @@ export const manifest = defineModuleManifest({
       weight: 140,
     },
   ],
-  /**
-   * `specs/191-membership-join-requests/` §4, `specs/192-organization-merge/`
-   * T069 — the membership move is hookable: a deployment may veto it
-   * (`beforeCommit`) or follow it (`afterCommit`), and tell a merge from a move
-   * by its `mode`.
-   */
-  hookableActions: [CUSTOMER_ACCOUNT_HOOKABLE_ACTIONS.changeOrganization].map(toHookableActionDeclaration),
   /**
    * `specs/192-organization-merge/` T070 (`contracts/participant-dispositions.md`
    * §A) — the loser's members follow the survivor of an Organization merge in
