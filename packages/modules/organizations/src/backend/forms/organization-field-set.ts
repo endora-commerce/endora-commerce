@@ -5,11 +5,17 @@ import {
   type FieldKeyOf,
   type OrganizationConvertToCompanyHookData,
   type OrganizationCreateHookData,
+  type OrganizationMergeStartHookData,
   type OrganizationRecord,
   type OrganizationRegisterHookData,
   type OrganizationUpdateHookData,
 } from '@endora-commerce/contracts';
 import type { FieldSetRegistration } from '@endora-commerce/platform/kernel';
+import { MERGE_FIELD_SET_WRITES } from '../merge/organization-merge-rules.js';
+import {
+  ORGANIZATION_PERSONAL_PROVISION_RULE_CHECK,
+  type PersonalOrganizationProvisionHookData,
+} from '../commands/provision-personal-organization.command.js';
 
 /**
  * The writers of the organization field set (`specs/193-admin-form-extensions/`
@@ -32,14 +38,16 @@ import type { FieldSetRegistration } from '@endora-commerce/platform/kernel';
  *   `taxId` invites presentation kinds only.
  * - the hierarchy moves and moderation — `parentId` and `status` invite
  *   presentation kinds only.
- * - the merge (`organization.merge.start` and `organization.merge.finalize`)
- *   and personal-organisation provisioning
- *   (`PersonalOrganizationService.provisionFor`) — **not yet registered,
- *   pending the architect's re-ruling of D-300.28 and D-300.31**, which hold
- *   both as writers. Until then neither is checked.
  * - anonymisation — an erasure (D-300.32). It runs outside the Command Bus and
  *   is held to no rule, so it can never be refused; a scrubbed row that breaks
- *   a rule added later is a stored value, tolerated as any is (D-300.4).
+ *   a rule added later is a stored value, tolerated as any is (D-300.4). That
+ *   rests on a standing Principle XIII deviation — the scrub writes and audits
+ *   outside the bus — tracked in #2039.
+ *
+ * The merge and personal-organisation provisioning **are** writers: the merge
+ * at start (the outcome it fixes) and at finalize (the backstop), and every
+ * provisioning path through `organization.personal.provision` (D-300.28,
+ * D-300.31).
  */
 
 /** The keys of the organization field set. */
@@ -104,6 +112,28 @@ const ADMIN_PATCH_WRITES = [
 ] as const satisfies readonly OrganizationFieldKey[];
 const CONVERT_WRITES = ['name', 'registeredAddress', 'vatStatus'] as const satisfies readonly OrganizationFieldKey[];
 const UPDATE_WRITES = ['name', 'vatStatus', 'registeredAddress', 'orderConfirmationEmails'] as const satisfies readonly OrganizationFieldKey[];
+/**
+ * What a personal organisation is provisioned with (D-300.31). Narrow on
+ * purpose: a field provisioning leaves empty (`orderConfirmationEmails`,
+ * `fulfilmentStrategy`) is never held, so a tightened `required` there cannot
+ * refuse it.
+ */
+const PROVISION_WRITES = ['name', 'status', 'vatStatus', 'registeredAddress', 'taxId'] as const satisfies readonly OrganizationFieldKey[];
+
+/**
+ * `organization.merge.finalize` (D-300.28) — not hookable; a rule-check-only
+ * writer, the backstop for a rule deployed while a merge is in flight. It runs
+ * in the merge runner's system scope, so it is held to validation alone; the
+ * operator's `writePermission` was decided once, at start. Module-local.
+ */
+export const ORGANIZATION_MERGE_FINALIZE_RULE_CHECK = hookableAction<OrganizationUpdateHookData>(
+  'organization.merge.finalize',
+  'organization',
+  ['beforeCommit'],
+);
+
+/** The merge's writes on the survivor: the offered fields the field set holds, and the e-mail union. */
+const MERGE_WRITES = MERGE_FIELD_SET_WRITES satisfies readonly OrganizationFieldKey[];
 
 /** What `registerModule` hands `ctx.fieldSets`. */
 export const organizationFieldSetRegistration: FieldSetRegistration = {
@@ -151,6 +181,45 @@ export const organizationFieldSetRegistration: FieldSetRegistration = {
       project: (data) => {
         const { organization, changedFields } = data as OrganizationConvertToCompanyHookData;
         return { after: pick(recordValues(organization), CONVERT_WRITES), changed: changedOf(changedFields, CONVERT_WRITES) };
+      },
+    },
+    {
+      // D-300.28 — the outcome the start fixes on the survivor: a chosen value
+      // that breaks a tightened rule is refused before anything moves, and a
+      // changed field whose `writePermission` the admin lacks is forbidden. The
+      // e-mail union is held like any changed field.
+      on: ORGANIZATION_HOOKABLE_ACTIONS.mergeStart,
+      mode: 'update',
+      writes: MERGE_WRITES,
+      project: (data) => {
+        const { survivor } = data as OrganizationMergeStartHookData;
+        return { after: pick(survivor.after, MERGE_WRITES), changed: changedOf(survivor.changed, MERGE_WRITES) };
+      },
+    },
+    {
+      on: ORGANIZATION_MERGE_FINALIZE_RULE_CHECK,
+      ruleCheckOnly: true,
+      mode: 'update',
+      writes: MERGE_WRITES,
+      project: (data) => {
+        const { organization, changedFields } = data as OrganizationUpdateHookData;
+        return { after: pick(recordValues(organization), MERGE_WRITES), changed: changedOf(changedFields, MERGE_WRITES) };
+      },
+    },
+    {
+      // D-300.31 — every provisioning path. On a create every written key is
+      // held to validation; `changed` feeds `writePermission` alone, and names
+      // only the derived `name`: an operator's detach is never refused for the
+      // fixed `vat_exempt` it did not choose. A re-found organisation wrote
+      // nothing and holds nothing.
+      on: ORGANIZATION_PERSONAL_PROVISION_RULE_CHECK,
+      ruleCheckOnly: true,
+      mode: 'create',
+      writes: PROVISION_WRITES,
+      project: (data) => {
+        const { organization, created } = data as PersonalOrganizationProvisionHookData;
+        if (!created) return { after: {}, changed: [] };
+        return { after: pick(recordValues(organization), PROVISION_WRITES), changed: ['name'] };
       },
     },
     {

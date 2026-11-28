@@ -231,3 +231,48 @@ export function fieldValueText(
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
+
+/**
+ * A start the platform's field-rule check refused (`specs/193-admin-form-extensions/`
+ * D-300.28), mapped onto the merge screen: per offered field code, the message
+ * its choice row shows; and the e-mail union's own refusal, which is not a
+ * choice and has its own remedy. `null` when the error is not such a refusal.
+ */
+export interface MergeFieldRefusals {
+  /** Merge field code → the row's message. */
+  readonly fields: Readonly<Record<string, string>>;
+  /** The combined order-confirmation e-mails: a validation refusal, or the permission the admin lacks. */
+  readonly union: { readonly message: string; readonly permission: string | null } | null;
+}
+
+/** The field-set key a refusal names → the merge field code whose row it belongs to. */
+const MERGE_ROW_OF: Readonly<Record<string, string>> = {
+  name: 'name',
+  taxId: 'taxId',
+  vatStatus: 'vatStatus',
+  registeredAddress: 'registeredAddress',
+  fulfilmentStrategy: 'fulfilmentStrategy',
+  fulfilmentStrategyWarehouseOrder: 'fulfilmentStrategy',
+};
+
+export function mergeFieldRefusals(
+  error: { readonly code: string; readonly details?: unknown },
+  forbiddenMessage: string,
+): MergeFieldRefusals | null {
+  const forbidden = error.code === 'FIELD_WRITE_FORBIDDEN';
+  if (!forbidden && error.code !== 'FIELD_RULE_VIOLATION') return null;
+  if (!Array.isArray(error.details)) return null;
+  const fields: Record<string, string> = {};
+  let union: MergeFieldRefusals['union'] = null;
+  for (const raw of error.details as readonly { path?: unknown; message?: unknown; permission?: unknown }[]) {
+    const path = typeof raw.path === 'string' ? raw.path : '';
+    const message = forbidden ? forbiddenMessage : typeof raw.message === 'string' ? raw.message : '';
+    if (path === 'orderConfirmationEmails') {
+      union ??= { message, permission: forbidden && typeof raw.permission === 'string' ? raw.permission : null };
+      continue;
+    }
+    const row = MERGE_ROW_OF[path];
+    if (row !== undefined) fields[row] ??= message;
+  }
+  return { fields, union };
+}

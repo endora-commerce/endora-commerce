@@ -55,6 +55,10 @@ describe('the writes of organizations.tax_id and path', () => {
       'commands/create-organization.command.ts',
       'commands/merge-finalize.command.ts',
       'commands/merge-structure.command.ts',
+      // `specs/193-admin-form-extensions/` D-300.31 — a personal organisation,
+      // created with no tax ID (`taxId: null`), so it never meets a tax-ID
+      // constraint and needs no `runOrganizationWrite`.
+      'commands/provision-personal-organization.command.ts',
       'commands/register-organization.command.ts',
       'commands/set-parent.command.ts',
     ]);

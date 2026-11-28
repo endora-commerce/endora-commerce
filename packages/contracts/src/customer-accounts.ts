@@ -1415,10 +1415,16 @@ export interface CustomerAccountCommandPort {
    * personal Organization, in one transaction (D-178); the Organization's
    * channel is the current request's sales channel, the default one outside a
    * request. Refusals: `409 EMAIL_ALREADY_REGISTERED`.
+   *
+   * `options.buyerSelfService` (`specs/193-admin-form-extensions/` D-300.10 as
+   * amended by D-300.31): this call is a buyer's own storefront registration.
+   * The owner puts it on the Command, so a deployment's tightened field rule
+   * does not refuse the visitor (D-300.3). Only the storefront caller passes it;
+   * without it a `system` caller is bound. Ignored under an admin or an API key.
    */
   createStandalone(
     input: CustomerAccountStandaloneCreateInput,
-    options?: AggregateCommandOptions,
+    options?: AggregateCommandOptions & { readonly buyerSelfService?: true },
   ): Promise<CustomerAccountRecord>;
   /**
    * `customer_account.update_profile` — an absent field is left as it is; a

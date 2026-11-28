@@ -40,17 +40,29 @@ export interface RegisterStandaloneDeps {
 export function makeRegisterStandaloneCommand(
   deps: RegisterStandaloneDeps,
   input: Omit<CustomerAccountStandaloneCreateInput, 'password'> & { readonly passwordHash: string },
+  options: {
+    /**
+     * `specs/193-admin-form-extensions/` D-300.10 as amended by D-300.31 — the
+     * caller says this is a buyer's own storefront registration. Its child
+     * `organization.personal.provision` inherits it, so a deployment's field
+     * rule does not refuse the visitor; without it a `system` caller is bound.
+     */
+    readonly buyerSelfService?: true;
+  } = {},
 ): Command<CustomerAccount> {
   const customerAccountId = randomUUID();
   return {
     action: 'customer_account.register_standalone',
     objectType: 'customer_account',
     objectId: customerAccountId,
-    run: async ({ em }) => {
+    ...(options.buyerSelfService ? { buyerSelfService: true as const } : {}),
+    run: async ({ em, run }) => {
+      if (!run) throw new Error('customer_account.register_standalone runs its personal organisation as a child Command; run it on the bus.');
       // Folded, like every write and read of this column.
       const email = normalizeEmailAddress(input.email);
       if (await em.findOne(CustomerAccount, { email })) throw emailTaken();
-      const organization = await deps.personalOrganizations.provisionFor(em, {
+      // D-300.31 — `organization.personal.provision`, as this Command's child.
+      const organization = await deps.personalOrganizations.provisionFor({ em, run }, {
         customerAccountId,
         email,
         firstName: input.firstName,

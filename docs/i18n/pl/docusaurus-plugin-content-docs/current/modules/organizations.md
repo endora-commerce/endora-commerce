@@ -1563,7 +1563,7 @@ Jak operator scala organizacje, śledzi scalanie i je wznawia w panelu administr
 | Metoda i ścieżka | Uprawnienie | Działanie |
 | --- | --- | --- |
 | `POST /api/v1/admin/organizations/:id/merge-preview` | `organizations:merge` | `{ loserId }` — odmowy, liczba rekordów do przeniesienia w każdym obszarze i różniące się wartości. Niczego nie zapisuje. |
-| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — ponownie sprawdza podgląd i rozpoczyna scalanie (`202`). |
+| `POST /api/v1/admin/organizations/:id/merges` | `organizations:merge` | `{ loserId, fieldChoices?, customFieldChoices?, acknowledgeIrreversible: true }` — ponownie sprawdza podgląd i rozpoczyna scalanie (`202`). Reguły pól wdrożenia obowiązują wynik w organizacji docelowej: wybrana wartość, która łamie zaostrzoną regułę, daje `422 FIELD_RULE_VIOLATION`, a zmieniane pole, do którego `writePermission` nie masz, daje `403 FIELD_WRITE_FORBIDDEN`; `details[].path` wskazuje pole i nic nie zostaje zapisane, zamrożone ani zakolejkowane. |
 | `GET /api/v1/admin/organization-merges` | `organizations:merge` | `?state=&organizationId=` — scalenia, do których obu organizacji masz dostęp. |
 | `GET /api/v1/admin/organization-merges/:mergeId` | `customers:read` | Jedno scalenie wraz z krokami. |
 | `POST /api/v1/admin/organization-merges/:mergeId/resume` | `organizations:merge` | `{ expectedVersion }` — scalenie wymagające uwagi rusza ponownie; zakończone kroki nie są powtarzane. |
@@ -1590,7 +1590,10 @@ a razem z NIP-em przechodzi ostatni wynik walidacji VAT duplikatu.
   `409 RECORD_MERGE_IN_PROGRESS`. Zapisy do organizacji docelowej działają bez zmian.
 - Scalanie działa jako zadanie w tle, w fazach (struktura, konfiguracja, adresy, członkowie,
   rekordy, finalizacja). Nieudany krok jest ponawiany; gdy próby się wyczerpią, scalanie
-  zatrzymuje się w stanie *wymaga uwagi* i można je wznowić. Moduł wyłączony w chwili, gdy
+  zatrzymuje się w stanie *wymaga uwagi* i można je wznowić. Nową przyczyną jest reguła pola
+  wdrożona w trakcie scalania: finalizacja jest ponownie sprawdzana pod kątem walidacji, a wartość
+  odrzucona przez nową regułę zatrzymuje ją w tym miejscu; *wznowienie* kończy scalanie, gdy
+  reguła dopuści wartość. Moduł wyłączony w chwili, gdy
   scalanie do niego dochodzi, jest pomijany, a jego część wykonuje się automatycznie po
   ponownym włączeniu modułu.
 - Po zakończeniu duplikat jest zarchiwizowany: jest miękko usunięty, ma
@@ -1610,7 +1613,9 @@ a razem z NIP-em przechodzi ostatni wynik walidacji VAT duplikatu.
 - Zdarzenie `organization.merged.v1` jest publikowane jeden raz, z polami `organizationId`
   (organizacja docelowa), `mergedOrganizationId`, `mergeId`, `mergedAt` i `source`. Jest dostępne
   dla webhooków wychodzących. `organization.merge.start` jest akcją dostępną dla hooków, więc
-  wdrożenie może zablokować scalanie, zanim się rozpocznie.
+  wdrożenie może zablokować scalanie, zanim się rozpocznie. Jej dane hooka zawierają wynik, który
+  ustala w organizacji docelowej (`survivor`: wartości po wyborach i sumie e-maili oraz zmieniane
+  klucze); dane outboxa nadal zawierają tylko identyfikatory i kody.
 - Każdy wpis audytu zapisany przez scalanie zawiera jego `mergeId`, z nazwami pól i kodami, nigdy
   z wartościami.
 - Gdy scalanie zatrzyma się w stanie *wymaga uwagi*, każdy aktywny administrator z uprawnieniem

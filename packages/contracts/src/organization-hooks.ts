@@ -107,14 +107,26 @@ export type OrganizationTaxIdChangeOutbox = {
 /**
  * `organization.merge.start` (`specs/192-organization-merge/` FR-061): a
  * deployment may veto a merge before it starts (`beforeCommit`) or start its
- * own work after it (`afterCommit`, through the outbox). Ids and the source
- * code only — the field choices are the merge record's.
+ * own work after it (`afterCommit`, through the outbox). The ids, the source
+ * code and — since `specs/193-admin-form-extensions/` D-300.28 — the outcome
+ * the start fixes on the survivor (`survivor`), which the platform's
+ * field-rule check holds. Hook data stays in process; the outbox data
+ * (`OrganizationMergeStartOutbox`) stays ids and codes.
  */
 export interface OrganizationMergeStartHookData {
   readonly mergeId: string;
   readonly survivorId: string;
   readonly loserId: string;
   readonly source: string | null;
+  /**
+   * The survivor's organization field-set values after the operator's choices
+   * and the union of both order-confirmation e-mail lists — what the finalize
+   * will write — and the keys that change, sorted (D-300.28).
+   */
+  readonly survivor: {
+    readonly after: Readonly<Record<string, unknown>>;
+    readonly changed: readonly string[];
+  };
 }
 export type OrganizationMergeStartOutbox = {
   readonly organizationId: string;

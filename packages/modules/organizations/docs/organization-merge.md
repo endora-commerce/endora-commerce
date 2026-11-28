@@ -56,6 +56,21 @@ The preview says in words why two organizations cannot be merged, before anythin
 | Another merge already involves one of these records | Wait for it, or resume it if it needs attention. |
 | **Merging is not available yet** | See below. |
 
+### When a value is refused {#when-a-value-is-refused}
+
+Your deployment may hold an organization's fields to rules of its own: a maximum length for the
+name, the VAT statuses it trades with, who may change a field. The merge is held to them on the
+organization that stays. If a value you chose from the duplicate breaks one, the start is
+refused, nothing changes, and you are back on the values step with the value marked:
+
+- the row says what the rule requires, or that you do not have permission to change the field,
+  and offers **Keep the survivor's value**; choose it, or another value, and start again;
+- the order-confirmation e-mails are never a choice: the organization that stays takes both
+  lists. A refusal of the combined list shows on a read-only **Order confirmation e-mails
+  (combined)** row. Correct the recipient list on the organization's own page, or — when the
+  merge adds recipients you may not change — ask an administrator who holds the permission it
+  names to start the merge.
+
 **Merging is not available yet** lists the areas of the platform that cannot yet move their
 records to the organization that stays. Until every area that holds records of an
 organization can do so, the preview works and the start is refused. Nothing is lost by
@@ -80,7 +95,9 @@ records follow automatically once it is switched on again.
 
 ## When a merge needs attention {#when-a-merge-needs-attention}
 
-A step that keeps failing is retried, and then the merge stops in **Needs attention**. Every
+A step that keeps failing is retried, and then the merge stops in **Needs attention**. A rule
+your deployment added while the merge was running can stop it there too, when the value it
+refuses is written at the end; resume once the rule admits it. Every
 administrator who may merge and sees both organizations gets a notification linking to the
 merge. Open **Organization merges** (⌘K → *Organization merges*), which lists the merges that
 need attention first, and choose **Resume**. Finished steps are not repeated.

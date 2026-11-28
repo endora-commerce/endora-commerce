@@ -10,6 +10,10 @@ import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/t
 import { manifest } from '../../../../packages/modules/organizations/src/manifest.js';
 import { makeConvertToCompanyCommand } from '../../../../packages/modules/organizations/src/backend/commands/convert-to-company.command.js';
 import { makeCreateOrganizationCommand } from '../../../../packages/modules/organizations/src/backend/commands/create-organization.command.js';
+import { makeProvisionPersonalOrganizationCommand } from '../../../../packages/modules/organizations/src/backend/commands/provision-personal-organization.command.js';
+import { makeMergeFinalizeCommand } from '../../../../packages/modules/organizations/src/backend/commands/merge-finalize.command.js';
+import { makeMergeStartCommand } from '../../../../packages/modules/organizations/src/backend/commands/merge-start.command.js';
+import { mergedSurvivorFields } from '../../../../packages/modules/organizations/src/backend/merge/organization-merge-rules.js';
 import { makeRegisterOrganizationCommand } from '../../../../packages/modules/organizations/src/backend/commands/register-organization.command.js';
 import type { Organization } from '../../../../packages/modules/organizations/src/backend/entities/organization.entity.js';
 import { organizationFieldSetRegistration } from '../../../../packages/modules/organizations/src/backend/forms/organization-field-set.js';
@@ -266,5 +270,153 @@ describe('a rule against the value provisioning writes (D-300.31)', () => {
     expect(() =>
       harness({ overrides: [{ target: 'organization.vatStatus', validation: { options: ['vat_payer'] }, reason: 'VAT payers only.' }] }),
     ).toThrow(/rule-excludes-system-value.*vatStatus|vatStatus.*rule-excludes-system-value/su);
+  });
+});
+
+/** `organization.personal.provision` — its action, hook data and audit — with `run` a stand-in creating an organisation named `name`. */
+function provision(name: string, child: boolean): Command<Organization> {
+  const command = makeProvisionPersonalOrganizationCommand({ name: () => name }, { customerAccountId: ACCOUNT_ID, email: 'solo@example.test' }, { child });
+  const created = { ...organization('vat_exempt', name), isPersonal: true, taxId: null } as unknown as Organization;
+  return {
+    ...command,
+    run: async () => (child ? { result: created, skipAudit: true } : { result: created, before: null, after: { status: 'active' } }),
+  };
+}
+
+const LONG_NAME = 'Konstantyna Wielkopolska-Przybyszewska';
+
+describe('personal-organisation provisioning is held (D-300.31)', () => {
+  it('refuses a repair or a system createStandalone whose derived name breaks a tightened name rule', async () => {
+    const h = harness();
+    const error = await refusal(as(anonymous, () => h.bus.run(provision(LONG_NAME, false))));
+    expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
+    expect(error.details).toEqual([expect.objectContaining({ path: 'name', code: 'too_long' })]);
+    expect(h.committed).toEqual([]);
+  });
+
+  it('refuses the operator’s detach-to-personal on the same rule', async () => {
+    const h = harness();
+    const error = await refusal(as(operator, () => h.bus.run(provision(LONG_NAME, false))));
+    expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
+  });
+
+  it('skips the storefront registration: its root is buyer self-service, and the provisioning runs as its child', async () => {
+    const h = harness({ buyerSelfServiceActions: ['organization.register', 'customer_account.register_standalone'] });
+    const root: Command<null> = {
+      action: 'customer_account.register_standalone',
+      objectType: 'customer_account',
+      objectId: ACCOUNT_ID,
+      buyerSelfService: true,
+      run: async (ctx) => {
+        await ctx.run!(provision(LONG_NAME, true));
+        return { result: null, before: null, after: { status: 'active' } };
+      },
+    };
+    await as(anonymous, () => h.bus.run(root));
+    // The child answers skipAudit: the caller's one entry records the account and its organisation.
+    expect(h.committed).toEqual(['customer_account.register_standalone']);
+  });
+
+  it('never refuses the detach for a writePermission on the fixed vat_exempt the operator did not choose', async () => {
+    const h = harness({
+      overrides: [{ target: 'organization.vatStatus', writePermission: 'organizations:change-tax-id', reason: 'Only tax staff change VAT status.' }],
+    });
+    await as(operator, () => h.bus.run(provision('Ada Lovelace', false)));
+    expect(h.committed).toEqual(['organization.personal.provision']);
+  });
+
+  it('never refuses provisioning for a tightened required on a field it leaves empty', async () => {
+    const h = harness({
+      overrides: [{ target: 'organization.orderConfirmationEmails', validation: { required: true }, reason: 'Every organisation names a recipient.' }],
+    });
+    await as(operator, () => h.bus.run(provision('Ada Lovelace', false)));
+    expect(h.committed).toEqual(['organization.personal.provision']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The merge is held (D-300.28)
+// ---------------------------------------------------------------------------
+
+const LOSER_ID = '00000000-0000-4000-8000-000000193f04';
+const survivorRow = (): Organization =>
+  ({ ...organization('vat_payer', 'Acme'), orderConfirmationEmails: ['ops@acme.test'] }) as unknown as Organization;
+const loserRow = (overrides: Record<string, unknown> = {}): Organization =>
+  ({ ...organization('vat_payer', 'Acme Sp. z o.o.'), id: LOSER_ID, orderConfirmationEmails: [], ...overrides }) as unknown as Organization;
+
+/**
+ * `organization.merge.start` — its action, its declared hook data over the one
+ * outcome function finalize applies (`mergedSurvivorFields`) — with `run` a
+ * stand-in recording the merge row, which commits with the start or not at all.
+ */
+function start(loser: Organization, fieldChoices: Record<string, 'survivor' | 'loser'>): Command<unknown> {
+  const command = makeMergeStartCommand(
+    { recordMerge: () => ({}) as never },
+    { mergeId: ORG_ID, survivorId: ORG_ID, loserId: LOSER_ID, fieldChoices, customFieldChoices: {}, source: null, participantCounts: {} },
+  );
+  const outcome = mergedSurvivorFields(survivorRow(), loser, fieldChoices);
+  return {
+    ...command,
+    hookData: () => ({ ...(command.hookData!({} as never) as object), survivor: { after: outcome.after, changed: outcome.changed } }),
+    run: async () => ({ result: { id: ORG_ID }, before: null, after: { mergeId: ORG_ID } }),
+  } as Command<unknown>;
+}
+
+/** `organization.merge.finalize`, its run a stand-in answering the survivor it wrote. */
+function finalize(survivor: Organization, changedFields: string[]): Command<unknown> {
+  const command = makeMergeFinalizeCommand({ recordMerge: () => ({}) as never }, { mergeId: ORG_ID, hostType: 'organization', survivorId: ORG_ID, loserId: LOSER_ID, batchSize: 100 } as never);
+  return {
+    ...command,
+    hookData: () => ({ organization: (command.hookData!({ survivor, finalized: true, mergedAt: new Date() } as never) as { organization: unknown }).organization, changedFields }),
+    run: async () => ({ result: { survivor, finalized: true, mergedAt: new Date() }, before: null, after: { mergeId: ORG_ID } }),
+    event: undefined,
+  } as Command<unknown>;
+}
+
+const WRITE_VAT = { target: 'organization.vatStatus', writePermission: 'organizations:change-tax-id', reason: 'Only tax staff change VAT status.' } as const;
+const EMAIL_PATTERN = { target: 'organization.orderConfirmationEmails', validation: { pattern: '@acme\\.test$' }, reason: 'Confirmations go to our own domain.' } as const;
+
+describe('the merge is held to the survivor’s rules (D-300.28)', () => {
+  it('refuses at start a chosen loser value that breaks a tightened rule, recording nothing', async () => {
+    const h = harness();
+    const error = await refusal(as(operator, () => h.bus.run(start(loserRow({ name: 'Acme Spolka z ograniczona odpowiedzialnoscia' }), { name: 'loser' }))));
+    expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
+    expect(error.details).toEqual([expect.objectContaining({ path: 'name', code: 'too_long' })]);
+    expect(h.committed).toEqual([]);
+  });
+
+  it('forbids at start a changed field whose writePermission the admin lacks', async () => {
+    const h = harness({ overrides: [WRITE_VAT] });
+    const error = await refusal(as(operator, () => h.bus.run(start(loserRow({ vatStatus: 'vat_exempt' }), { vatStatus: 'loser' }))));
+    expect(error).toMatchObject({ statusCode: 403, code: 'FIELD_WRITE_FORBIDDEN' });
+    expect(error.details).toEqual([expect.objectContaining({ path: 'vatStatus' })]);
+    expect(h.committed).toEqual([]);
+  });
+
+  it('holds the e-mail union like any changed field: a recipient the rule refuses stops the start', async () => {
+    const h = harness({ overrides: [EMAIL_PATTERN] });
+    const error = await refusal(as(operator, () => h.bus.run(start(loserRow({ orderConfirmationEmails: ['buyer@elsewhere.test'] }), {}))));
+    expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
+    expect(error.details).toEqual([expect.objectContaining({ path: 'orderConfirmationEmails', code: 'pattern' })]);
+  });
+
+  it('holds a system actor’s start to validation, never to writePermission (FR-043)', async () => {
+    const h = harness({ overrides: [WRITE_VAT] });
+    await as(anonymous, () => h.bus.run(start(loserRow({ vatStatus: 'vat_exempt' }), { vatStatus: 'loser' })));
+    expect(h.committed).toEqual(['organization.merge.start']);
+  });
+
+  it('starts a merge whose outcome keeps every rule', async () => {
+    const h = harness({ overrides: [WRITE_VAT, EMAIL_PATTERN] });
+    await as(operator, () => h.bus.run(start(loserRow({ orderConfirmationEmails: ['sales@acme.test'] }), { name: 'survivor' })));
+    expect(h.committed).toEqual(['organization.merge.start']);
+  });
+
+  it('refuses at finalize, the backstop, a value a rule deployed mid-merge refuses — under the runner’s system actor', async () => {
+    const h = harness();
+    const survivor = { ...survivorRow(), name: 'Acme Spolka z ograniczona odpowiedzialnoscia' } as unknown as Organization;
+    const error = await refusal(as(anonymous, () => h.bus.run(finalize(survivor, ['name']))));
+    expect(error).toMatchObject({ statusCode: 422, code: 'FIELD_RULE_VIOLATION' });
+    expect(h.committed).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useId, useMemo, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowRight } from 'lucide-react';
 import type {
   OrganizationMergeFieldCode,
   OrganizationMergePreview,
@@ -11,7 +11,7 @@ import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, AlertTitle, Button, Checkbox, EditorSection, Label, Skeleton } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { organizationMergesApi } from './merge-api.js';
-import { canStart, fieldValueText, incompleteModules, moduleName, noticeMessage, isHostStep, participantCounts, participantLabel, refusalMessage, shownInPreview, totalMoving, type Translate } from './merge-view.js';
+import { canStart, fieldValueText, incompleteModules, mergeFieldRefusals, moduleName, noticeMessage, isHostStep, participantCounts, participantLabel, refusalMessage, shownInPreview, totalMoving, type MergeFieldRefusals, type Translate } from './merge-view.js';
 
 export interface OrganizationMergeFlowProps {
   /** The organization that stays. */
@@ -64,6 +64,9 @@ export function OrganizationMergeFlow(props: OrganizationMergeFlowProps): ReactN
   const [acknowledged, setAcknowledged] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  // `specs/193-admin-form-extensions/` D-300.28 — values the start refused under
+  // this deployment's field rules, marked on their rows of the review step.
+  const [fieldRefusals, setFieldRefusals] = useState<MergeFieldRefusals | null>(null);
 
   const loadPreview = useCallback(async (id: string): Promise<void> => {
     setPreview({ kind: 'loading' });
@@ -97,6 +100,7 @@ export function OrganizationMergeFlow(props: OrganizationMergeFlowProps): ReactN
     if (loserId === null || !startable || !acknowledged) return;
     setStarting(true);
     setStartError(null);
+    setFieldRefusals(null);
     try {
       const merge = await organizationMergesApi.start(props.survivorId, {
         loserId,
@@ -106,7 +110,16 @@ export function OrganizationMergeFlow(props: OrganizationMergeFlowProps): ReactN
       });
       props.onStarted(merge);
     } catch (err) {
-      setStartError(err instanceof ApiError ? err.envelope.error.message : own('merge.flow.startError'));
+      const refused =
+        err instanceof ApiError ? mergeFieldRefusals(err.envelope.error, own('merge.flow.fieldRefused.forbidden')) : null;
+      if (refused !== null) {
+        // The choices are made on the review step, so the remedy is there.
+        setFieldRefusals(refused);
+        setAcknowledged(false);
+        setStep(2);
+      } else {
+        setStartError(err instanceof ApiError ? err.envelope.error.message : own('merge.flow.startError'));
+      }
     } finally {
       setStarting(false);
     }
@@ -181,7 +194,16 @@ export function OrganizationMergeFlow(props: OrganizationMergeFlowProps): ReactN
               loserName={duplicate}
               fieldChoices={fieldChoices}
               customFieldChoices={customFieldChoices}
-              onFieldChoice={(code, choice): void => setFieldChoices((c) => ({ ...c, [code]: choice }))}
+              onFieldChoice={(code, choice): void => {
+                setFieldChoices((c) => ({ ...c, [code]: choice }));
+                // A changed choice is the remedy for its refusal: the start asks again.
+                setFieldRefusals((current) => {
+                  if (current === null || current.fields[code] === undefined) return current;
+                  const { [code]: _resolved, ...fields } = current.fields;
+                  return { ...current, fields };
+                });
+              }}
+              refusals={fieldRefusals}
               onCustomFieldChoice={(key, choice): void => setCustomFieldChoices((c) => ({ ...c, [key]: choice }))}
               translate={translate}
             />
@@ -256,6 +278,8 @@ interface PreviewReviewProps {
   readonly customFieldChoices: Readonly<Record<string, RecordMergeChoice>>;
   readonly onFieldChoice: (code: string, choice: RecordMergeChoice) => void;
   readonly onCustomFieldChoice: (key: string, choice: RecordMergeChoice) => void;
+  /** What the start refused under this deployment's field rules (D-300.28). */
+  readonly refusals: MergeFieldRefusals | null;
   readonly translate: Translate;
 }
 
@@ -275,8 +299,15 @@ function PreviewReview(props: PreviewReviewProps): ReactNode {
     [preview.participants, translate, own],
   );
 
+  const refused = props.refusals !== null && (Object.keys(props.refusals.fields).length > 0 || props.refusals.union !== null);
   return (
     <div className="grid gap-4">
+      {refused ? (
+        <Alert variant="destructive">
+          <AlertTitle>{own('merge.flow.fieldRefused.title')}</AlertTitle>
+          <AlertDescription>{own('merge.flow.fieldRefused.body')}</AlertDescription>
+        </Alert>
+      ) : null}
       {otherRefusals.length > 0 ? (
         <Alert variant="destructive">
           <AlertTitle>{own('merge.flow.refused.title')}</AlertTitle>
@@ -350,8 +381,10 @@ function PreviewReview(props: PreviewReviewProps): ReactNode {
                 loserName={props.loserName}
                 value={props.fieldChoices[field.code] ?? field.default}
                 onChange={(choice): void => props.onFieldChoice(field.code, choice)}
+                error={props.refusals?.fields[field.code]}
               />
             ))}
+            {props.refusals?.union ? <UnionRefusal refusal={props.refusals.union} /> : null}
             {preview.customFields.map((field) => (
               <ValueChoice
                 key={field.key}
@@ -384,9 +417,12 @@ function ValueChoice(props: {
   loserName: string;
   value: RecordMergeChoice;
   onChange: (choice: RecordMergeChoice) => void;
+  /** The start's refusal of this row's chosen value (D-300.28). */
+  error?: string | undefined;
 }): ReactNode {
   const own = useTranslation('organizations');
   const labelId = useId();
+  const errorId = `${labelId}-error`;
   const option = (choice: RecordMergeChoice, from: string, text: string | null): ReactNode => (
     <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-sm has-[:checked]:border-primary">
       <input
@@ -395,6 +431,7 @@ function ValueChoice(props: {
         name={props.name}
         checked={props.value === choice}
         onChange={(): void => props.onChange(choice)}
+        {...(props.error !== undefined && props.value === choice ? { 'aria-invalid': true, 'aria-describedby': errorId } : {})}
       />
       <span className="grid gap-0.5">
         <span className="text-xs text-muted-foreground">{from}</span>
@@ -411,6 +448,49 @@ function ValueChoice(props: {
         {option('survivor', own('merge.value.from', { name: props.survivorName }), props.survivor)}
         {option('loser', own('merge.value.from', { name: props.loserName }), props.loser)}
       </div>
+      {/* Always mounted, so the refusal is announced when it arrives (WCAG 2.2 SC 4.1.3). */}
+      <p id={errorId} aria-live="polite" className={props.error !== undefined ? 'flex items-start gap-1 text-xs font-medium text-destructive' : 'text-xs'}>
+        {props.error !== undefined ? (
+          <>
+            <AlertCircle aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+            <span>{props.error}</span>
+          </>
+        ) : null}
+      </p>
+      {props.error !== undefined && props.value !== 'survivor' ? (
+        <div>
+          <Button type="button" variant="outline" size="sm" onClick={(): void => props.onChange('survivor')}>
+            {own('merge.flow.fieldRefused.keepSurvivor')}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The order-confirmation e-mails are never a choice: the survivor takes both
+ * lists. A start that refused the combined list shows it read-only, with the
+ * remedy that fits the refusal (`specs/193-admin-form-extensions/` D-300.28).
+ */
+function UnionRefusal({ refusal }: { refusal: NonNullable<MergeFieldRefusals['union']> }): ReactNode {
+  const own = useTranslation('organizations');
+  const labelId = useId();
+  return (
+    <div className="grid gap-1.5" role="group" aria-labelledby={labelId}>
+      <p id={labelId} className="text-sm font-medium">
+        {own('merge.flow.union.label')}
+      </p>
+      <p className="text-xs text-muted-foreground">{own('merge.flow.union.hint')}</p>
+      <p aria-live="polite" className="flex items-start gap-1 text-xs font-medium text-destructive">
+        <AlertCircle aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+        <span>{refusal.message}</span>
+      </p>
+      <p className="text-sm">
+        {refusal.permission !== null
+          ? own('merge.flow.union.needsPermission', { permission: refusal.permission })
+          : own('merge.flow.union.fixRecipients')}
+      </p>
     </div>
   );
 }

@@ -26,6 +26,9 @@ import { makeConvertToCompanyCommand } from '../commands/convert-to-company.comm
 import { makeCreateOrganizationCommand } from '../commands/create-organization.command.js';
 import { makeRegisterOrganizationCommand } from '../commands/register-organization.command.js';
 import { makeSetCustomFieldValuesCommand } from '../commands/set-custom-field-values.command.js';
+import { makeMergeFinalizeCommand } from '../commands/merge-finalize.command.js';
+import { makeMergeStartCommand } from '../commands/merge-start.command.js';
+import { makeProvisionPersonalOrganizationCommand } from '../commands/provision-personal-organization.command.js';
 import { makeUpdateOrganizationCommand } from '../commands/update-organization.command.js';
 import type { Organization } from '../entities/organization.entity.js';
 import { ORGANIZATION_UPDATE_RULE_CHECK, organizationFieldSetRegistration } from './organization-field-set.js';
@@ -100,6 +103,9 @@ describe('the writers organizations registers (T042, I-5)', () => {
       'organization.admin_patch',
       'organization.convert_to_company',
       'organization.create',
+      'organization.merge.finalize',
+      'organization.merge.start',
+      'organization.personal.provision',
       'organization.register',
       'organization.set_custom_field_values',
       'organization.update',
@@ -131,11 +137,77 @@ describe('the writers organizations registers (T042, I-5)', () => {
         ),
         result: organization(),
       },
+      'organization.merge.start': {
+        command: makeMergeStartCommand(
+          { recordMerge: () => ({}) as never },
+          { mergeId: ORG_ID, survivorId: ORG_ID, loserId: ACCOUNT_ID, fieldChoices: {}, customFieldChoices: {}, source: null, participantCounts: {} },
+        ),
+        result: {} as never,
+      },
+      'organization.merge.finalize': {
+        command: makeMergeFinalizeCommand(
+          { recordMerge: () => ({}) as never },
+          { mergeId: ORG_ID, hostType: 'organization', survivorId: ORG_ID, loserId: ACCOUNT_ID, batchSize: 100 } as never,
+        ),
+        result: { survivor: organization(), finalized: true, mergedAt: new Date() },
+      },
+      'organization.personal.provision': {
+        command: makeProvisionPersonalOrganizationCommand(
+          { name: () => 'Acme' },
+          { customerAccountId: ACCOUNT_ID, email: 'solo@example.test' },
+          { child: true },
+        ),
+        result: organization(),
+      },
       'organization.update': {
         command: makeUpdateOrganizationCommand({ validateCountry: async () => undefined }, { organizationId: ORG_ID, patch: { name: 'Acme' } }),
         result: organization(),
       },
     });
+  });
+
+  it('registers the merge: start as an update writer of the outcome it fixes, finalize as the rule-check-only backstop (D-300.28)', () => {
+    const start = organizationFieldSetRegistration.writers.find((writer) => writer.on.action === 'organization.merge.start')!;
+    const finalize = organizationFieldSetRegistration.writers.find((writer) => writer.on.action === 'organization.merge.finalize')!;
+    expect(start.on).toBe(ORGANIZATION_HOOKABLE_ACTIONS.mergeStart);
+    expect(start.ruleCheckOnly).toBeUndefined();
+    expect(finalize.ruleCheckOnly).toBe(true);
+    for (const writer of [start, finalize]) {
+      expect(writer.mode).toBe('update');
+      expect([...writer.writes].sort()).toEqual([
+        'fulfilmentStrategy',
+        'fulfilmentStrategyWarehouseOrder',
+        'name',
+        'orderConfirmationEmails',
+        'registeredAddress',
+        'taxId',
+        'vatStatus',
+      ]);
+    }
+    expect(
+      start.project({
+        mergeId: ORG_ID,
+        survivorId: ORG_ID,
+        loserId: ACCOUNT_ID,
+        source: null,
+        survivor: { after: { name: 'Loser Co', orderConfirmationEmails: ['a@x.test'] }, changed: ['name', 'orderConfirmationEmails', 'legalName'] },
+      }),
+    ).toEqual({ after: { name: 'Loser Co', orderConfirmationEmails: ['a@x.test'] }, changed: ['name', 'orderConfirmationEmails'] });
+    expect((manifest.hookableActions ?? []).map((declaration) => declaration.action)).not.toContain('organization.merge.finalize');
+  });
+
+  it('registers organization.personal.provision as a rule-check-only create that names only the derived name as chosen (D-300.31)', () => {
+    const provision = organizationFieldSetRegistration.writers.find((writer) => writer.on.action === 'organization.personal.provision')!;
+    expect(provision.ruleCheckOnly).toBe(true);
+    expect(provision.mode).toBe('create');
+    expect([...provision.writes].sort()).toEqual(['name', 'registeredAddress', 'status', 'taxId', 'vatStatus']);
+    expect(provision.project({ organization: organization(), created: true })).toEqual({
+      after: { name: 'Acme', status: 'active', vatStatus: 'vat_payer', registeredAddress: organization().registeredAddress, taxId: 'PL5260001246' },
+      changed: ['name'],
+    });
+    // A re-found organisation wrote nothing, so nothing is held.
+    expect(provision.project({ organization: organization(), created: false })).toEqual({ after: {}, changed: [] });
+    expect((manifest.hookableActions ?? []).map((declaration) => declaration.action)).not.toContain('organization.personal.provision');
   });
 
   it('registers organization.update as rule-check-only: the port write is checked, and no module may hook it', () => {

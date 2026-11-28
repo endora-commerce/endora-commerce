@@ -5,7 +5,7 @@ import type {
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
-import type { AuditLogService } from '@endora-commerce/platform/composition';
+import { CommandHookRegistry, buyerSelfServiceActionsFrom, type AuditLogService } from '@endora-commerce/platform/composition';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelsCacheInvalidation } from '@endora-commerce/platform/kernel';
 import {
@@ -13,6 +13,7 @@ import {
   type ChannelBridgeRead,
 } from '../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 import type { BackendServerHandle } from './test-server.js';
+import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
 
 /**
  * `SalesChannelsService` over the composed container's own dependencies
@@ -86,6 +87,16 @@ export function transactionBoundCommandBus(
   events: EventBus,
 ): CommandBus {
   const orm = { em: { fork: () => em() } } as unknown as MikroORM;
-  return new CommandBus(orm, audit, events);
+  // `specs/193-admin-form-extensions/` D-300.10 — the bus admits a Command's
+  // `buyerSelfService` only on an action a manifest lists, as a composed root's
+  // does: every manifest's list, and nothing else of the hook registry.
+  const hooks = new CommandHookRegistry();
+  hooks.seal({
+    hookableActions: [],
+    moduleDependencies: {},
+    commandHookOrder: {},
+    buyerSelfServiceActions: buyerSelfServiceActionsFrom(DISCOVERED_MANIFESTS.map((entry) => entry.manifest)),
+  });
+  return new CommandBus(orm, audit, events, { hooks });
 }
 

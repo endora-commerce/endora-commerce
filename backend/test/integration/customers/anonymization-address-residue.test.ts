@@ -30,6 +30,8 @@ import { toOrganizationRecord } from '../../../../packages/modules/organizations
 import { AddressBookRetirementService } from '../../../../packages/modules/customers/src/backend/services/address-book-retirement-service.js';
 import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
 import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { transactionBoundCommandBus } from '../../helpers/sales-channels-service.js';
 
 /**
  * Issue #927 — the retention sweep blanks **every** address row of the
@@ -112,7 +114,8 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     em = await db.beginTx();
     audit = new AuditLogService(() => em);
     addresses = createAddressServicePort(() => new AddressService(() => em, undefined, audit));
-    personalOrgs = new PersonalOrganizationService(() => em, customerAccountPortsFor(() => em), audit);
+    // `specs/193-admin-form-extensions/` D-300.31 — the repair and the detach run `organization.personal.provision` on the bus.
+    personalOrgs = new PersonalOrganizationService(() => em, customerAccountPortsFor(() => em), audit, undefined, transactionBoundCommandBus(() => em, audit, new EventBus()));
     const organizationRoles = {
       predefinedRoleId: (organizationId: string, kind: 'administrator' | 'member') =>
         predefinedRoleIdOf(em, organizationId, kind),

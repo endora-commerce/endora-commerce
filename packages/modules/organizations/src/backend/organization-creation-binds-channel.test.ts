@@ -30,11 +30,12 @@ const BOUND_ELSEWHERE: Readonly<Record<string, string>> = {
 /**
  * Present when this guard was written: business registration (the
  * `organization.register` Command since `specs/176-command-hooks-outbox/`),
- * personal provisioning, demo seed.
+ * personal provisioning (the `organization.personal.provision` Command since
+ * `specs/193-admin-form-extensions/` D-300.31), demo seed.
  */
 const KNOWN_SITES = [
   'commands/register-organization.command.ts',
-  'services/personal-organization-service.ts',
+  'commands/provision-personal-organization.command.ts',
   'demo/seed.ts',
 ] as const;
 

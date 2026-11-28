@@ -10,7 +10,7 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { RecordMergeService } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
-import { organizationMergeRefusals } from '../merge/organization-merge-rules.js';
+import { MERGE_FIELD_SET_WRITES, mergedSurvivorFields, organizationMergeRefusals } from '../merge/organization-merge-rules.js';
 
 /**
  * `organization.merge.start` (`specs/192-organization-merge/` FR-004, FR-060,
@@ -58,6 +58,13 @@ export function makeMergeStartCommand(
   deps: { readonly recordMerge: () => RecordMergeService },
   input: MergeStartCommandInput,
 ): Command<RecordMergeRecord> {
+  // `specs/193-admin-form-extensions/` D-300.28 — the outcome this start fixes
+  // on the survivor, set by `run` on the rows it locked, before the bus asks for
+  // the hook data and the field-rule check holds it.
+  let survivor: OrganizationMergeStartHookData['survivor'] = {
+    after: Object.fromEntries(MERGE_FIELD_SET_WRITES.map((key) => [key, undefined])),
+    changed: [],
+  };
   return {
     action: 'organization.merge.start',
     objectType: 'organization',
@@ -68,6 +75,7 @@ export function makeMergeStartCommand(
       survivorId: input.survivorId,
       loserId: input.loserId,
       source: input.source,
+      survivor,
     }),
     outboxData: (): OrganizationMergeStartOutbox => ({
       organizationId: input.survivorId,
@@ -81,12 +89,15 @@ export function makeMergeStartCommand(
       // of deadlocking; the merge lock rows below are what refuses the second.
       const ordered = [input.survivorId, input.loserId].sort();
       await em.execute('select "id" from "organizations" where "id" in (?, ?) order by "id" for update', ordered);
-      const [survivor, loser] = await Promise.all([
+      const [survivorRow, loserRow] = await Promise.all([
         em.findOne(Organization, { id: input.survivorId }, { refresh: true }),
         em.findOne(Organization, { id: input.loserId }, { refresh: true }),
       ]);
-      const refusals = organizationMergeRefusals(survivor, loser, input);
+      const refusals = organizationMergeRefusals(survivorRow, loserRow, input);
       if (refusals.length > 0) throw mergeRefusalError(refusals[0]!);
+      // Only after the refusals: they answer for missing rows.
+      const outcome = mergedSurvivorFields(survivorRow!, loserRow!, input.fieldChoices);
+      survivor = { after: outcome.after, changed: outcome.changed };
 
       const record = await deps.recordMerge().begin(em, {
         mergeId: input.mergeId,

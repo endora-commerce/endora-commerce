@@ -1161,7 +1161,7 @@ export function registerModule(ctx: ModuleContext): void {
     'personalOrganizationPort',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService }: OrganizationsCradle): PersonalOrganizationPort => {
+        ({ emFactory, auditLogService, commandBus }: OrganizationsCradle): PersonalOrganizationPort => {
           const service = new PersonalOrganizationService(
             emFactory,
             {
@@ -1176,6 +1176,9 @@ export function registerModule(ctx: ModuleContext): void {
             },
             auditLogService,
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            // D-300.31 — the repair and the detach run `organization.personal.provision`
+            // as a root Command under their caller's actor.
+            commandBus,
           );
           return {
             ensureForCustomerAccount: async (customerAccountId) =>
@@ -1240,8 +1243,10 @@ export function registerModule(ctx: ModuleContext): void {
           return {
             // Read on the caller's `em`: the Organization and its roles exist
             // only inside the caller's still-open transaction (research R-34).
-            provisionFor: async (em, input) => {
-              const org = await service.provisionFor(em, input);
+            // `specs/193-admin-form-extensions/` D-300.31 — as the caller's child
+            // Command, so its lineage and its transaction are the caller's.
+            provisionFor: async ({ em, run }, input) => {
+              const org = await run(service.provisionCommand(input, { child: true }));
               return { id: org.id, administratorRoleId: await predefinedRoleIdOn(em, org.id, 'administrator') };
             },
           };

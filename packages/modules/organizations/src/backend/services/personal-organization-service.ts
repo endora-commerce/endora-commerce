@@ -6,8 +6,13 @@ import {
   type CustomerAccountRecord,
   isUuidShape,
 } from '@endora-commerce/contracts';
+import type { Command, CommandContext } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import {
+  makeProvisionPersonalOrganizationCommand,
+  type ProvisionPersonalOrganizationInput,
+} from '../commands/provision-personal-organization.command.js';
 import { Organization } from '../entities/organization.entity.js';
 import { predefinedRoleIdOn } from './organization-role-store.js';
 import { anyRowExists } from './scheduled-work-probe.js';
@@ -150,7 +155,39 @@ export class PersonalOrganizationService {
       SalesChannelMembershipPort,
       'bindToDefaultIfEmpty' | 'replaceChannelsForEntity'
     >,
+    /**
+     * `specs/193-admin-form-extensions/` D-300.31 — the bus the repair and the
+     * detach-to-personal run `organization.personal.provision` on, as a root
+     * Command under their caller's actor, so a deployment's field rules hold
+     * them. Both production compositions pass it; a unit composition without
+     * one cannot run those two paths.
+     */
+    private readonly commandBus?: { run<T>(command: Command<T>): Promise<T> },
   ) {}
+
+  /**
+   * `organization.personal.provision` (D-300.31) for this account: a child of
+   * the caller's Command when `run` is the caller's `ctx.run`, a root Command
+   * otherwise. The write is {@link provisionWithOutcome}.
+   */
+  provisionCommand(
+    input: ProvisionPersonalOrganizationInput,
+    options: { readonly child: boolean },
+  ): Command<Organization> {
+    return makeProvisionPersonalOrganizationCommand(
+      { name: PersonalOrganizationService.personalName, ...(this.channelMembership ? { channelMembership: this.channelMembership } : {}) },
+      input,
+      options,
+    );
+  }
+
+  /** The bus the root paths run on, or a refusal naming the composition that forgot it. */
+  #bus(): { run<T>(command: Command<T>): Promise<T> } {
+    if (!this.commandBus) {
+      throw new Error('[organizations] PersonalOrganizationService was composed without a command bus; the repair and the detach run organization.personal.provision on it (D-300.31).');
+    }
+    return this.commandBus;
+  }
 
   /** Name an individual's organization from their profile, falling back to the email local-part. */
   static personalName(
@@ -176,66 +213,21 @@ export class PersonalOrganizationService {
    * index `organizations_personal_account_id_unique` refuses a concurrent second
    * insert. A personal organization has no tax ID.
    *
-   * command-coverage-ignore: idempotent auto-provisioning of a customer's
-   * personal (B2C) organization — a system invariant the constitution mandates
-   * (Principle XI), not an operator-initiated write. Its caller's own write is
-   * the audited event.
+   * Every production path runs it as the body of `organization.personal.provision`
+   * (`specs/193-admin-form-extensions/` D-300.31) — {@link provisionCommand} — so
+   * the write is a Command's, audited by it or by its caller, and held to the
+   * deployment's field rules.
    */
   async provisionFor(
     em: EntityManager,
-    input: {
-      customerAccountId: string;
-      email: string;
-      firstName?: string | null;
-      lastName?: string | null;
-      /**
-       * Feature 154 — the store the account registers on; the new personal
-       * organisation gets exactly this channel. Absent or `null`: the default.
-       */
-      salesChannelId?: string | null;
-    },
+    input: ProvisionPersonalOrganizationInput,
   ): Promise<Organization> {
-    const existing = await em.findOne(Organization, {
-      personalAccountId: input.customerAccountId,
-    });
-    if (existing) {
-      await this.channelMembership?.bindToDefaultIfEmpty('organization', existing.id, {
-        em,
-      });
-      return existing;
-    }
-    const org = em.create(Organization, {
-      name: PersonalOrganizationService.personalName({
-        firstName: input.firstName ?? '',
-        lastName: input.lastName ?? '',
-        email: input.email,
-      }),
-      taxId: null,
-      personalAccountId: input.customerAccountId,
-      status: 'active',
-      vatStatus: 'vat_exempt',
-      isPersonal: true,
-      registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
-    });
-    // Flushed here rather than left pending, because the caller's next statement
-    // inserts a row whose `organization_id` foreign key points at this one. It
-    // is the caller's `EntityManager` and therefore the caller's transaction, so
-    // a rollback takes this row with it.
-    await em.persist(org).flush();
-    // Feature 154 — on the caller's `EntityManager`, so the bridge row shares
-    // the transaction that creates the account and its Organization.
-    if (input.salesChannelId) {
-      await this.channelMembership?.replaceChannelsForEntity(
-        'organization',
-        org.id,
-        [input.salesChannelId],
-        { em },
-      );
-    } else {
-      await this.channelMembership?.bindToDefaultIfEmpty('organization', org.id, { em });
-    }
-    return org;
+    // The Command's own body, on the caller's `em`: for a caller that is itself
+    // a Command's write already (the tests' hand-built compositions). Every
+    // production path runs the Command through a bus — {@link provisionCommand}.
+    return (await this.provisionCommand(input, { child: true }).run({ em } as CommandContext)).result;
   }
+
 
   /**
    * Return the customer's organization, provisioning a personal one iff none is
@@ -263,7 +255,7 @@ export class PersonalOrganizationService {
       const existing = await em.findOne(Organization, { id: account.organizationId });
       if (existing) return existing;
     }
-    const org = await this.provisionFor(em, { ...account, customerAccountId: account.id });
+    const org = await this.#bus().run(this.provisionCommand({ ...account, customerAccountId: account.id }, { child: false }));
     // A personal organisation's member is its Administrator (owner ruling PR-3,
     // research R-34); the role is written with the Organization, which the
     // composite foreign key requires.
@@ -296,7 +288,7 @@ export class PersonalOrganizationService {
         `Customer account ${customerAccountId} not found.`,
       );
     }
-    return this.provisionFor(this.emFactory(), { ...account, customerAccountId: account.id });
+    return this.#bus().run(this.provisionCommand({ ...account, customerAccountId: account.id }, { child: false }));
   }
 
   /**

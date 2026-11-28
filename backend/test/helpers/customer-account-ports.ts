@@ -179,8 +179,9 @@ export function personalOrganizationProvisionFor(
   return {
     // The answer carries the new Organization's Administrator role, read on
     // the caller's `em` as the real seam does (`specs/170-organization-roles/` R-34).
-    provisionFor: async (em, input) => {
-      const org = await service.provisionFor(em, input);
+    // `specs/193-admin-form-extensions/` D-300.31 — as the caller's child Command, as the real seam runs it.
+    provisionFor: async ({ em, run }, input) => {
+      const org = await run(service.provisionCommand(input, { child: true }));
       return { id: org.id, administratorRoleId: await predefinedRoleIdOn(em, org.id, 'administrator') };
     },
   };

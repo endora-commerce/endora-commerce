@@ -8,6 +8,7 @@ import type {
   OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
+import type { Command } from '@endora-commerce/platform/commands';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { PersonalOrganizationService } from '../../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
 import {
@@ -41,6 +42,7 @@ interface Cradle {
   organizationPermissionPort: OrganizationPermissionPort;
   organizationRoleReadPort: OrganizationRoleReadPort;
   personalOrganizationProvisionApi: PersonalOrganizationProvisionApi;
+  commandBus: { run<T>(command: Command<T>): Promise<T> };
   customerSocialLoginPort: {
     autoCreate(email: string, context: { salesChannelId: string | null }): Promise<{ id: string } | null>;
   };
@@ -174,10 +176,17 @@ describe('a personal Organization is administered by its member', () => {
     // composition.
     const id = await insertCompanyAccount(TEST_ORGANIZATION_ID, await roleId(TEST_ORGANIZATION_ID, 'member'));
     const real = await cradle.customerAccountReadPort.findById(id);
-    const service = new PersonalOrganizationService(() => h.em().fork(), {
-      read: { ...cradle.customerAccountReadPort, findById: async () => ({ ...real!, organizationId: randomUUID() }) },
-      write: cradle.customerAccountMemberWritePort,
-    });
+    // D-300.31 — the repair runs `organization.personal.provision` on the composed bus.
+    const service = new PersonalOrganizationService(
+      () => h.em().fork(),
+      {
+        read: { ...cradle.customerAccountReadPort, findById: async () => ({ ...real!, organizationId: randomUUID() }) },
+        write: cradle.customerAccountMemberWritePort,
+      },
+      undefined,
+      undefined,
+      cradle.commandBus,
+    );
     await withSystemScope('test: ensure a personal organization', () => service.ensureForCustomerAccountId(id));
     await expectPersonalAdministrator(id);
   });
@@ -191,9 +200,14 @@ describe('a personal Organization is administered by its member', () => {
   it("answers the administrator role id read inside the caller's own transaction", async () => {
     const customerAccountId = randomUUID();
     let answered: { id: string; administratorRoleId: string } | undefined;
-    await withSystemScope('test: provision inside a transaction', () =>
-      h.em().fork().transactional(async (em: EntityManager) => {
-        answered = await cradle.personalOrganizationProvisionApi.provisionFor(em, {
+    // `specs/193-admin-form-extensions/` D-300.31 — the provisioning runs as a
+    // child of its caller's Command, on that Command's transaction.
+    const caller: Command<null> = {
+      action: 'test.personal_organization.caller',
+      objectType: 'customer_account',
+      objectId: customerAccountId,
+      run: async ({ em, run }) => {
+        answered = await cradle.personalOrganizationProvisionApi.provisionFor({ em: em as EntityManager, run: run! }, {
           customerAccountId,
           email: `tx-${customerAccountId.slice(0, 8)}@personal-admin.example`,
           salesChannelId: null,
@@ -206,8 +220,10 @@ describe('a personal Organization is administered by its member', () => {
           em.getTransactionContext(),
         )) as Array<{ id: string }>;
         expect(answered.administratorRoleId).toBe(row!.id);
-      }),
-    );
+        return { result: null, skipAudit: true };
+      },
+    };
+    await withSystemScope('test: provision inside a transaction', () => cradle.commandBus.run(caller));
     expect(answered!.administratorRoleId).toBe(await roleId(answered!.id, 'administrator'));
   });
 

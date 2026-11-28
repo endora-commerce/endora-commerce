@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { Command } from '@endora-commerce/platform/commands';
 
 /**
  * The one co-transactional seam this module publishes (D-178, under D-78
@@ -46,19 +47,35 @@ export interface PersonalOrganizationProvisionInput {
   readonly salesChannelId: string | null;
 }
 
+/**
+ * The caller's Command context the provisioning runs in
+ * (`specs/193-admin-form-extensions/` D-300.31): its `EntityManager`, and its
+ * `run`, through which `organization.personal.provision` runs as a **child**
+ * of the caller's Command, on the caller's transaction — so the caller's
+ * lineage (a storefront registration's `buyerSelfService`) reaches the
+ * platform's field-rule check, and the caller's one entry records the write.
+ */
+export interface PersonalOrganizationProvisionContext {
+  readonly em: EntityManager;
+  readonly run: <T>(command: Command<T>) => Promise<T>;
+}
+
 export interface PersonalOrganizationProvisionApi {
   /**
    * Find-or-create the personal organisation for an account that is about to be
-   * written, on the caller's `EntityManager` and inside the caller's
-   * transaction. Writes nothing on `customer_accounts`: the membership column is
-   * the caller's own, and it sets it on the row it is inserting.
+   * written, inside the caller's Command and its transaction, as the child
+   * Command `organization.personal.provision`. Writes nothing on
+   * `customer_accounts`: the membership column is the caller's own, and it sets
+   * it on the row it is inserting.
    *
    * Idempotent by the account link (`personalAccountId`), so a retry after a
    * rolled-back attempt re-finds rather than duplicating. The organisation has
-   * no tax ID.
+   * no tax ID. A deployment's tightened field rule holds the write (D-300.31):
+   * a derived name that breaks a `name` rule is refused `422 FIELD_RULE_VIOLATION`
+   * unless the caller's root is buyer self-service.
    */
   provisionFor(
-    em: EntityManager,
+    context: PersonalOrganizationProvisionContext,
     input: PersonalOrganizationProvisionInput,
   ): Promise<PersonalOrganizationProvisioned>;
 }
