@@ -5,8 +5,8 @@
 **Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
 **D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-25); the
 phase 2 rulings D-300.9 to D-300.16 (2026-11-27) and the phase 3 rulings D-300.17 to D-300.25
-(2026-11-28) are architect rulings too, recorded below. No question is open. The constitution amendment this feature drafts (XV, 4.6.0) is pending the owner's
-sign-off (Governance step 4).
+(2026-11-28) are architect rulings too, recorded below. No question is open. The constitution amendment this feature drafted (XV, 4.6.0) was approved by the
+owner on 2026-11-27 and merged in #2007 (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
 replacement". The owner approved its direction, and the issue compares the approach with Magento 2,
 Sylius and Medusa v2.
@@ -81,8 +81,8 @@ without editing core and without a rule that the UI enforces and the API ignores
   only: label, help, placeholder, order or section, hidden, and read-only (R-21). Anything that
   changes what the API accepts stays deployment code (XV).
 - **D-300.7**: Principle XV is amended to state what a deployment may and may not adjust on a core
-  form, and that operator overrides are presentation only (constitution 4.6.0, drafted on #2010's 4.5.0). The wording is
-  pending the owner's sign-off.
+  form, and that operator overrides are presentation only (constitution 4.6.0, drafted on #2010's 4.5.0). Approved by the
+  owner on 2026-11-27 and merged in #2007.
 - **D-300.8** *(architect ruling, 2026-11-27, raised by WP-H3; within 176 §6, so no owner answer is
   needed)*: Each product write of a bulk edit runs as its own action, `product.bulk_update.item`. It
   is never declared hookable and is a rule-check-only writer. Module hooks on `product.update`
