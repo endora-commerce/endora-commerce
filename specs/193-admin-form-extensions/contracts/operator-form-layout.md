@@ -99,9 +99,9 @@ For each form, field and kind, the effective value is:
   A row that names a removed key is `orphaned`. A row holding a kind that the field no longer
   accepts is `no-longer-accepted`. Both are ignored by the effective forms and can be deleted
   through `reset`.
-- **Off-state** (FR-098). Unless the owner of the form's field set and the module that renders the form are effectively present, the row is ignored and its status
-  is `owner-absent`. For a slot row the slot's module must be effectively present too. The row
-  itself is kept.
+- **Off-state** (FR-098). Unless the owner of the form's field set and the module that renders the
+  form are effectively present, the row is ignored and its status is `owner-absent`. For a slot
+  row the slot's module must be effectively present too. The row itself is kept.
 
 ## §4 Port and invalidation
 

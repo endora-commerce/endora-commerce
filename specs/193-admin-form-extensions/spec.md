@@ -3,11 +3,11 @@
 **Feature Branch**: `spec/193-admin-form-extensions`
 **Created**: 2026-11-27
 **Status**: Draft, ruled. The owner answered OQ-193-1 to OQ-193-6 on 2026-11-27, recorded as
-**D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-25); the
-phase 2 rulings D-300.9 to D-300.16 (2026-11-27) and the phase 3 rulings D-300.17 to D-300.25
-(2026-11-28) are architect rulings too, recorded below. No question is open. The constitution
-amendment this feature drafted (XV, 4.6.0) was approved by the owner on 2026-11-27 and merged in
-#2007 (Governance step 4).
+**D-300** (*Owner rulings* below). The architect rulings are in `research.md` (R-1 to R-26); the
+phase 2 rulings D-300.9 to D-300.16 (2026-11-27) and the phase 3 and 4 rulings D-300.17 to
+D-300.32 (2026-11-28) are architect rulings too, recorded below. No question is open. The
+constitution amendment this feature drafted (XV, 4.6.0) was approved by the owner on 2026-11-27 and
+merged in #2007 (Governance step 4).
 **Input**: Issue #2006, "Admin form extensions: field slots, deployment field overrides, control
 replacement". The owner approved its direction, and the issue compares the approach with Magento 2,
 Sylius and Medusa v2.
@@ -110,7 +110,12 @@ the rejected alternatives are in R-24.
   acceptance set it, and every child Command they run (`customer_account.create` included)
   inherits it. The flag is honoured only on an actor with no acting admin whose kind is `system` or
   `customer`. On an admin or API-key actor, and under impersonation, it is ignored. Without the
-  flag a `system` actor stays bound (R-24.2).
+  flag a `system` actor stays bound (R-24.2). *Amended by D-300.31:* the flag is set per call, by
+  the caller that knows it is a buyer, not by the Command type. `createStandalone`'s options and
+  `CustomerAccountMemberWritePort.create`'s input carry `buyerSelfService?: true`, and only the
+  storefront callers pass it. Server code running as a `system` actor can therefore declare itself
+  buyer self-service. The guard stops admin, API-key and impersonated actors only, so the flag is
+  a statement that server code makes and review holds it to.
 - **D-300.11** *(architect ruling, raised by WP-B)*: D-300.4's non-retroactivity applies to every
   rule kind, not only to `required`. On an update a field is held to its rules only when the write
   changed or cleared it. `requiredWhen` is also held when the write changed a field its condition
@@ -187,6 +192,84 @@ alternatives are in R-25.
 - **D-300.25** *(architect ruling, raised by WP-B2)*: A served module with no value for a record
   answers `null` under its key, as the 187 read ports do. An absent key still means that the module
   is not served there: not requested, not opted in, absent or switched off (R-25.9).
+
+### Phase 4 architect rulings *(D-300.26 to D-300.32, 2026-11-28, raised by WP-E1)*
+
+None of these changes an owner answer, so none needs one. D-300.28 and D-300.31 apply D-300.3 and
+constitution 4.6.0 XV ("every write the Command Bus runs for that entity") to writes WP-E1 had left
+unregistered. The reasoning and the rejected alternatives are in R-26.
+
+- **D-300.26** *(architect ruling, raised by WP-E1)*: `name` accepts `validation`, as
+  `contracts/form-field-declaration.md` §4 shows. `OrganizationConvertToCompanyHookData` gains
+  `organization: OrganizationRecord`, the after-state, as `OrganizationUpdateHookData` carries it.
+  This amends `specs/176-command-hooks-outbox/contracts/organization-hookable-actions.md` (#1057).
+  176 FR-031 limits only the outbox, and hook data is additive-only, so the change is additive.
+  The outbox data stays ids, codes and field names. The conversion's writer then projects `name`.
+  `taxId` and `registeredAddress` stay presentation only: `taxId` because
+  `organization.tax_id.change` carries no tax ID (R-9), and `registeredAddress` because a
+  composite admits no tightening. `parentId` and `status` stay presentation only for now, because
+  their other writers (the hierarchy moves, moderation) are not registered. Registering them as
+  rule-check-only writers (D-300.27) is the route when a case asks for it. This goes into WP-E1
+  (R-26.1).
+- **D-300.27** *(architect ruling, raised by WP-E1)*: `organization.update`, the integration
+  port's write, is a rule-check-only writer, and that is correct. FR-113 is widened: a Command that
+  is not a declared hookable action may be a rule-check-only writer whether or not it is
+  reversible (R-26.2).
+- **D-300.28** *(architect ruling, raised by WP-E1; re-ruled after review)*: A merge is held to
+  the survivor's rules, with no exception.
+  - `organization.merge.start` becomes a writer of the outcome it fixes. Its hook data gains
+    `survivor: { after, changed }`, the survivor's field values after the operator's choices,
+    computed by the finalize's own rules. A chosen value that breaks a tightened rule is refused
+    at start with `422 FIELD_RULE_VIOLATION`, before anything moves. A changed field whose
+    `writePermission` the admin lacks is refused with `403 FIELD_WRITE_FORBIDDEN`. The e-mail
+    union is not a choice but is held all the same, with its own remedy.
+  - `organization.merge.finalize` becomes a rule-check-only writer, as the backstop. It runs in a
+    system scope, so it is held to validation only.
+  - The merge screen maps a refusal's `details[].path` onto that field's choice and offers the
+    survivor's value.
+  - `organizationCommandPort.startMerge` runs with the ambient actor (192 FR-062): an admin is
+    held as on the screen, and a system actor is held to validation and, as FR-043 says, not to
+    `writePermission`.
+  - The up-front lock of a choice the admin may not make is a later improvement, not the control.
+
+  This goes into WP-E1 (R-26.3).
+- **D-300.29** *(architect ruling, raised by WP-E1)*: `DeclaredFormProvider` takes a **required**
+  `form` prop, the form its `declared` controller was built for, and throws when the ids differ.
+  `check:admin-forms` reads that prop. `field-slots.md` §3 now shows the kit's real shape:
+  `useDeclaredForm({ form, …, render })` plus `<DeclaredFormProvider form declared>`. This goes
+  into WP-E1 (R-26.4).
+- **D-300.30** *(architect ruling, raised by WP-E1)*: `composeModuleForTest` mounts an unsealed
+  `FormRegistry` by default. It accepts one as an option and exposes it on the composed module, so
+  that no adopter's unit test meets the "mounts no form registry" throw. This goes into WP-E1
+  (R-26.5).
+- **D-300.31** *(architect ruling, raised by the review of WP-E1)*: Personal-organization
+  provisioning is held like any other write.
+  - Every provisioning path runs one `organizations` Command, `organization.personal.provision`.
+    It runs as a child of the caller's Command where there is one, and as a root Command
+    otherwise: in the federated sign-in seam (under its system actor) and on the repair and
+    detach paths. It is a rule-check-only writer, and it writes `name`, `status`, `vatStatus`,
+    `registeredAddress` and `taxId` only, so no rule on another field can refuse it.
+  - The storefront registration passes `buyerSelfService` on its `createStandalone` call, and the
+    federated seam sets it on its root, so both are skipped (D-300.3, D-300.10 as amended). A
+    system `createStandalone` call without the flag, the repair port and the operator's
+    detach-to-personal are bound.
+  - The writer reports only the derived `name` as what the actor chose. A fixed value is never
+    checked against `writePermission`, so an operator's detach is never refused for
+    `'vat_exempt'`. Validation still holds every field the writer writes.
+  - A field declaration gains `systemValues`: the fixed values a system path writes (`vatStatus`
+    `'vat_exempt'`). Composition refuses a tightening that rejects one
+    (`rule-excludes-system-value`). With the writer's narrow `writes`, no deployment rule can
+    refuse a provisioning on a value it did not derive from the person.
+
+  This goes into WP-E1 (R-26.6).
+- **D-300.32** *(architect ruling, raised by the review of WP-E1)*: Anonymisation is an erasure.
+  It runs outside the Command Bus and is held to no rule, so XV's MUST does not reach it and erasure
+  can never be refused. That rests on an existing Principle XIII deviation: the scrub writes and
+  audits outside the bus under a `command-coverage-ignore` category the escape-hatch list does not
+  recognise. The deviation is tracked in #2039, together with the owner question it raises. A
+  scrubbed row that breaks a later rule is tolerated, as any stored value is (D-300.4). Moving the
+  scrub onto the bus, as XIII requires, needs that owner decision first, and it must keep erasure
+  unrefusable. No code change (R-26.7).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -600,16 +683,18 @@ they are, with the same props. The four PIM modules render their protection togg
   `condition-foreign-field`, `default-on-hidden`, `required-not-fillable` (a field that is
   effectively required on a create form while being hidden there; the read-only case is
   `check:admin-forms`', FR-012, D-300.12),
-  `foreign-override` and `override-owner-not-a-dependency`. Each refusal MUST name the module, the
-  field set, the field and the remedy.
+  `foreign-override`, `override-owner-not-a-dependency` and `rule-excludes-system-value` (a
+  tightening rejects a value the field declares in `systemValues`, D-300.31). Each refusal MUST
+  name the module, the field set, the field and the remedy.
 - **FR-022**: The tightened `validation` vocabulary MUST be: `required`, `minLength`, `maxLength`,
   `min`, `max`, `pattern`, `options` (a subset of the core enum) and `format`. Each value MUST be
   checked against the core bounds, and only a narrowing is admitted.
-- **FR-023**: `_lifecycle` MUST serve `GET /api/v1/admin/effective-forms` (D-300.9). It returns the effective overrides
-  of every declared form, filtered by presence and computed from the composition (§2 of
-  `contracts/field-overrides.md`). It is gated by an authenticated admin with no permission code, on
-  `/api/v1/admin/module-presence`'s terms. It answers an `ETag` and `Cache-Control: private,
-  no-cache` (D-300.21). The admin MUST take every override from it and MUST NOT bundle a second copy.
+- **FR-023**: `_lifecycle` MUST serve `GET /api/v1/admin/effective-forms` (D-300.9). It returns
+  the effective overrides of every declared form, filtered by presence and computed from the
+  composition (§2 of `contracts/field-overrides.md`). It is gated by an authenticated admin with no
+  permission code, on `/api/v1/admin/module-presence`'s terms. It answers an `ETag` and
+  `Cache-Control: private, no-cache` (D-300.21). The admin MUST take every override from it and
+  MUST NOT bundle a second copy.
 - **FR-024**: The admin MUST refresh the effective forms whenever it refreshes module presence, and
   after any operator-layout write. The server MUST compute them per process from the composition, the
   effective presence and the operator layer. The memo MUST be invalidated by
@@ -780,7 +865,11 @@ they are, with the same props. The four PIM modules render their protection togg
   it MUST supply `hookData`. Undo actions are not writers. In `catalog`, each product write of a
   bulk edit runs as `product.bulk_update.item`, a rule-check-only writer, on the inline and the
   queued path alike, and never as `product.update`. The summary entry `product.bulk_update` is an
-  audit row, not a Command, and is not a writer (D-300.8).
+  audit row, not a Command, and is not a writer (D-300.8). Any other Command that is not a declared
+  hookable action MAY likewise be a rule-check-only writer, reversible or not. In `organizations`,
+  `organization.update` (the integration port's write), `organization.merge.finalize` and
+  `organization.personal.provision` are, so that a rule binds the port, the merge and the
+  provisioning as it binds the form and the API (SC-002, D-300.27, D-300.28, D-300.31).
 - **FR-114**: Each new action MUST have `expectHookableCommand` tests, be listed in its owner's
   manifest `hookableActions`, and be announced in a changeset (additive).
 

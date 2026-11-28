@@ -29,9 +29,14 @@ export {
   AdminContributionsProvider,
   AdminContributionsUnavailableError,
   useAdminContributions,
+  useAdminFormContributions,
 } from './AdminContributionsProvider.js';
 export type {
   AdminContributionsProviderProps,
+  AdminFormContributions,
+  OwnedFieldBehaviour,
+  OwnedFieldContribution,
+  OwnedInputControlContribution,
   AdminZoneRegistryEntry,
   OwnedBlockContribution,
   OwnedZoneContribution,

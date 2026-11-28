@@ -52,6 +52,7 @@ import {
   PUBLISHED_SUBPATHS,
 } from '../../../scripts/lib/platform-surface.js';
 import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
+import { previousBackendWiring } from '../../helpers/previous-wiring.js';
 import {
   platformPackageNameOf,
   platformSourceRootOf,
@@ -772,9 +773,11 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // What an entry point does with a refusal the platform wrote for the
   // operator: `exitOnRefusal` on `composeApp`'s promise in the API and the
   // worker. A scaffolded instance's wiring names it; a module has no process to
-  // exit. `refuseOverlaySchema`, which `migrate` called, went with the schema
-  // refusal it carried (`specs/190-overlay-full-modules/` FR-037).
-  'overlay/overlay-schema.ts': ['exitOnRefusal'],
+  // exit. `refuseOverlaySchema`, which `migrate` called, lost the schema
+  // refusal it carried (`specs/190-overlay-full-modules/` FR-037) and stays one
+  // release as a deprecated no-op, so the 0.112.0 `migrate` wiring still loads
+  // on the upgrade's first run (`test/unit/cli/previous-wiring-imports.test.ts`).
+  'overlay/overlay-schema.ts': ['exitOnRefusal', 'refuseOverlaySchema'],
   'http/server.ts': ['buildServer', 'ModulePlugin'],
   'http/interceptors/index.ts': ['ApiInterceptorRegistry'],
   // T119b. `./http` carries `HttpError` — what a module *raises* — and not the
@@ -1149,6 +1152,13 @@ function consumerSourcesOutsideThePlatform(): ReadonlyMap<string, string> {
       '`subpathNamesIn` reads, or the wiring itself has moved',
   ).not.toEqual([]);
   for (const [path, text] of generated) sources.set(path, text);
+  // An instance upgraded from an earlier release runs its first `setup` on that
+  // release's wiring, so what a recorded rendering imports is still consumed
+  // (`helpers/previous-wiring.ts`). Derived, not listed: a name kept only for
+  // it leaves the population with the entry that recorded it.
+  for (const rendering of previousBackendWiring()) {
+    sources.set(`previous-wiring:${rendering.release}:${rendering.path}`, rendering.content);
+  }
   return sources;
 }
 

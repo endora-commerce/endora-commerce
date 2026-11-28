@@ -422,6 +422,32 @@ export async function discoverOverlaySchema(
 }
 
 /**
+ * What `migrate` called in 0.112.0, when an overlay module could ship no schema
+ * (`specs/190-overlay-full-modules/` FR-037). It no longer refuses anything: from
+ * 0.113.0 an overlay module may own entities and migrations, and the migrator's
+ * configuration reads them.
+ *
+ * It is kept, doing nothing, for one release because an instance upgraded from
+ * 0.112.0 runs its first `setup` on the wiring 0.112.0 rendered. That
+ * `backend/src/migrate.ts` imports this name before the 0.113.0 CLI rewrites
+ * the file on the second `pnpm run upgrade` (`.changeset/1848-overlay-build.md`).
+ * Without the export, that first `setup` stopped on the import.
+ *
+ * It is removed in 0.114.0. Delete the import and the call from
+ * `backend/src/migrate.ts`; `endora upgrade` does it for a file still as
+ * 0.112.0 rendered it.
+ *
+ * @deprecated since 0.113.0; no replacement: overlay modules may now ship schema, so there is nothing to refuse.
+ */
+export function refuseOverlaySchema(
+  _deploymentRoot: string,
+  _env: NodeJS.ProcessEnv = process.env,
+  _err: (text: string) => void = (text) => void process.stderr.write(text),
+): void {
+  // Nothing to refuse: see above.
+}
+
+/**
  * `.catch(exitOnRefusal)` on an entry point's composition: a refusal is printed
  * as its message and the process exits 1; anything else is thrown again,
  * untouched, so a defect still arrives with its stack.

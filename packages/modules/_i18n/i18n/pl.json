@@ -829,6 +829,8 @@
   "countrySelect.error": "Nie udało się wczytać krajów",
   "countrySelect.loading": "Wczytywanie krajów…",
   "countrySelect.placeholder": "Wybierz kraj…",
+  "declaredForm.control.choose": "Wybierz…",
+  "declaredForm.control.customColor": "Własny kolor",
   "adminUserPicker.ariaLabel": "Wybierz administratora",
   "adminUserPicker.placeholder": "Szukaj administratorów po imieniu, nazwisku lub adresie e-mail…",
   "adminUserPicker.prompt": "Wpisz imię, nazwisko lub adres e-mail, aby wyszukać.",

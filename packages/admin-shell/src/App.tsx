@@ -8,6 +8,7 @@ import {
   readReturnTo,
   useAuth,
   ModulePresenceProvider,
+  EffectiveFormsProvider,
   useModulePresence,
   useSurfaceVisibility,
   type GatedSurface,
@@ -253,6 +254,10 @@ export function App({ contributions, modulePresence, translations }: AppProps): 
             effective enabled-set at enumeration, so the two are ordered. */}
         <AdminRegistryProvider entries={contributions}>
         <AdminContributionsProvider entries={contributions}>
+        {/* Feature 193 — the effective forms every declared form lays out from, fetched once per
+            session refresh beside presence (and only once a declared form mounts), so it sits
+            inside the presence provider it follows (`specs/193-admin-form-extensions/` FR-024). */}
+        <EffectiveFormsProvider>
         <AdminActionsProvider language={language}>
         {/* Auto sign-out after the configured inactivity window (default 60 min). */}
         <IdleLogout />
@@ -428,6 +433,7 @@ export function App({ contributions, modulePresence, translations }: AppProps): 
         </Routes>
         </BootGate>
         </AdminActionsProvider>
+        </EffectiveFormsProvider>
         </AdminContributionsProvider>
         </AdminRegistryProvider>
         </ModulePresenceProvider>

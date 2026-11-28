@@ -406,13 +406,14 @@ export interface EffectiveFormsAdminDeps {
  * is read-only for *this* admin's `writePermission` the admin decides from its
  * own session. An `ETag` digests the body, and a matching `If-None-Match`
  * answers `304` with none, so the admin's refetch on every presence refresh
- * costs a header when nothing changed.
+ * costs a header when nothing changed. `Cache-Control: private, no-cache`
+ * states that contract to the browser (D-300.21): it may keep the body, must
+ * revalidate it against the `ETag` on every fetch, and no shared cache may
+ * hold it. The admin kit sends a plain GET and never sets `If-None-Match` or a
+ * fetch `cache` mode itself.
  *
- * **The path.** `contracts/field-overrides.md` §2 names `/api/v1/admin/forms`,
- * which the `forms` module (the form builder, `specs/170-forms-module/`)
- * already serves — its form list, and `/:id` beneath it. Two owners of one
- * path refuse the boot, so this is served at `/api/v1/admin/effective-forms`
- * pending the architect's ruling on the final path.
+ * **The path** is `/api/v1/admin/effective-forms` (D-300.9):
+ * `/api/v1/admin/forms` and `/:id` beneath it are the `forms` module's.
  */
 export function registerEffectiveFormsRoutes(app: FastifyInstance, deps: EffectiveFormsAdminDeps): void {
   app.get(
@@ -424,6 +425,7 @@ export function registerEffectiveFormsRoutes(app: FastifyInstance, deps: Effecti
     async (request, reply): Promise<EffectiveFormsResponse | undefined> => {
       const { response, etag } = await deps.registry.effectiveForms();
       void reply.header('etag', etag);
+      void reply.header('cache-control', 'private, no-cache');
       const match = request.headers['if-none-match'];
       if (typeof match === 'string' && match.split(',').some((candidate) => candidate.trim() === etag)) {
         // The 200 schema types the reply; a 304 has no body to type.

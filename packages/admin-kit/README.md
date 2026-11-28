@@ -253,6 +253,54 @@ through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-i
 The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass;
 `ScopedField`'s `help` in `admin/test/kit/kit-scoped-field.test.tsx`.
 
+## Declared forms — `useDeclaredForm` and `DeclaredFormSection`
+
+Feature 193 (`specs/193-admin-form-extensions/contracts/field-slots.md` §3). A host whose form is
+declared in contracts (`defineFieldSet`, `defineAdminForm`) renders its fields through the kit, and
+the kit applies what the deployment and the operator changed — so the host implements none of it:
+
+```tsx
+const declared = useDeclaredForm({
+  form: ORGANIZATION_FORMS.edit, fieldSet: ORGANIZATION_FIELD_SET, recordId: id,
+  values, initialValues: loaded, onChange: (key, value) => setValues((v) => ({ ...v, [key]: value })),
+  extensions: record.extensions, readOnly: !canManage,
+  render: { name: { label: t('fields.name'), input: (p) => <Input {...p.control} … /> }, /* every key */ },
+});
+// save: if (!declared.validate()) return;
+//       const { core, extensions } = declared.submission();   // merge into the host's own body
+//       catch (error) { if (!declared.applyError(error)) throw error; }
+<DeclaredFormProvider declared={declared}>
+  <DeclaredFormNotices />
+  <DeclaredFormSection section="identity" frame={(fields) => <EditorSection …>{fields}</EditorSection>} />
+</DeclaredFormProvider>
+```
+
+- **The overrides come from the server only**: `EffectiveFormsProvider` (`./lib`, mounted once by
+  the shell inside `ModulePresenceProvider`) fetches `GET /api/v1/admin/effective-forms` when the
+  first declared form mounts and again on every presence refresh. Without it, or before it
+  answers, the form lays out its declaration as it is — presentation only, never a rule.
+- **The layout is the contracts' `formLayout`**, called with the server's order and no moves
+  (D-300.14). Renderers are given for the whole form, because an override may move a key into
+  another section.
+- **Slot fields** of present modules the operator may see render at their anchors; the kit draws
+  the label, help and error (`FormField`) and the module's component the input. Their values fold
+  into the host's one request as `extensions` and take no part in a save session (FR-016);
+  `extensionModules` is the host's `?extensions=` list.
+- **Client rules** run the effective tightenings, `requiredWhen` and the platform formats over the
+  server's held set: on an edit form only what the operator changed (D-300.11). Messages are
+  `_lifecycle`'s `fieldRules.*` sentences, as the server words them.
+- **The submission** omits hidden, invisible and read-only fields, except a read-only one a present
+  derivation targets (D-300.12). Hidden and read-only are presentation, never access control.
+- **`applyError`** maps `details[].path` — a core key, or `extensions.<moduleId>.<key>` — onto the
+  field; on `COMMAND_EXTENSION_UNCLAIMED` it drops that module's slots, refreshes presence and shows
+  the save session's "switched off" notice, keeping every other staged change.
+- **Controls** (`./components`, `PLATFORM_CONTROL_COMPONENTS`) wrap `Input`, `Textarea`, `Select`,
+  `Switch`, `MultiSelect`, `CountrySelect` and `ColorPicker`; a module's own control receives the
+  same `DeclaredControlProps`, and while its module is off the field falls back to the host's input.
+
+Pinned in `admin/test/kit/kit-declared-form.test.tsx`, `kit-declared-form-layout.test.ts` (the
+contracts' `FORM_LAYOUT_VECTORS`) and `kit-declared-form.a11y.test.tsx` (axe).
+
 ## Page headers — `PageHeader`
 
 Issue #1436 (UX audit 2026-11-17, DS-02). Every admin page draws its one `h1` through

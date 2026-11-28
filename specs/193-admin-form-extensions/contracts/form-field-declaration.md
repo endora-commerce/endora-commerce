@@ -33,6 +33,12 @@ export interface FieldDeclaration<K extends string = string> {
   /** For `reference`: the referenced entity, informational (e.g. 'organization'). */
   readonly references?: string;
   readonly accepts: readonly FieldOverrideKind[];
+  /**
+   * D-300.31: the fixed values the owner's system paths write (e.g. `['vat_exempt']` on the
+   * organization's `vatStatus`). Composition refuses a tightening that rejects one
+   * (`rule-excludes-system-value`).
+   */
+  readonly systemValues?: readonly unknown[];
   /** Owner-declared write permission (FR-060); a deployment may add one, never remove. */
   readonly writePermission?: string;
   /** Renamed keys still accepted for one release (FR-071). */
@@ -120,7 +126,14 @@ export const ORGANIZATION_FORMS = {
 ```
 
 The exact field list is the WP-E task (it is the organization write contract's, field by field); the
-above fixes the shape, not the inventory.
+above fixes the shape, not the inventory. As shipped (D-300.26), `name` accepts `validation`: the
+conversion's hook data carries the after-state record, so every writer of `name` projects it.
+`taxId`, `registeredAddress`, `parentId` and `status` accept no server-enforced kind. A writer of
+`taxId` cannot project it (`organization.tax_id.change`). `registeredAddress` is a composite, and a
+composite admits no tightening. The other writers of `parentId` and `status` (the hierarchy moves,
+moderation) are not registered yet, and registering them as rule-check-only writers is the route
+when a case asks for it (D-300.27). `vatStatus` declares `systemValues: ['vat_exempt']`
+(D-300.31).
 
 ## §5 Contract-surface rows (added to `specs/conventions/contract-surface.md` by WP-H)
 

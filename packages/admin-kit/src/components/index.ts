@@ -276,3 +276,30 @@ export type {
   BoardCardFieldsEditorCopy,
   BoardCardFieldsEditorProps,
 } from './board-card-fields/BoardCardFieldsEditor.js';
+// Feature 193 (WP-C) — declared forms: the layout primitive a host renders its declared fields
+// through, and the platform input controls (`specs/193-admin-form-extensions/contracts/field-slots.md`
+// §3, `input-controls.md` §1).
+export {
+  DeclaredFormNotices,
+  DeclaredFormProvider,
+  DeclaredFormSection,
+  useDeclaredForm,
+  useDeclaredFormSubmission,
+} from './declared-form/DeclaredForm.js';
+export type {
+  DeclaredFieldInputProps,
+  DeclaredFieldRenderer,
+  DeclaredFieldRenderers,
+  DeclaredFormController,
+  DeclaredFormProviderProps,
+  DeclaredFormSectionProps,
+  UseDeclaredFormBaseOptions,
+  UseDeclaredFormOptions,
+} from './declared-form/DeclaredForm.js';
+export {
+  PLATFORM_CONTROL_COMPONENTS,
+  PLATFORM_GROUP_CONTROLS,
+  PlatformControl,
+  isPlatformControlId,
+} from './controls/PlatformControl.js';
+export type { DeclaredControlProps } from './controls/PlatformControl.js';

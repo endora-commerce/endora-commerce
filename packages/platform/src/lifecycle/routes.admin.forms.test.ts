@@ -229,6 +229,14 @@ describe('GET /api/v1/admin/effective-forms (193 T024)', () => {
     expect(again.body).toBe('');
   });
 
+  it('tells the browser to revalidate every time, and keeps the body out of shared caches (D-300.21)', async () => {
+    const h = await serve();
+    const first = await get(h);
+    expect(first.headers['cache-control']).toBe('private, no-cache');
+    const again = await get(h, { 'if-none-match': String(first.headers['etag']) });
+    expect(again.headers['cache-control']).toBe('private, no-cache');
+  });
+
   it('memoises per presence snapshot and layout generation', async () => {
     const h = await serve();
     const first = (await get(h)).headers['etag'];
